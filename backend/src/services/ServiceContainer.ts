@@ -21,6 +21,14 @@ import {
 import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 import { getTapestryClient } from "../tapestry";
 
+const solanaProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+const solanaKeypairPath = process.env.SOLANA_KEYPAIR;
+const solanaSecretKey = process.env.SOLANA_PRIVATE_KEY;
+const solanaRpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+const solanaIdlPath = process.env.SOLANA_IDL_PATH;
+const solanaPersonaMap = parsePersonaMap(process.env.SOLANA_PERSONA_MAP);
+const solanaPersonaDefault = process.env.SOLANA_PERSONA_DEFAULT;
+
 const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : new BackendStorage();
 const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
 const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
@@ -30,13 +38,6 @@ const listener = new ListenerService(storage);
 const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
 const botStore = persist ? new FileBotStore() : new InMemoryBotStore();
 const subscriptionStore = persist ? new FileSubscriptionStore() : new InMemorySubscriptionStore();
-const solanaProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
-const solanaKeypairPath = process.env.SOLANA_KEYPAIR;
-const solanaSecretKey = process.env.SOLANA_PRIVATE_KEY;
-const solanaRpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
-const solanaIdlPath = process.env.SOLANA_IDL_PATH;
-const solanaPersonaMap = parsePersonaMap(process.env.SOLANA_PERSONA_MAP);
-const solanaPersonaDefault = process.env.SOLANA_PERSONA_DEFAULT;
 
 const onChainRecorder =
   solanaProgramId && (solanaKeypairPath || solanaSecretKey)

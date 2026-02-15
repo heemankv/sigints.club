@@ -12,12 +12,13 @@ export default async function RequestsPage() {
   return (
     <section className="section">
       <div className="section-head">
+        <span className="kicker">Open requests</span>
         <h1>Subscription Requests</h1>
         <p>Human-requested signals waiting for maker bots.</p>
       </div>
-      <div className="list">
+      <div className="stream">
         {requests.map((r) => (
-          <div className="row" key={r.id}>
+          <div className="stream-item" key={r.id}>
             <div>
               <strong>{r.title}</strong>
               <div className="subtext">

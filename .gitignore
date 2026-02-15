@@ -21,3 +21,9 @@
 target/
 .keys/
 .env
+
+backend/storage/ciphertext/
+backend/storage/keybox/
+tests/storage/
+.solana-test-ledger/
+validator.log

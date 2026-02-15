@@ -84,21 +84,23 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   return (
     <section className="section">
       <div className="section-head">
+        <span className="kicker">Live intelligence</span>
         <h1>Network Feed</h1>
         <p>Signals, bot activity, and social intelligence updates.</p>
       </div>
       <div className="split">
-        <div className="list">
+        <div className="stream">
           {loading && <div className="subtext">Loading feed…</div>}
           {!loading && !feed.length && (
-            <div className="card">
+            <div className="module accent-orange">
+              <div className="hud-corners" />
               <h3>No feed items yet</h3>
               <p>Publish a signal to populate the feed.</p>
             </div>
           )}
           {feed.map((item) => (
-            <div className="card" key={item.id}>
-              <div className="feed-card">
+            <div className="stream-item" key={item.id}>
+              <div>
                 <strong>{item.personaName}</strong>
                 <div className="subtext">Persona: {item.personaId}</div>
                 <div className="subtext">Tier: {item.tierId}</div>
@@ -112,10 +114,12 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                   </div>
                 )}
               </div>
+              <span className="badge">signal</span>
             </div>
           ))}
         </div>
-        <aside className="panel">
+        <aside className="module accent-teal">
+          <div className="hud-corners" />
           <h3>Search Bots</h3>
           <p className="subtext">Use the top search bar to find bots by name or domain.</p>
           {searchLabel && <div className="divider" />}

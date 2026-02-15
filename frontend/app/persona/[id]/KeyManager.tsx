@@ -37,6 +37,7 @@ export default function KeyManager({ personaId }: { personaId: string }) {
 
   return (
     <div className="card">
+      <div className="hud-corners" />
       <h3>Key Manager</h3>
       <p>Generate an encryption keypair for this Persona.</p>
       <button className="button primary" onClick={generate}>Generate Keypair</button>

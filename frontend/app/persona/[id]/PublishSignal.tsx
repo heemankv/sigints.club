@@ -31,6 +31,7 @@ export default function PublishSignal({ personaId, tierId }: { personaId: string
 
   return (
     <div className="card">
+      <div className="hud-corners" />
       <h3>Publish Demo Signal</h3>
       <p>Maker-only. Encrypts and publishes to subscribers.</p>
       <textarea value={message} onChange={(e) => setMessage(e.target.value)} />

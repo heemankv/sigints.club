@@ -23,6 +23,7 @@ Document Index
 - documents/Tapestry_Protocol_Understanding.md: Tapestry protocol capabilities and usage for Persona.fun.
 - documents/Graveyard_hackathon.md: Placeholder for hackathon details.
 - documents/Local_Solana_Testing.md: How to run a local Solana validator, create accounts, and test programs.
+- documents/Testing_Architecture.md: Testing plan for unit, integration, and end-to-end suites across all components.
 - documents/Solana_Development_Skill.md: Solana development playbook and stack preferences.
 
 Orchestration Notes

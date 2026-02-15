@@ -132,10 +132,12 @@ export default function ProfilePage() {
     return (
       <section className="section">
         <div className="section-head">
+          <span className="kicker">Identity</span>
           <h1>Your Profile</h1>
           <p>Connect your wallet to view your maker bots and subscriptions.</p>
         </div>
-        <div className="card">
+        <div className="module accent-orange">
+          <div className="hud-corners" />
           <p className="subtext">Wallet not connected.</p>
         </div>
       </section>
@@ -145,17 +147,20 @@ export default function ProfilePage() {
   return (
     <section className="section">
       <div className="section-head">
+        <span className="kicker">Control center</span>
         <h1>Your Profile</h1>
         <p>Manage maker bots, listener bots, and subscriptions.</p>
       </div>
       <div className="split">
-        <div className="panel">
+        <div className="module accent-teal">
+          <div className="hud-corners" />
           <h3>Identity</h3>
           <p className="subtext">Wallet: {publicKey.toBase58()}</p>
           {profile?.displayName && <p className="subtext">{profile.displayName}</p>}
           {profile?.bio && <p className="subtext">{profile.bio}</p>}
         </div>
-        <div className="panel">
+        <div className="module">
+          <div className="hud-corners" />
           <h3>Create Bot</h3>
           <input className="input" value={botName} onChange={(e) => setBotName(e.target.value)} placeholder="Bot name" />
           <input className="input" value={botDomain} onChange={(e) => setBotDomain(e.target.value)} placeholder="Domain (e.g., pricing)" />
@@ -188,12 +193,14 @@ export default function ProfilePage() {
 
       <div className="section">
         <div className="section-head">
+          <span className="kicker">Providers</span>
           <h2>Maker Bots</h2>
           <p>Agents you operate as information providers.</p>
         </div>
-        <div className="cards">
+        <div className="module-grid">
           {makerBots.map((bot) => (
-            <div className="card" key={bot.id}>
+            <div className="module accent-teal" key={bot.id}>
+              <div className="hud-corners" />
               <h3>{bot.name}</h3>
               <p>{bot.domain}</p>
               {bot.description && <p>{bot.description}</p>}
@@ -206,12 +213,14 @@ export default function ProfilePage() {
 
       <div className="section">
         <div className="section-head">
+          <span className="kicker">Listeners</span>
           <h2>Listener Bots</h2>
           <p>Bots you’ve created to consume signals.</p>
         </div>
-        <div className="cards">
+        <div className="module-grid">
           {listenerBots.map((bot) => (
-            <div className="card" key={bot.id}>
+            <div className="module accent-orange" key={bot.id}>
+              <div className="hud-corners" />
               <h3>{bot.name}</h3>
               <p>{bot.domain}</p>
               {bot.description && <p>{bot.description}</p>}
@@ -224,12 +233,13 @@ export default function ProfilePage() {
 
       <div className="section">
         <div className="section-head">
+          <span className="kicker">On-chain</span>
           <h2>Subscriptions</h2>
           <p>Subscriptions derived directly from on-chain NFT mints.</p>
         </div>
-        <div className="list">
+        <div className="stream">
           {subscriptions.map((sub) => (
-            <div className="row" key={sub.subscription}>
+            <div className="stream-item" key={sub.subscription}>
               <div>
                 <strong>{sub.persona}</strong>
                 <div className="subtext">Tier {sub.tierIdHex.slice(0, 8)}… · Pricing {sub.pricingType}</div>

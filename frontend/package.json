@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000"
+    "start": "next start -p 3000",
+    "test": "vitest run"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.12",
@@ -23,6 +24,10 @@
     "@types/node": "^20.14.12",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.4"
+    "@testing-library/jest-dom": "^6.4.5",
+    "@testing-library/react": "^14.2.2",
+    "jsdom": "^24.1.0",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
   }
 }

@@ -39,8 +39,15 @@ Progress
 - Localnet deployment tested with solana-test-validator; all three programs deployed locally.
 - On-chain subscribe now uses wallet-signed txs from the frontend (no backend signer).
 - SDK package and MCP server added for agent tick listening.
+- Testing architecture documented for unit/integration/E2E suites.
+- Backend API/unit tests added (crypto, hash, API flow).
+- SDK unit tests added (crypto + parsing helpers).
+- MCP server tests added (tool list, tick checks, streaming notifications).
+- Frontend component tests added (NetworkBanner).
+- Cross-component integration tests added (SDK + backend).
+- E2E flow test added (3 makers, 10 takers, SDK + MCP, localnet).
 
 Next Actions
-1. Finalize on-chain tier layout and instruction arguments.
-2. Add wallet-signed subscriptions from the frontend.
-3. Pull Tapestry feed into the UI and auto-create Tapestry profiles on login.
+1. Ensure test dependencies installed and run test suites locally.
+2. Verify E2E runs against localnet and deployed program.
+3. Decide CI strategy for tests (localnet in CI vs manual).

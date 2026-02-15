@@ -79,6 +79,7 @@ export default function DecryptPanel({ personaId }: { personaId: string }) {
 
   return (
     <div className="card">
+      <div className="hud-corners" />
       <h3>Decrypt Latest Signal</h3>
       <p>Paste your keys to decrypt the latest signal (client-side).</p>
       <div className="field">

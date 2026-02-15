@@ -6,8 +6,9 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
-type TickArgs = {
+export type TickArgs = {
   personaId: string;
   personaPubkey: string;
   subscriberPublicKeyBase64: string;
@@ -19,251 +20,263 @@ type TickArgs = {
   maxAgeMs?: number;
 };
 
-type ListenArgs = TickArgs & {
+export type ListenArgs = TickArgs & {
   streamId?: string;
 };
 
-const lastSeen = new Map<string, string>();
-const activeStreams = new Map<string, () => void>();
+type ClientFactory = (cfg: { rpcUrl: string; backendUrl: string; programId: string }) => PersonaClient;
 
-const server = new Server(
-  {
-    name: "persona-fun-tick-server",
-    version: "0.1.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-      logging: {},
+export function createServer(clientFactory: ClientFactory = (cfg) => new PersonaClient(cfg)) {
+  const lastSeen = new Map<string, string>();
+  const activeStreams = new Map<string, () => void>();
+
+  const server = new Server(
+    {
+      name: "persona-fun-tick-server",
+      version: "0.1.0",
     },
-  }
-);
+    {
+      capabilities: {
+        tools: {},
+        logging: {},
+      },
+    }
+  );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: "check_persona_tick",
-        description:
-          "Check for the latest signal tick for a persona, decrypt it for the subscriber, and return plaintext if new.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            personaId: { type: "string" },
-            personaPubkey: { type: "string" },
-            subscriberPublicKeyBase64: { type: "string" },
-            subscriberPrivateKeyBase64: { type: "string" },
-            backendUrl: { type: "string" },
-            rpcUrl: { type: "string" },
-            programId: { type: "string" },
-            force: { type: "boolean" },
-            maxAgeMs: { type: "number" },
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: [
+        {
+          name: "check_persona_tick",
+          description:
+            "Check for the latest signal tick for a persona, decrypt it for the subscriber, and return plaintext if new.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              personaId: { type: "string" },
+              personaPubkey: { type: "string" },
+              subscriberPublicKeyBase64: { type: "string" },
+              subscriberPrivateKeyBase64: { type: "string" },
+              backendUrl: { type: "string" },
+              rpcUrl: { type: "string" },
+              programId: { type: "string" },
+              force: { type: "boolean" },
+              maxAgeMs: { type: "number" },
+            },
+            required: [
+              "personaId",
+              "personaPubkey",
+              "subscriberPublicKeyBase64",
+              "subscriberPrivateKeyBase64",
+              "backendUrl",
+              "rpcUrl",
+              "programId",
+            ],
           },
-          required: [
-            "personaId",
-            "personaPubkey",
-            "subscriberPublicKeyBase64",
-            "subscriberPrivateKeyBase64",
-            "backendUrl",
-            "rpcUrl",
-            "programId",
-          ],
         },
-      },
-      {
-        name: "listen_persona_ticks",
-        description:
-          "Start a long-running tick stream. The server will emit notifications/message with tick payloads.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            streamId: { type: "string" },
-            personaId: { type: "string" },
-            personaPubkey: { type: "string" },
-            subscriberPublicKeyBase64: { type: "string" },
-            subscriberPrivateKeyBase64: { type: "string" },
-            backendUrl: { type: "string" },
-            rpcUrl: { type: "string" },
-            programId: { type: "string" },
-            maxAgeMs: { type: "number" },
+        {
+          name: "listen_persona_ticks",
+          description:
+            "Start a long-running tick stream. The server will emit notifications/message with tick payloads.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              streamId: { type: "string" },
+              personaId: { type: "string" },
+              personaPubkey: { type: "string" },
+              subscriberPublicKeyBase64: { type: "string" },
+              subscriberPrivateKeyBase64: { type: "string" },
+              backendUrl: { type: "string" },
+              rpcUrl: { type: "string" },
+              programId: { type: "string" },
+              maxAgeMs: { type: "number" },
+            },
+            required: [
+              "personaId",
+              "personaPubkey",
+              "subscriberPublicKeyBase64",
+              "subscriberPrivateKeyBase64",
+              "backendUrl",
+              "rpcUrl",
+              "programId",
+            ],
           },
-          required: [
-            "personaId",
-            "personaPubkey",
-            "subscriberPublicKeyBase64",
-            "subscriberPrivateKeyBase64",
-            "backendUrl",
-            "rpcUrl",
-            "programId",
-          ],
         },
-      },
-      {
-        name: "stop_persona_ticks",
-        description: "Stop a previously started tick stream by streamId.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            streamId: { type: "string" },
+        {
+          name: "stop_persona_ticks",
+          description: "Stop a previously started tick stream by streamId.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              streamId: { type: "string" },
+            },
+            required: ["streamId"],
           },
-          required: ["streamId"],
         },
-      },
-    ],
-  };
-});
+      ],
+    };
+  });
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  if (name !== "check_persona_tick") {
-    if (name === "listen_persona_ticks") {
-      const input = args as ListenArgs;
-      const streamId = input.streamId ?? randomUUID();
-      if (activeStreams.has(streamId)) {
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    if (name !== "check_persona_tick") {
+      if (name === "listen_persona_ticks") {
+        const input = args as ListenArgs;
+        const streamId = input.streamId ?? randomUUID();
+        if (activeStreams.has(streamId)) {
+          return {
+            content: [{ type: "text", text: `Stream already active: ${streamId}` }],
+          };
+        }
+        const client = clientFactory({
+          rpcUrl: input.rpcUrl,
+          backendUrl: input.backendUrl,
+          programId: input.programId,
+        });
+        const stop = await client.listenForSignals({
+          personaId: input.personaId,
+          personaPubkey: input.personaPubkey,
+          subscriberKeys: {
+            publicKeyDerBase64: input.subscriberPublicKeyBase64,
+            privateKeyDerBase64: input.subscriberPrivateKeyBase64,
+          },
+          maxAgeMs: input.maxAgeMs,
+          includeBlockTime: true,
+          onSignal: async (tick) => {
+            await server.sendLoggingMessage({
+              level: "info",
+              logger: "persona-ticks",
+              data: {
+                streamId,
+                signalHash: tick.signalHash,
+                personaId: tick.metadata.personaId,
+                tierId: tick.metadata.tierId,
+                createdAt: tick.createdAt,
+                receivedAt: tick.receivedAt,
+                ageMs: tick.ageMs,
+                slot: tick.slot,
+                blockTime: tick.blockTime,
+                plaintext: tick.plaintext,
+              },
+            });
+          },
+          onError: async (err) => {
+            await server.sendLoggingMessage({
+              level: "error",
+              logger: "persona-ticks",
+              data: { streamId, error: err.message },
+            });
+          },
+        });
+        activeStreams.set(streamId, stop);
         return {
-          content: [{ type: "text", text: `Stream already active: ${streamId}` }],
+          content: [{ type: "text", text: JSON.stringify({ streamId }, null, 2) }],
         };
       }
-      const client = new PersonaClient({
-        rpcUrl: input.rpcUrl,
-        backendUrl: input.backendUrl,
-        programId: input.programId,
-      });
-      const stop = await client.listenForSignals({
-        personaId: input.personaId,
-        personaPubkey: input.personaPubkey,
-        subscriberKeys: {
-          publicKeyDerBase64: input.subscriberPublicKeyBase64,
-          privateKeyDerBase64: input.subscriberPrivateKeyBase64,
-        },
-        maxAgeMs: input.maxAgeMs,
-        includeBlockTime: true,
-        onSignal: async (tick) => {
-          await server.sendLoggingMessage({
-            level: "info",
-            logger: "persona-ticks",
-            data: {
-              streamId,
-              signalHash: tick.signalHash,
-              personaId: tick.metadata.personaId,
-              tierId: tick.metadata.tierId,
-              createdAt: tick.createdAt,
-              receivedAt: tick.receivedAt,
-              ageMs: tick.ageMs,
-              slot: tick.slot,
-              blockTime: tick.blockTime,
-              plaintext: tick.plaintext,
-            },
-          });
-        },
-        onError: async (err) => {
-          await server.sendLoggingMessage({
-            level: "error",
-            logger: "persona-ticks",
-            data: { streamId, error: err.message },
-          });
-        },
-      });
-      activeStreams.set(streamId, stop);
+
+      if (name === "stop_persona_ticks") {
+        const input = args as { streamId: string };
+        const stop = activeStreams.get(input.streamId);
+        if (stop) {
+          stop();
+          activeStreams.delete(input.streamId);
+          return { content: [{ type: "text", text: `Stopped stream ${input.streamId}` }] };
+        }
+        return { content: [{ type: "text", text: `Stream not found: ${input.streamId}` }] };
+      }
+
+      throw new Error(`Unknown tool: ${name}`);
+    }
+    const input = args as TickArgs;
+    const client = clientFactory({
+      rpcUrl: input.rpcUrl,
+      backendUrl: input.backendUrl,
+      programId: input.programId,
+    });
+
+    const meta = await client.fetchLatestSignal(input.personaId);
+    if (!meta) {
       return {
-        content: [{ type: "text", text: JSON.stringify({ streamId }, null, 2) }],
+        content: [
+          {
+            type: "text",
+            text: "No signals available yet.",
+          },
+        ],
       };
     }
 
-    if (name === "stop_persona_ticks") {
-      const input = args as { streamId: string };
-      const stop = activeStreams.get(input.streamId);
-      if (stop) {
-        stop();
-        activeStreams.delete(input.streamId);
-        return { content: [{ type: "text", text: `Stopped stream ${input.streamId}` }] };
-      }
-      return { content: [{ type: "text", text: `Stream not found: ${input.streamId}` }] };
+    const subscriberId = subscriberIdFromPubkey(input.subscriberPublicKeyBase64);
+    const key = `${input.personaId}:${subscriberId}`;
+    if (!input.force && lastSeen.get(key) === meta.signalHash) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "No new tick.",
+          },
+        ],
+      };
     }
 
-    throw new Error(`Unknown tool: ${name}`);
-  }
-  const input = args as TickArgs;
-  const client = new PersonaClient({
-    rpcUrl: input.rpcUrl,
-    backendUrl: input.backendUrl,
-    programId: input.programId,
-  });
+    const plaintext = await client.decryptSignal(meta, {
+      publicKeyDerBase64: input.subscriberPublicKeyBase64,
+      privateKeyDerBase64: input.subscriberPrivateKeyBase64,
+    });
 
-  const meta = await client.fetchLatestSignal(input.personaId);
-  if (!meta) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "No signals available yet.",
-        },
-      ],
-    };
-  }
-
-  const subscriberId = subscriberIdFromPubkey(input.subscriberPublicKeyBase64);
-  const key = `${input.personaId}:${subscriberId}`;
-  if (!input.force && lastSeen.get(key) === meta.signalHash) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "No new tick.",
-        },
-      ],
-    };
-  }
-
-  const plaintext = await client.decryptSignal(meta, {
-    publicKeyDerBase64: input.subscriberPublicKeyBase64,
-    privateKeyDerBase64: input.subscriberPrivateKeyBase64,
-  });
-
-  lastSeen.set(key, meta.signalHash);
-  const receivedAt = Date.now();
-  const onchainCreatedAt =
-    input.personaPubkey ? await client.fetchSignalRecordCreatedAt(input.personaPubkey, meta.signalHash) : null;
-  const createdAt = onchainCreatedAt ?? meta.createdAt;
-  const ageMs = receivedAt - createdAt;
-  if (input.maxAgeMs && ageMs > input.maxAgeMs) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Latest tick is stale.",
-        },
-      ],
-    };
-  }
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
+    lastSeen.set(key, meta.signalHash);
+    const receivedAt = Date.now();
+    const onchainCreatedAt =
+      input.personaPubkey ? await client.fetchSignalRecordCreatedAt(input.personaPubkey, meta.signalHash) : null;
+    const createdAt = onchainCreatedAt ?? meta.createdAt;
+    const ageMs = receivedAt - createdAt;
+    if (input.maxAgeMs && ageMs > input.maxAgeMs) {
+      return {
+        content: [
           {
-            signalHash: meta.signalHash,
-            personaId: meta.personaId,
-            tierId: meta.tierId,
-            createdAt,
-            receivedAt,
-            ageMs,
-            plaintext,
+            type: "text",
+            text: "Latest tick is stale.",
           },
-          null,
-          2
-        ),
-      },
-    ],
-  };
-});
+        ],
+      };
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              signalHash: meta.signalHash,
+              personaId: meta.personaId,
+              tierId: meta.tierId,
+              createdAt,
+              receivedAt,
+              ageMs,
+              plaintext,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  });
 
-async function main() {
+  return server;
+}
+
+export async function startServer() {
+  const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== "test") {
+  const isDirect = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
+  if (isDirect) {
+    startServer().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  }
+}

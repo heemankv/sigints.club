@@ -45,6 +45,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   return (
     <section className="section">
       <div className="section-head">
+        <span className="kicker">Persona dossier</span>
         <h1>{persona.name}</h1>
         <p>{persona.description}</p>
       </div>
@@ -55,12 +56,14 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       </div>
 
       <div className="split">
-        <div className="card">
+        <div className="module accent-teal">
+          <div className="hud-corners" />
           <h3>Maker Operations</h3>
           <p>Publish, encrypt, and broadcast this persona’s signals.</p>
           <PublishSignal personaId={persona.id} tierId={persona.tiers[0]?.tierId ?? "tier"} />
         </div>
-        <div className="card">
+        <div className="module accent-orange">
+          <div className="hud-corners" />
           <h3>Listener Tools</h3>
           <p>Manage keys and decrypt messages you subscribe to.</p>
           <KeyManager personaId={persona.id} />
@@ -70,12 +73,14 @@ export default async function PersonaPage({ params }: { params: { id: string } }
 
       <div className="section">
         <div className="section-head">
+          <span className="kicker">Subscription tiers</span>
           <h2>Maker Tiers</h2>
           <p>Choose a pricing tier and subscribe on or off-chain.</p>
         </div>
-        <div className="cards">
+        <div className="module-grid">
           {persona.tiers.map((tier) => (
-            <div className="card" key={tier.tierId}>
+            <div className="module" key={tier.tierId}>
+              <div className="hud-corners" />
               <h3>{tier.tierId}</h3>
               <p>Pricing: {tier.pricingType}</p>
               <p>Price: {tier.price}</p>

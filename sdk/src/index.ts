@@ -285,3 +285,9 @@ function hexToBytes(input: string, label: string): Uint8Array {
 }
 
 export { generateX25519Keypair, subscriberIdFromPubkey, WrappedKey };
+
+export const __testing = {
+  decodeSignalRecord,
+  normalizeCreatedAt,
+  hexToBytes,
+};

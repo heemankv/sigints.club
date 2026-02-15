@@ -95,6 +95,7 @@ export default function SubscribeForm({
 
   return (
     <div className="card">
+      <div className="hud-corners" />
       <h3>Subscribe to {tierId}</h3>
       <p>Paste your encryption public key (base64).</p>
       <input

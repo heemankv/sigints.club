@@ -218,6 +218,28 @@ pub enum EvidenceLevel {
     Verifier = 1,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subscription_space_constant() {
+        assert_eq!(Subscription::SPACE, 152);
+    }
+
+    #[test]
+    fn signal_record_space_constant() {
+        assert_eq!(SignalRecord::SPACE, 177);
+    }
+
+    #[test]
+    fn pricing_enum_values() {
+        assert_eq!(PricingType::SubscriptionLimited as u8, 0);
+        assert_eq!(PricingType::SubscriptionUnlimited as u8, 1);
+        assert_eq!(PricingType::PerSignal as u8, 2);
+    }
+}
+
 pub enum SubscriptionStatus {
     Active = 0,
     Canceled = 1,
