@@ -18,3 +18,4 @@ Completed
 8. UI redesign to match introduction site and wallet login/profile pages.
 9. Subscription now mints an on-chain 1-of-1 NFT and profile reads subscriptions from chain.
 10. Wallet-signed on-chain subscribe flow in the frontend (no backend signer).
+11. SDK and MCP server scaffolding for agent tick listening.

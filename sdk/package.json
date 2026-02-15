@@ -1,0 +1,23 @@
+{
+  "name": "@personafun/sdk",
+  "version": "0.1.0",
+  "description": "Persona.fun agent SDK (Solana + backend storage) for listening to signal ticks.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4"
+  }
+}

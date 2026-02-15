@@ -35,7 +35,7 @@ Encrypt the signal once with a symmetric key, store the ciphertext off-chain, an
 - Stored on-chain or inside a Tapestry content post.
 
 4. Encrypted key bundle (Keybox)
-- A list of (subscriber_id, enc_key) entries.
+- A map of `subscriber_id -> wrapped_key` entries (so each listener can grab only their entry).
 - Stored off-chain due to size.
 - Hash of the keybox is stored on-chain.
 
@@ -43,7 +43,7 @@ Encrypt the signal once with a symmetric key, store the ciphertext off-chain, an
 No. Each subscriber should locate their key directly.
 
 ### Preferred approach (Keybox lookup)
-- The keybox is a list of entries indexed by subscriber identifier.
+- The keybox is a map keyed by subscriber identifier.
 - The subscriber looks up their entry by their encryption public key or by a derived subscriber id.
 - The subscriber only decrypts their own entry.
 
@@ -63,8 +63,8 @@ Use a subscriber id derived from the encryption public key (hash of pubkey) so s
 5. Provider uploads C to backend storage and gets pointer P.
 6. Provider encrypts K for each subscriber:
    - EncKey_i = Encrypt(pubkey_i, K)
-7. Provider builds a keybox of entries:
-   - (subscriber_id_i, EncKey_i)
+7. Provider builds a keybox map:
+   - subscriber_id_i -> EncKey_i
 8. Provider stores keybox off-chain and gets pointer PB.
 9. Provider writes on-chain:
    - H = hash(C)

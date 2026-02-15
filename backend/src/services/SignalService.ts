@@ -16,7 +16,7 @@ export type Subscriber = {
 
 export type PublishResult = {
   metadata: SignalMetadata;
-  keybox: WrappedKey[];
+  keybox: Record<string, WrappedKey>;
 };
 
 export class SignalService {
@@ -50,9 +50,14 @@ export class SignalService {
       signalHash
     );
 
-    const keybox = subscribers.map((s) =>
-      wrapKeyForSubscriber(Buffer.from(s.encPubKeyDerBase64, "base64"), symKey)
-    );
+    const keybox: Record<string, WrappedKey> = {};
+    for (const subscriber of subscribers) {
+      const wrapped = wrapKeyForSubscriber(
+        Buffer.from(subscriber.encPubKeyDerBase64, "base64"),
+        symKey
+      );
+      keybox[wrapped.subscriberId] = wrapped;
+    }
 
     const keyboxPayload = Buffer.from(JSON.stringify(keybox));
     const keyboxHash = sha256Hex(keyboxPayload);

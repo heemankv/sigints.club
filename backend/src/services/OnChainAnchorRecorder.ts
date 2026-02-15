@@ -1,5 +1,4 @@
 import * as anchor from "@coral-xyz/anchor";
-import BN from "bn.js";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { readFile } from "node:fs/promises";
@@ -49,7 +48,6 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
       signal_pointer_hash: Array.from(signalPointerHashBytes),
       keybox_hash: Array.from(keyboxHashBytes),
       keybox_pointer_hash: Array.from(keyboxPointerHashBytes),
-      created_at: new BN(input.createdAt),
     });
 
     const ix = new TransactionInstruction({

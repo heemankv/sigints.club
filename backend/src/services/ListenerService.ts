@@ -19,10 +19,14 @@ export class ListenerService {
   async decryptLatestSignal(meta: SignalMetadata, keys: SubscriberKeys): Promise<Buffer> {
     const keyboxPointer = this.pointerFromId(meta.keyboxPointer);
     const keyboxBytes = await this.storage.getKeybox(keyboxPointer);
-    const keybox = JSON.parse(Buffer.from(keyboxBytes).toString("utf8")) as WrappedKey[];
+    const parsed = JSON.parse(Buffer.from(keyboxBytes).toString("utf8")) as
+      | WrappedKey[]
+      | Record<string, WrappedKey>;
 
     const subscriberId = subscriberIdFromPubkey(Buffer.from(keys.publicKeyDerBase64, "base64"));
-    const entry = keybox.find((k) => k.subscriberId === subscriberId);
+    const entry = Array.isArray(parsed)
+      ? parsed.find((k) => k.subscriberId === subscriberId)
+      : parsed[subscriberId];
     if (!entry) {
       throw new Error("subscriber key not found in keybox");
     }

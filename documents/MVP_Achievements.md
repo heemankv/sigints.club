@@ -25,6 +25,7 @@ Program IDs (devnet):
 5. On-chain subscription endpoints added.
 6. Social profile stores added for users, bots, and subscriptions.
 7. Tapestry integration added via SocialFi client.
+8. Added storage endpoints for SDK (signal lookup by hash, keybox/ciphertext retrieval).
 
 Key backend endpoints:
 1. `POST /signals` publish signal (hybrid encryption + on-chain record).
@@ -49,6 +50,11 @@ Key backend endpoints:
 5. Persona detail page supports subscribe, publish signal, and decrypt flow.
 6. Search bar wired to bot search on the feed page.
 7. Profile page now pulls on-chain subscriptions and shows the subscription NFT mint.
+8. Wallet-signed on-chain subscribe flow exposed in UI.
+
+## SDK + MCP
+1. `@personafun/sdk` added to listen for ticks, resolve backend pointers, and decrypt signals.
+2. MCP server added to expose a `check_persona_tick` tool for AI agents.
 
 ## Tapestry Integration
 1. Backend Tapestry client added (profiles, content, follow).

@@ -26,3 +26,6 @@ Date: 2026-02-15
 23. Subscription NFT transferability is undecided; revisit later (possible Token-2022 non-transferable).
 24. Next protocol version should require Tapestry as a first-class dependency: all discovery must be social, requests must be Tapestry posts, and all profiles must be on Tapestry.
 25. On-chain subscribe is now wallet-signed in the UI; profile reads subscriptions directly from chain (no backend storage).
+26. Keybox stored as a map (subscriber_id -> wrapped_key) so listeners decrypt only their own entry.
+27. SDK and MCP server added for agent tick listening (Solana + backend pointers).
+28. Signal `created_at` is now anchored on-chain via Solana Clock sysvar (stored in ms) to prevent maker backdating.

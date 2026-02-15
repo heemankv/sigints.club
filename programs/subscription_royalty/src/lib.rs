@@ -98,7 +98,6 @@ pub mod subscription_royalty {
         signal_pointer_hash: [u8; 32],
         keybox_hash: [u8; 32],
         keybox_pointer_hash: [u8; 32],
-        created_at: i64,
     ) -> Result<()> {
         let signal = &mut ctx.accounts.signal;
         signal.persona = ctx.accounts.persona.key();
@@ -106,7 +105,8 @@ pub mod subscription_royalty {
         signal.signal_pointer_hash = signal_pointer_hash;
         signal.keybox_hash = keybox_hash;
         signal.keybox_pointer_hash = keybox_pointer_hash;
-        signal.created_at = created_at;
+        let clock = Clock::get()?;
+        signal.created_at = clock.unix_timestamp.saturating_mul(1_000);
         signal.bump = ctx.bumps.signal;
         Ok(())
     }

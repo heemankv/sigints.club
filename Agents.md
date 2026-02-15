@@ -17,6 +17,7 @@ Document Index
 - documents/E2E_Website_Flow.md: Detailed end-to-end website flow with 3 makers and 10 listeners.
 - documents/Protocol_Spec_v0.1.md: MVP protocol decisions for low-level implementation.
 - documents/Hybrid_Encryption_Delivery.md: Hybrid encryption delivery design and sequence diagram.
+- documents/current_progress_and_sdk.md: Current progress + SDK/MCP summary from latest planning.
 - documents/MVP_Achievements.md: What has been built so far across on-chain, backend, and frontend.
 - documents/Evidence_Storage_Research.md: Storage options and MVP decision for evidence artifacts.
 - documents/Tapestry_Protocol_Understanding.md: Tapestry protocol capabilities and usage for Persona.fun.

@@ -6,6 +6,7 @@ import {
   subscriberDirectory,
   discoveryService,
   onChainSubscriptionClient,
+  storageProvider,
   userProfileStore,
   botProfileStore,
   subscriptionProfileStore,
@@ -51,6 +52,63 @@ router.get("/signals", async (req, res) => {
   }
   const signals = await metadataStore.listSignals(personaId);
   return res.json({ signals });
+});
+
+router.get("/signals/latest", async (req, res) => {
+  const personaId = req.query.personaId;
+  if (!personaId || typeof personaId !== "string") {
+    return res.status(400).json({ error: "personaId required" });
+  }
+  const signals = await metadataStore.listSignals(personaId);
+  const latest = signals.sort((a, b) => b.createdAt - a.createdAt)[0];
+  if (!latest) {
+    return res.status(404).json({ error: "no signals" });
+  }
+  return res.json({ signal: latest });
+});
+
+router.get("/signals/by-hash/:hash", async (req, res) => {
+  const hash = req.params.hash;
+  const signals = await metadataStore.listAllSignals();
+  const match = signals.find((s) => s.signalHash === hash);
+  if (!match) {
+    return res.status(404).json({ error: "signal not found" });
+  }
+  return res.json({ signal: match });
+});
+
+router.get("/storage/ciphertext/:sha", async (req, res) => {
+  const sha = req.params.sha;
+  try {
+    const pointer = { id: `backend://ciphertext/${sha}`, sha256: sha };
+    const bytes = await storageProvider.getCiphertext(pointer);
+    const payload = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    return res.json({ payload });
+  } catch (error: any) {
+    return res.status(404).json({ error: error.message ?? "ciphertext not found" });
+  }
+});
+
+router.get("/storage/keybox/:sha", async (req, res) => {
+  const sha = req.params.sha;
+  const subscriberId = typeof req.query.subscriberId === "string" ? req.query.subscriberId : undefined;
+  try {
+    const pointer = { id: `backend://keybox/${sha}`, sha256: sha };
+    const bytes = await storageProvider.getKeybox(pointer);
+    const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as any;
+    if (subscriberId) {
+      const entry = Array.isArray(parsed)
+        ? parsed.find((k) => k.subscriberId === subscriberId)
+        : parsed[subscriberId];
+      if (!entry) {
+        return res.status(404).json({ error: "subscriber entry not found" });
+      }
+      return res.json({ entry });
+    }
+    return res.json({ keybox: parsed });
+  } catch (error: any) {
+    return res.status(404).json({ error: error.message ?? "keybox not found" });
+  }
 });
 
 router.get("/feed", async (_req, res) => {

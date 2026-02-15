@@ -7,7 +7,6 @@ export type RecordSignalInput = {
   signalPointer: string;
   keyboxHash: string;
   keyboxPointer: string;
-  createdAt: number;
 };
 
 export interface OnChainRecorder {
@@ -22,6 +21,5 @@ export function toRecordSignalInput(meta: SignalMetadata): RecordSignalInput {
     signalPointer: meta.signalPointer,
     keyboxHash: meta.keyboxHash,
     keyboxPointer: meta.keyboxPointer,
-    createdAt: meta.createdAt,
   };
 }
