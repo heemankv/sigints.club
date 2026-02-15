@@ -1,0 +1,219 @@
+{
+  "address": "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi",
+  "metadata": {
+    "name": "persona_registry",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "create_persona",
+      "discriminator": [
+        113,
+        243,
+        215,
+        104,
+        47,
+        230,
+        240,
+        41
+      ],
+      "accounts": [
+        {
+          "name": "persona",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  114,
+                  115,
+                  111,
+                  110,
+                  97
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "persona_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "persona_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "tiers_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "dao",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_tiers",
+      "discriminator": [
+        170,
+        131,
+        109,
+        175,
+        156,
+        214,
+        177,
+        121
+      ],
+      "accounts": [
+        {
+          "name": "persona",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "persona"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "tiers_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_persona",
+      "discriminator": [
+        144,
+        120,
+        188,
+        255,
+        120,
+        138,
+        127,
+        175
+      ],
+      "accounts": [
+        {
+          "name": "persona",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "persona"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "tiers_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "status",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PersonaConfig",
+      "discriminator": [
+        149,
+        130,
+        132,
+        39,
+        58,
+        221,
+        99,
+        165
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "PersonaConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "persona_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "dao",
+            "type": "pubkey"
+          },
+          {
+            "name": "tiers_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

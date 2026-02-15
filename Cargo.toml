@@ -1,0 +1,10 @@
+[workspace]
+members = [
+  "programs/persona_registry",
+  "programs/subscription_royalty",
+  "programs/challenge_slashing",
+]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true

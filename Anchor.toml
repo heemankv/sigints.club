@@ -1,0 +1,32 @@
+[toolchain]
+
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+# TODO: replace with real program IDs before deploy.
+persona_registry = "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi"
+subscription_royalty = "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE"
+challenge_slashing = "DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP"
+
+[programs.testnet]
+# TODO: replace with real program IDs before deploy.
+persona_registry = "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi"
+subscription_royalty = "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE"
+challenge_slashing = "DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP"
+
+[programs.devnet]
+# TODO: replace with real program IDs before deploy.
+persona_registry = "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi"
+subscription_royalty = "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE"
+challenge_slashing = "DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = ".keys/devnet.json"
+
+[scripts]

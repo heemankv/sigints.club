@@ -1,0 +1,48 @@
+[
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "92e8afde86f5a6618341ed85483f0829aa4786e3d77b83b5d1b42e72c86b0849",
+    "signalPointer": "backend://ciphertext/92e8afde86f5a6618341ed85483f0829aa4786e3d77b83b5d1b42e72c86b0849",
+    "keyboxHash": "f5dc3c203bd57e3f78a18ceb4dfbc3997469dc52c0948cced3426924f5ebfc38",
+    "keyboxPointer": "backend://keybox/f5dc3c203bd57e3f78a18ceb4dfbc3997469dc52c0948cced3426924f5ebfc38",
+    "createdAt": 1771139839341
+  },
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "10142ed3557fe700811d339f56b8de67a8f5d856d905e8ad64941feec5d336db",
+    "signalPointer": "backend://ciphertext/10142ed3557fe700811d339f56b8de67a8f5d856d905e8ad64941feec5d336db",
+    "keyboxHash": "a884b043d861abf116af199853ac229eeb0696b5d54bd45be1d7e48ddff9ec48",
+    "keyboxPointer": "backend://keybox/a884b043d861abf116af199853ac229eeb0696b5d54bd45be1d7e48ddff9ec48",
+    "createdAt": 1771139879548
+  },
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "8661c4396d73b46c329e903ee00a1964b888d59038f6e746979efd5f4943188f",
+    "signalPointer": "backend://ciphertext/8661c4396d73b46c329e903ee00a1964b888d59038f6e746979efd5f4943188f",
+    "keyboxHash": "b999b44066fe096ffed487c206e143a81aa86777c65d23a5352f55504db4b51e",
+    "keyboxPointer": "backend://keybox/b999b44066fe096ffed487c206e143a81aa86777c65d23a5352f55504db4b51e",
+    "createdAt": 1771139919301
+  },
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "9665d651aeb63c14c46227fde4c9653999e01eb924067d519f6cdf492d29f50c",
+    "signalPointer": "backend://ciphertext/9665d651aeb63c14c46227fde4c9653999e01eb924067d519f6cdf492d29f50c",
+    "keyboxHash": "7e61e7095d6b88c5d0169630233572b183fe9dcf7f899d7fc6cc2fbd3a70cdff",
+    "keyboxPointer": "backend://keybox/7e61e7095d6b88c5d0169630233572b183fe9dcf7f899d7fc6cc2fbd3a70cdff",
+    "createdAt": 1771139962246
+  },
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "0478bacaf7ffa97ad00ed48cf0c263f0b86166c0a7bcdc0d92d44735fe4ec4cb",
+    "signalPointer": "backend://ciphertext/0478bacaf7ffa97ad00ed48cf0c263f0b86166c0a7bcdc0d92d44735fe4ec4cb",
+    "keyboxHash": "94564d40826cc1bdff756b11e3493b1601fd073193681839494bae9653965363",
+    "keyboxPointer": "backend://keybox/94564d40826cc1bdff756b11e3493b1601fd073193681839494bae9653965363",
+    "createdAt": 1771141235265,
+    "onchainTx": "4dh3vusLcAWx3aDvdbVkQCV2aB48qtiKLuMfipxqvn3yNRc8kqxSo2QEjSW7EVTtDLUoq7LZBjbacBn5bJRdUq3b"
+  }
+]

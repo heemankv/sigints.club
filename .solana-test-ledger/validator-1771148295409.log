@@ -1,0 +1,2 @@
+[2026-02-15T09:38:15.409903000Z WARN  solana_perf] CUDA is disabled
+[2026-02-15T09:38:15.415096000Z WARN  solana_ledger::blockstore_db] Unable to detect Rocks columns: Error { message: "IO error: No such file or directory: While opening a file for sequentially reading: /Users/heemankverma/Work/graveyard/.solana-test-ledger/rocksdb/CURRENT: No such file or directory" }

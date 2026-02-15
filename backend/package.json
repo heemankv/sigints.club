@@ -1,0 +1,35 @@
+{
+  "name": "persona-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "demo": "tsx src/agents/demo.ts",
+    "provider": "tsx src/agents/provider.ts",
+    "listener": "tsx src/agents/listener.ts",
+    "personas:create": "tsx src/agents/create-personas.ts",
+    "tapestry:profile": "tsx src/agents/tapestry-profile.ts",
+    "tapestry:content": "tsx src/agents/tapestry-content.ts",
+    "tapestry:follow": "tsx src/agents/tapestry-follow.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/web3.js": "^1.98.0",
+    "@solana/spl-token": "^0.4.12",
+    "bs58": "^6.0.0",
+    "bn.js": "^5.2.1",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "socialfi": "^0.1.14",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.12",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}

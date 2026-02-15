@@ -1,0 +1,391 @@
+{
+  "address": "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
+  "metadata": {
+    "name": "subscription_royalty",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "cancel",
+      "discriminator": [
+        232,
+        219,
+        223,
+        41,
+        219,
+        236,
+        220,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "subscription",
+          "writable": true
+        },
+        {
+          "name": "subscriber",
+          "signer": true,
+          "relations": [
+            "subscription"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "record_signal",
+      "discriminator": [
+        122,
+        41,
+        88,
+        240,
+        85,
+        26,
+        27,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "signal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  103,
+                  110,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "persona"
+              },
+              {
+                "kind": "arg",
+                "path": "signal_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "persona"
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "signal_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "signal_pointer_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "keybox_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "keybox_pointer_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "created_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "renew",
+      "discriminator": [
+        43,
+        239,
+        15,
+        46,
+        27,
+        7,
+        163,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "subscription",
+          "writable": true
+        },
+        {
+          "name": "subscriber",
+          "signer": true,
+          "relations": [
+            "subscription"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "expires_at",
+          "type": "i64"
+        },
+        {
+          "name": "quota_remaining",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "subscribe",
+      "discriminator": [
+        254,
+        28,
+        191,
+        138,
+        156,
+        179,
+        183,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "subscription",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  98,
+                  115,
+                  99,
+                  114,
+                  105,
+                  112,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "persona"
+              },
+              {
+                "kind": "account",
+                "path": "subscriber"
+              }
+            ]
+          }
+        },
+        {
+          "name": "persona"
+        },
+        {
+          "name": "subscriber",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tier_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "pricing_type",
+          "type": "u8"
+        },
+        {
+          "name": "evidence_level",
+          "type": "u8"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        },
+        {
+          "name": "quota_remaining",
+          "type": "u32"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "SignalRecord",
+      "discriminator": [
+        32,
+        240,
+        214,
+        122,
+        207,
+        184,
+        220,
+        121
+      ]
+    },
+    {
+      "name": "Subscription",
+      "discriminator": [
+        64,
+        7,
+        26,
+        135,
+        102,
+        132,
+        98,
+        33
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "SignalRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "persona",
+            "type": "pubkey"
+          },
+          {
+            "name": "signal_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "signal_pointer_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "keybox_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "keybox_pointer_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Subscription",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "subscriber",
+            "type": "pubkey"
+          },
+          {
+            "name": "persona",
+            "type": "pubkey"
+          },
+          {
+            "name": "tier_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "pricing_type",
+            "type": "u8"
+          },
+          {
+            "name": "evidence_level",
+            "type": "u8"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "quota_remaining",
+            "type": "u32"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
