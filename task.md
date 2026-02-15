@@ -37,6 +37,7 @@ Progress
 - Next build passes after Suspense fix for search bar.
 - Subscription mint now issues 1-of-1 NFT per subscription; profile reads on-chain subscriptions.
 - Localnet deployment tested with solana-test-validator; all three programs deployed locally.
+- On-chain subscribe now uses wallet-signed txs from the frontend (no backend signer).
 
 Next Actions
 1. Finalize on-chain tier layout and instruction arguments.

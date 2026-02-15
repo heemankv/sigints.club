@@ -14,6 +14,7 @@ type PersonaDetail = {
   price: string;
   evidence: string;
   description: string;
+  onchainAddress?: string;
   tiers: Array<{
     tierId: string;
     pricingType: string;
@@ -86,6 +87,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                 pricingType={tier.pricingType}
                 evidenceLevel={tier.evidenceLevel}
                 quota={tier.quota}
+                personaOnchainAddress={"onchainAddress" in persona ? persona.onchainAddress : undefined}
               />
             </div>
           ))}

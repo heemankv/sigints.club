@@ -1,6 +1,7 @@
 import "./styles.css";
 import { Suspense } from "react";
 import BackendStatus from "./components/BackendStatus";
+import NetworkBanner from "./components/NetworkBanner";
 import Providers from "./providers";
 import WalletConnect from "./components/WalletConnect";
 import SearchBar from "./components/SearchBar";
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
           <main className="container">
+            <NetworkBanner />
             <BackendStatus />
             {children}
           </main>

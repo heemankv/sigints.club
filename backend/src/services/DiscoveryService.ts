@@ -6,6 +6,7 @@ export type PersonaSummary = {
   latency: string;
   price: string;
   evidence: string;
+  onchainAddress?: string;
 };
 
 export type TierOption = {
@@ -30,6 +31,8 @@ export type RequestSummary = {
 };
 
 export class DiscoveryService {
+  constructor(private personaMap?: Record<string, string>) {}
+
   listPersonas(): PersonaSummary[] {
     return [
       {
@@ -40,6 +43,7 @@ export class DiscoveryService {
         latency: "1.4s",
         price: "$5/mo",
         evidence: "Verifier supported",
+        onchainAddress: this.personaMap?.["persona-eth"],
       },
       {
         id: "persona-amazon",
@@ -49,6 +53,7 @@ export class DiscoveryService {
         latency: "3.2s",
         price: "$8/mo",
         evidence: "Verifier supported",
+        onchainAddress: this.personaMap?.["persona-amazon"],
       },
       {
         id: "persona-anime",
@@ -58,6 +63,7 @@ export class DiscoveryService {
         latency: "5.0s",
         price: "$2/mo",
         evidence: "Trust + Verifier",
+        onchainAddress: this.personaMap?.["persona-anime"],
       },
     ];
   }

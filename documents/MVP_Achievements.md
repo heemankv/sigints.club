@@ -10,6 +10,7 @@ We have a working MVP across Solana on-chain programs, a Node/TS backend with hy
 3. Implemented on-chain subscription flows (subscribe, renew, cancel) via Anchor client (backend).
 4. Created persona PDAs and stored them in `SOLANA_PERSONA_MAP`.
 5. Subscription now mints a 1-of-1 SPL token (NFT-like) per subscriber, stored on-chain.
+6. Wallet-signed on-chain subscribe flow implemented in the frontend (no backend signer).
 
 Program IDs (devnet):
 1. `subscription_royalty`: `BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE`

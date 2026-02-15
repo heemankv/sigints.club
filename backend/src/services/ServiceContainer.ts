@@ -25,7 +25,7 @@ const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : n
 const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
 const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
 const subscribers = persist ? new FileSubscriberDirectory() : new InMemorySubscriberDirectory();
-const discovery = new DiscoveryService();
+const discovery = new DiscoveryService(solanaPersonaMap);
 const listener = new ListenerService(storage);
 const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
 const botStore = persist ? new FileBotStore() : new InMemoryBotStore();

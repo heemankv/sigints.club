@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 import { postJson } from "../../lib/api";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { Transaction } from "@solana/web3.js";
+import {
+  buildSubscribeInstruction,
+  defaultExpiryMs,
+  resolveEvidenceLevel,
+  resolvePersonaPubkey,
+  resolvePricingType,
+  resolveProgramId,
+} from "../../lib/solana";
 
 export default function SubscribeForm({
   personaId,
@@ -9,18 +19,22 @@ export default function SubscribeForm({
   pricingType,
   evidenceLevel,
   quota,
+  personaOnchainAddress,
 }: {
   personaId: string;
   tierId: string;
   pricingType: string;
   evidenceLevel: string;
   quota?: string;
+  personaOnchainAddress?: string;
 }) {
   const [pubKey, setPubKey] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
   const [chainTx, setChainTx] = useState<string | null>(null);
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
 
   async function submit() {
     setLoading(true);
@@ -50,15 +64,28 @@ export default function SubscribeForm({
     setChainStatus(null);
     setChainTx(null);
     try {
-      const signature = await postJson<{ signature: string }>("/subscribe/onchain", {
-        personaId,
+      if (!publicKey) {
+        throw new Error("Connect your wallet first.");
+      }
+      const programId = resolveProgramId();
+      const personaPubkey = resolvePersonaPubkey(personaOnchainAddress);
+      const ix = await buildSubscribeInstruction({
+        programId,
+        persona: personaPubkey,
+        subscriber: publicKey,
         tierId,
-        pricingType,
-        evidenceLevel,
-        quotaRemaining: parseQuota(quota),
+        pricingType: resolvePricingType(pricingType),
+        evidenceLevel: resolveEvidenceLevel(evidenceLevel),
+        expiresAtMs: defaultExpiryMs(),
+        quotaRemaining: parseQuota(quota) ?? 0,
       });
-      setChainTx(signature.signature);
-      setChainStatus(`On-chain subscription submitted.`);
+      const tx = new Transaction().add(ix);
+      tx.feePayer = publicKey;
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      const signature = await sendTransaction(tx, connection);
+      setChainTx(signature);
+      setChainStatus("On-chain subscription submitted.");
     } catch (err: any) {
       setChainStatus(err.message ?? "On-chain subscribe failed");
     } finally {
@@ -81,10 +108,19 @@ export default function SubscribeForm({
       </button>
       {status && <p className="subtext">{status}</p>}
       <div className="divider" />
-      <p className="subtext">On-chain demo uses backend wallet as subscriber.</p>
-      <button className="button ghost" onClick={submitOnchain} disabled={loading}>
+      <p className="subtext">
+        On-chain subscription mints a 1-of-1 NFT to your wallet.
+      </p>
+      <button
+        className="button ghost"
+        onClick={submitOnchain}
+        disabled={loading || !personaOnchainAddress}
+      >
         {loading ? "Submitting…" : "Subscribe on-chain"}
       </button>
+      {!personaOnchainAddress && (
+        <p className="subtext">On-chain persona address not configured.</p>
+      )}
       {chainStatus && <p className="subtext">{chainStatus}</p>}
       {chainTx && (
         <p className="subtext">

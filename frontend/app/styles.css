@@ -180,6 +180,26 @@ main {
   padding: 36px 0 80px;
 }
 
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(29, 176, 166, 0.12);
+  border: 1px solid rgba(29, 176, 166, 0.3);
+  color: var(--ink);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.banner.warning {
+  background: rgba(242, 184, 7, 0.18);
+  border-color: rgba(242, 184, 7, 0.45);
+}
+
 .section {
   padding: 40px 0;
 }

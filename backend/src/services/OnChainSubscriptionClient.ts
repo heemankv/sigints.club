@@ -65,7 +65,7 @@ const EVIDENCE_LEVEL_MAP: Record<string, number> = {
 };
 
 export class OnChainSubscriptionClient {
-  private client?: { provider: anchor.AnchorProvider; coder: anchor.BorshInstructionCoder; accounts: anchor.BorshAccountsCoder; idl: anchor.Idl };
+  private client?: { provider: anchor.AnchorProvider; coder: anchor.BorshInstructionCoder; idl: anchor.Idl };
   private readonly programId: PublicKey;
 
   constructor(private config: AnchorSubscriptionConfig) {
@@ -181,7 +181,7 @@ export class OnChainSubscriptionClient {
   }
 
   async listSubscriptionsFor(subscriber: string): Promise<OnChainSubscription[]> {
-    const { provider, accounts } = await this.getClient();
+    const { provider } = await this.getClient();
     const subscriberPubkey = new PublicKey(subscriber);
     const filters = [
       { memcmp: { offset: 8, bytes: subscriberPubkey.toBase58() } },
@@ -194,19 +194,8 @@ export class OnChainSubscriptionClient {
     return programAccounts
       .map((acc) => {
         try {
-          const decoded = accounts.decode("Subscription", acc.account.data) as any;
-          return {
-            subscription: acc.pubkey.toBase58(),
-            subscriber: new PublicKey(decoded.subscriber).toBase58(),
-            persona: new PublicKey(decoded.persona).toBase58(),
-            tierIdHex: Buffer.from(decoded.tierId ?? decoded.tier_id ?? []).toString("hex"),
-            pricingType: Number(decoded.pricingType ?? decoded.pricing_type ?? 0),
-            evidenceLevel: Number(decoded.evidenceLevel ?? decoded.evidence_level ?? 0),
-            expiresAt: Number(decoded.expiresAt ?? decoded.expires_at ?? 0),
-            quotaRemaining: Number(decoded.quotaRemaining ?? decoded.quota_remaining ?? 0),
-            status: Number(decoded.status ?? 0),
-            nftMint: new PublicKey(decoded.nftMint ?? decoded.nft_mint ?? PublicKey.default).toBase58(),
-          } as OnChainSubscription;
+          const decoded = decodeSubscriptionAccount(acc.pubkey, acc.account.data);
+          return decoded;
         } catch {
           return null;
         }
@@ -239,7 +228,6 @@ export class OnChainSubscriptionClient {
   private async getClient(): Promise<{
     provider: anchor.AnchorProvider;
     coder: anchor.BorshInstructionCoder;
-    accounts: anchor.BorshAccountsCoder;
     idl: anchor.Idl;
   }> {
     if (this.client) {
@@ -255,8 +243,7 @@ export class OnChainSubscriptionClient {
       commitment: this.config.commitment ?? "confirmed",
     });
     const coder = new anchor.BorshInstructionCoder(idl);
-    const accounts = new anchor.BorshAccountsCoder(idl);
-    this.client = { provider, coder, accounts, idl };
+    this.client = { provider, coder, idl };
     return this.client;
   }
 
@@ -303,4 +290,41 @@ function toBytes32(hex: string, label: string): Buffer {
 function defaultExpiry(): number {
   const days = 30;
   return Date.now() + days * 24 * 60 * 60 * 1000;
+}
+
+function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): OnChainSubscription | null {
+  if (data.length < 152) {
+    return null;
+  }
+  let offset = 8;
+  const subscriber = new PublicKey(data.subarray(offset, offset + 32));
+  offset += 32;
+  const persona = new PublicKey(data.subarray(offset, offset + 32));
+  offset += 32;
+  const tierId = data.subarray(offset, offset + 32);
+  offset += 32;
+  const pricingType = data.readUInt8(offset);
+  offset += 1;
+  const evidenceLevel = data.readUInt8(offset);
+  offset += 1;
+  const expiresAt = Number(data.readBigInt64LE(offset));
+  offset += 8;
+  const quotaRemaining = data.readUInt32LE(offset);
+  offset += 4;
+  const status = data.readUInt8(offset);
+  offset += 1;
+  const nftMint = new PublicKey(data.subarray(offset, offset + 32));
+
+  return {
+    subscription: pubkey.toBase58(),
+    subscriber: subscriber.toBase58(),
+    persona: persona.toBase58(),
+    tierIdHex: tierId.toString("hex"),
+    pricingType,
+    evidenceLevel,
+    expiresAt,
+    quotaRemaining,
+    status,
+    nftMint: nftMint.toBase58(),
+  };
 }

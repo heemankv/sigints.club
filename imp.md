@@ -25,3 +25,4 @@ Date: 2026-02-15
 22. One wallet holds at most one subscription per persona (no multi-tier subscriptions for the same persona).
 23. Subscription NFT transferability is undecided; revisit later (possible Token-2022 non-transferable).
 24. Next protocol version should require Tapestry as a first-class dependency: all discovery must be social, requests must be Tapestry posts, and all profiles must be on Tapestry.
+25. On-chain subscribe is now wallet-signed in the UI; profile reads subscriptions directly from chain (no backend storage).

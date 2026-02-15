@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { fetchJson, postJson } from "../lib/api";
+import { decodeSubscriptionAccount, resolveProgramId } from "../lib/solana";
 
 type UserProfile = {
   wallet: string;
@@ -21,6 +22,7 @@ type BotProfile = {
 
 type SubscriptionRecord = {
   subscription: string;
+  subscriber: string;
   persona: string;
   tierIdHex: string;
   pricingType: number;
@@ -33,6 +35,7 @@ type SubscriptionRecord = {
 
 export default function ProfilePage() {
   const { publicKey } = useWallet();
+  const { connection } = useConnection();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [makerBots, setMakerBots] = useState<BotProfile[]>([]);
   const [listenerBots, setListenerBots] = useState<BotProfile[]>([]);
@@ -73,17 +76,27 @@ export default function ProfilePage() {
       }
 
       try {
-        const subs = await fetchJson<{ subscriptions: SubscriptionRecord[] }>(
-          `/subscriptions/onchain?subscriber=${walletKey}`
-        );
-        setSubscriptions(subs.subscriptions);
+        const programId = resolveProgramId();
+        const filters = [
+          {
+            memcmp: {
+              offset: 8,
+              bytes: walletKey,
+            },
+          },
+        ];
+        const accounts = await connection.getProgramAccounts(programId, { filters });
+        const decoded = accounts
+          .map((acc) => decodeSubscriptionAccount(acc.pubkey, acc.account.data))
+          .filter((item): item is SubscriptionRecord => item !== null);
+        setSubscriptions(decoded);
       } catch {
         setSubscriptions([]);
       }
     }
 
     load();
-  }, [publicKey]);
+  }, [publicKey, connection]);
 
   async function createBot() {
     const wallet = publicKey?.toBase58();
