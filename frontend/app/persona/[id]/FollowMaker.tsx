@@ -6,6 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 
 export default function FollowMaker({ targetProfileId }: { targetProfileId?: string }) {
   const { publicKey } = useWallet();
+  const wallet = publicKey?.toBase58() ?? process.env.NEXT_PUBLIC_TEST_WALLET;
   const [status, setStatus] = useState<string | null>(null);
 
   if (!targetProfileId) {
@@ -14,13 +15,13 @@ export default function FollowMaker({ targetProfileId }: { targetProfileId?: str
 
   async function follow() {
     setStatus(null);
-    if (!publicKey) {
+    if (!wallet) {
       setStatus("Connect your wallet to follow.");
       return;
     }
     try {
       await postJson("/social/follow", {
-        wallet: publicKey.toBase58(),
+        wallet,
         targetProfileId,
       });
       setStatus("Following maker on Tapestry.");

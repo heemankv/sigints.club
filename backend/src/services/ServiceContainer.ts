@@ -26,7 +26,7 @@ import { SocialService } from "./SocialService";
 
 const solanaProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
 const solanaKeypairPath = process.env.SOLANA_KEYPAIR;
-const solanaSecretKey = process.env.SOLANA_PRIVATE_KEY;
+const solanaSecretKey = solanaKeypairPath ? undefined : process.env.SOLANA_PRIVATE_KEY;
 const solanaRpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const solanaIdlPath = process.env.SOLANA_IDL_PATH;
 const solanaPersonaMap = parsePersonaMap(process.env.SOLANA_PERSONA_MAP);

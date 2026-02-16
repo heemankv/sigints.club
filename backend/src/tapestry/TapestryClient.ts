@@ -42,6 +42,37 @@ export type CreateLikeInput = {
   execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
 };
 
+export type ListContentsInput = {
+  filterField?: string;
+  filterValue?: string;
+  requireFields?: string;
+  orderByField?: string;
+  orderByDirection?: "ASC" | "DESC";
+  page?: number;
+  pageSize?: number;
+  profileId?: string;
+  requestingProfileId?: string;
+};
+
+export type ListContentsResponse = {
+  contents: Array<{
+    content?: Record<string, any> | null;
+    socialCounts?: { likeCount?: number; commentCount?: number };
+    authorProfile?: {
+      id?: string;
+      username?: string;
+      bio?: string | null;
+      image?: string | null;
+      namespace?: string;
+      created_at?: number;
+    };
+    requestingProfileSocialInfo?: { hasLiked?: boolean };
+  }>;
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+};
+
 export class TapestryClient {
   private client: SocialFi;
   private apiKey: string;
@@ -127,5 +158,20 @@ export class TapestryClient {
 
   async getContentDetails(contentId: string) {
     return this.client.contents.contentsDetail({ apiKey: this.apiKey, id: contentId });
+  }
+
+  async listContents(input: ListContentsInput): Promise<ListContentsResponse> {
+    return this.client.contents.contentsList({
+      apiKey: this.apiKey,
+      orderByField: input.orderByField,
+      orderByDirection: input.orderByDirection,
+      requireFields: input.requireFields,
+      filterField: input.filterField,
+      filterValue: input.filterValue,
+      page: input.page ? String(input.page) : undefined,
+      pageSize: input.pageSize ? String(input.pageSize) : undefined,
+      profileId: input.profileId,
+      requestingProfileId: input.requestingProfileId,
+    }) as unknown as ListContentsResponse;
   }
 }

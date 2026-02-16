@@ -462,16 +462,7 @@ router.post("/social/follow", async (req, res) => {
 router.get("/social/feed/trending", async (req, res) => {
   if (!requireSocial(res)) return;
   const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
-  const posts = await socialServiceInstance!.listPosts();
-  const likeCounts: Record<string, number> = {};
-  for (const post of posts) {
-    try {
-      const count = await socialServiceInstance!.getLikes(post.contentId);
-      likeCounts[post.contentId] = count;
-    } catch {
-      likeCounts[post.contentId] = 0;
-    }
-  }
+  const { posts, likeCounts } = await socialServiceInstance!.listPostsWithCounts(undefined, limit ?? 50);
   const sorted = [...posts].sort((a, b) => {
     const aLikes = likeCounts[a.contentId] ?? 0;
     const bLikes = likeCounts[b.contentId] ?? 0;

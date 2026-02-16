@@ -1,0 +1,189 @@
+{
+  "createdAt": 1771216034892,
+  "personas": [
+    {
+      "id": "persona-eth",
+      "pda": "EQgG6tRnouv7YatKsdXgKkVRShDyHprD3ffSfgi3Y7iq"
+    },
+    {
+      "id": "persona-amazon",
+      "pda": "14gFUgZDFsBMv2RiGqhorACbifpYURVVUTc6rqMz4TjT"
+    },
+    {
+      "id": "persona-anime",
+      "pda": "2oYuYgDyJQbbkeh5DEfct4AUHo8v2i1PibsBwRK2s1SA"
+    }
+  ],
+  "makerWallets": [
+    "59TTMbbLXgJLAGakQfZtDXGSafvdLout2sUfQAn2m5Tu",
+    "FYmMobebPeEmwfegwfbbSkAgKPr4K1AZdevXqjz66PdG",
+    "Dk6G7pRwzVCNDQH2f8gnBRdeSCCTL4nB1pN6SFnXwpad"
+  ],
+  "listenerWallets": [
+    "7UaDYJYMhrRDQJ6B8BEt6inFMrCHmdx5fD6L47mmgRcd",
+    "anqfaR5PNNCtgN6qGBp7EAJpzRqxncN3qjVEPLMptCU",
+    "3bGG3y1uyGhodQr9iN7ZpVKbMrz6XhREQUrMRdw49UEi",
+    "6TWiUkiH5bDHw9AQtFxRPMaRxArR1BFzxZ7sMdCA7E9K",
+    "BkZ5en7MeMyCFbKnU3Eia9iMuBLdPKbBxHNKPcLr1xcD",
+    "G2ovV6gSnwgjMHYRiDZ1S6S79BL9VVkHZsx241TN9RrM",
+    "FJbb4zYviYvqAfckQx7F5e4TJ4BNvE5e8FzS1AHfUmHX",
+    "DJRg7GLRKPjtZMQfhDox9Jh9HKkNEQDRok9XMpfS68jQ",
+    "kwzntfaxTWVJz9mxLG9XKgaA2pk6jbENcefXFJdVVRX",
+    "3tgZ4sLd6JtE7K5EA8GNfNs9zVTyyLeTLnUP1fw1xbpP"
+  ],
+  "subscriberKeys": [
+    {
+      "personaId": "persona-eth",
+      "subscriberId": "011d044ba61457d3f101460e202f29bdf747b0cb580139159e81ac4fe6dd3776",
+      "publicKeyBase64": "MCowBQYDK2VuAyEApR6FIEGT7XlgH6fkiV1OaMm7d9Emj67SvD3oLCqN80s=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIMAuI49x6o5I5frKv9p8y1qO1Qqb1+kHtTeFNqYWHA9p"
+    },
+    {
+      "personaId": "persona-amazon",
+      "subscriberId": "e6f5ea8f1990c8907e7690928f62d5b845dc8361286eeef10a349ba08c14b29e",
+      "publicKeyBase64": "MCowBQYDK2VuAyEA4AuudB1TJjd1gJBcsYqy1GBEWNH+6ERrbth25WVAVRU=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIMhnesoDqgO8DeSye0s8N2LvATDnRIJQVurtdZMbs0lq"
+    },
+    {
+      "personaId": "persona-anime",
+      "subscriberId": "8b4850a11e1fa5322537585ae565c1d74b4551c20791f20b762ff05c17fae337",
+      "publicKeyBase64": "MCowBQYDK2VuAyEAHW8oA5PtWh4GD+ehLCbKdm892UDzN6MPWGH9C+nEGmY=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIIDsrtXEuZo32xG2Sxp4GeIyKjbfFG6JXecuJ3WUibZu"
+    },
+    {
+      "personaId": "persona-eth",
+      "subscriberId": "f697029d805a24671cb2e268f92a3439d86255fb10ad7d4e3fc6b20d72f1c8d1",
+      "publicKeyBase64": "MCowBQYDK2VuAyEA6f0Qw5dvoflonUXDeqbnsYrBWEvuyefBqLL5fuMYp3Q=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIDCugY72ckVhloK8y8KxJjglzmP6wDf+dci7tBfQ6qxL"
+    },
+    {
+      "personaId": "persona-amazon",
+      "subscriberId": "58f5adca82baebccfb71a2bbf8739a8df9e2edc7762105eac9b44b1aad4290f8",
+      "publicKeyBase64": "MCowBQYDK2VuAyEAX/NvZaQCZpmx9nB58nCPpfbufz4hjPijLo+iB0NrXkU=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIADEe2ntnWRig9+5xkUD/bMP27ao12qgF3NQNXAC80RR"
+    },
+    {
+      "personaId": "persona-anime",
+      "subscriberId": "8c4d22ee7116a95318a3d3778ec099ca22f334c199e1f2667ac63fa2917db11f",
+      "publicKeyBase64": "MCowBQYDK2VuAyEAy04WgGg1YhO6fwZWwUtDGliMCOaNdL6NI/AjFlHXlVw=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEILB22eFaHp9iokbGtvPAyPgGfmAQKXACmOErOog+qA9Z"
+    },
+    {
+      "personaId": "persona-eth",
+      "subscriberId": "8fc5215791e9719b7489c7d73f28c5196cafc03419b2c5d195bc450c29d5b70d",
+      "publicKeyBase64": "MCowBQYDK2VuAyEARVp+iyCrGsA6TUi+eD4hiobHd7AJpQPz7UCQxpwX2yU=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIBiD0WWW7ZY0J6xO8bvphWiCegQsfPPKNkKcQor21kxh"
+    },
+    {
+      "personaId": "persona-amazon",
+      "subscriberId": "0c4062023acfab48e3b7afbe3cadeb8e451207c4080ea971efb7664371f69d58",
+      "publicKeyBase64": "MCowBQYDK2VuAyEAZHvLuEr/lgXiQqDXMn2Vwp3sSGTSilctQCrzwUaoygA=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIAChLFCpdcBlWJJ28wT5zJZSfD4ddiJcVFm8txi20q1V"
+    },
+    {
+      "personaId": "persona-anime",
+      "subscriberId": "ac4dfc8ad47036a4106e7a2f0caadc8630c7587bfb1ac001d368a3ad551ea874",
+      "publicKeyBase64": "MCowBQYDK2VuAyEATWk5/1EXZr0tDsJjrZNAf6+syz5JiHk/KgKsH9GdGQw=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEICjKqtF0C1DpxzNKhbagVeoM+FBcPScrMHUgDjSWulBq"
+    },
+    {
+      "personaId": "persona-eth",
+      "subscriberId": "5c42a702fea1cbd930c9a5bebb3827d478d36e9ffe95f146362a1473fbae53ab",
+      "publicKeyBase64": "MCowBQYDK2VuAyEAdBkMwD+zWcArSlCIbiXP2xW0DUCjx45QW7uo95lWSAA=",
+      "privateKeyBase64": "MC4CAQAwBQYDK2VuBCIEIPBMqQXE0naRU1I/I/1SUqyF/+R0kQLYkqV5bpwAoOJm"
+    }
+  ],
+  "signals": [
+    {
+      "personaId": "persona-eth",
+      "signalHash": "f4583fdd01efbd496ea2deadb26b166cc2e11b5736f295afc6ee5e2ef4676240",
+      "onchainTx": "5i8PFDrahhGPnZCgZDWjywpCeEx4uTHU7RSF6N1NFrp3H9eXnxfSbkPeVxf7NouG6kTeyCDdgpZr4mPQy5WYAbyY"
+    },
+    {
+      "personaId": "persona-eth",
+      "signalHash": "24abdb580b967e38c2292b627a43c7d7273a941fe9303beb131746991d702a85",
+      "onchainTx": "yhiQwHoeN5WcieDcBgiGr1BTq7BQLw5ZFrzE2nGxQ8B1EzMN51Fh7SWAvmhhM9DuSQriUUwgqeHAnpKSymWmMGh"
+    },
+    {
+      "personaId": "persona-eth",
+      "signalHash": "5d9c0470c33bdfde11b584a6154d30a9e221c03ed5773f418ac85e821fb94101",
+      "onchainTx": "bQFFwVjmB2fAzmGpSZYhdcgG5Sz868xfADbgX8DBxoUfitqRtronKaSLwAV5CwdDTwwQNjwjoCiZ17KfBkuJzpQ"
+    },
+    {
+      "personaId": "persona-amazon",
+      "signalHash": "ae3c689d4be7ca08949f34ab4b1fed0e7e4fb366e7a3744860ba5aa17af6948c",
+      "onchainTx": "Kv1JM7HeszTAsVhCekNfphDrybL9VT827LG79xwbYgF6M5tiY6zqtjNwNAAAWqERNA1BArafog3q8t2C49xMC3t"
+    },
+    {
+      "personaId": "persona-amazon",
+      "signalHash": "9014b5c01186c2f8e873b08cafc239ac6c11498f6902f39077eebd8121979213",
+      "onchainTx": "2AM8NwQqQeUQnrhhVxBHMTs29TYF9UzpqaBf4YAqJUsidsHvNG23WEky23v6Qbsa1mbsRuxKL9EiuqS83VvAxHiy"
+    },
+    {
+      "personaId": "persona-anime",
+      "signalHash": "f182fb2e8720d9921f4546964bbddf247b0633661bd0c1a38b6ad7fb24d2eb7a",
+      "onchainTx": "4Ckt9suGH8S5DD3dEG7Xs72iLY1pLypFpUCrTuj5o7v4ofBsfaiJXJ56Srxko9J23MFM2QP13YmJMvjknNvosFGT"
+    },
+    {
+      "personaId": "persona-anime",
+      "signalHash": "951ec3cb6d50ddf7b7ee490c6765436bdd772f8b3977c7ce8a37587b8386c925",
+      "onchainTx": "25WNHWUFmcqWSzrBDRpDAbAhZqrC7166j6Aq3pYHhJjvVFVCFpH86k85uWuQgKxjGb1xNfbs5cA3ERv32XYfJeLc"
+    }
+  ],
+  "onchainSubscriptions": [
+    {
+      "personaId": "persona-eth",
+      "subscriber": "7UaDYJYMhrRDQJ6B8BEt6inFMrCHmdx5fD6L47mmgRcd",
+      "signature": "48B9e1zcRapv5gJVpnpDEBfgP1cZqdspQGMvJMs7whCrKXf6pA5kxkUgaQZo8CmUKetofG1Qv4MfjeRFPqpMC5K7"
+    },
+    {
+      "personaId": "persona-amazon",
+      "subscriber": "anqfaR5PNNCtgN6qGBp7EAJpzRqxncN3qjVEPLMptCU",
+      "signature": "4EdSHXfo89i6M7M8uRG8GHwsTZoAAcBV2sfu5WTUEefbdTv74EVTBhUghmEATX22jp2LTmbyKueAG26zB3553nPh"
+    },
+    {
+      "personaId": "persona-anime",
+      "subscriber": "3bGG3y1uyGhodQr9iN7ZpVKbMrz6XhREQUrMRdw49UEi",
+      "signature": "3YyXwANn2oaybquXfGV2SCa816gSPdBFpLALLKHtGHSQdbjJQhYv8jBcedgVSHtHKExXPHMeoBLQttwLaF2F8pbg"
+    },
+    {
+      "personaId": "persona-eth",
+      "subscriber": "6TWiUkiH5bDHw9AQtFxRPMaRxArR1BFzxZ7sMdCA7E9K",
+      "signature": "5R5FzVSRdKfvWo5nqmwUHMMu9EAhTpZE4YMw5J1RadAqXKVZQLUs5Xt3gopHe7ZmyCF2rtAKL1FpFyLRUBVguxvw"
+    },
+    {
+      "personaId": "persona-amazon",
+      "subscriber": "BkZ5en7MeMyCFbKnU3Eia9iMuBLdPKbBxHNKPcLr1xcD",
+      "signature": "2AbEStMVZj99JxSqBS7Up87V1QCNkyNQgeiDPKNCUhDxChagxrjhFPETk8g65Zp7uroz7qVq6ZhsLmfbVHVZvBSi"
+    },
+    {
+      "personaId": "persona-anime",
+      "subscriber": "G2ovV6gSnwgjMHYRiDZ1S6S79BL9VVkHZsx241TN9RrM",
+      "signature": "5JG4UN7fX1Q2M4FzZexN7CY94VMzV753DMPiAVV2rZvQC75BFqQnYNeCWaT53WQTtSspZgbPkNKUTHTdi753Vd5L"
+    },
+    {
+      "personaId": "persona-eth",
+      "subscriber": "FJbb4zYviYvqAfckQx7F5e4TJ4BNvE5e8FzS1AHfUmHX",
+      "signature": "Ht6dvoWK8cHw7DUjZwhFpQWbTSsue2mKP2zRVXd66YJ7TtqaVZWibcEpfhyGoQ1mtc9Kh7vXqAxGBwaDR4qMebX"
+    },
+    {
+      "personaId": "persona-amazon",
+      "subscriber": "DJRg7GLRKPjtZMQfhDox9Jh9HKkNEQDRok9XMpfS68jQ",
+      "signature": "3xrdFyqapwFpsv8LJhAgeJSiTePgTZcTjnNQqcAhDnFZ4r9376NrYVBAkifdjsaP6AoRQZ9cBW1tkFpZ8Ve2emwi"
+    },
+    {
+      "personaId": "persona-anime",
+      "subscriber": "kwzntfaxTWVJz9mxLG9XKgaA2pk6jbENcefXFJdVVRX",
+      "signature": "h7Kxwk3ANqZuwnSKJ8KL9fMKJSVRCyz9aXWUgrnAY3a9J1NDcGePWyvjexSis25sqiUa2ZycwbV3ho8d1okqNve"
+    },
+    {
+      "personaId": "persona-eth",
+      "subscriber": "3tgZ4sLd6JtE7K5EA8GNfNs9zVTyyLeTLnUP1fw1xbpP",
+      "signature": "2tFEYdhRNckdbPvbY8hi5Nd2qFwaDJq2Ar4PFrST3p2vPynUW48wpTE6wyBDjVoiBA7oULazfDBcMWiJ2UqCVCYa"
+    }
+  ],
+  "notes": [
+    "Demo data seeded. Use subscriberKeys to decrypt signals via SDK or MCP.",
+    "On-chain subscriptions are minted for listener wallets; import them to view in Profile page."
+  ]
+}

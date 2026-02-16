@@ -1,16 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair, Connection, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { getAccount, getAssociatedTokenAddressSync, getMint } from "@solana/spl-token";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { LoggingMessageNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { PersonaClient } from "../../sdk/src/index.ts";
+import { PersonaClient, __testing as sdkTesting, subscriberIdFromPubkey } from "../../sdk/src/index.ts";
 import { webcrypto } from "node:crypto";
-import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Server } from "node:http";
 import { createHash } from "node:crypto";
+import {
+  decodeSubscriptionAccount,
+  derivePersonaState,
+  deriveSubscriptionMint,
+  deriveSubscriptionPda,
+} from "../../frontend/app/lib/solana.ts";
 
 // Ensure WebCrypto available for subscribe instruction builder
 if (!globalThis.crypto) {
@@ -34,6 +41,11 @@ let connection: Connection;
 let server: Server;
 let baseUrl: string;
 let tempKeypairPath: string;
+
+function loadKeypairFromFile(filePath: string): Keypair {
+  const raw = readFileSync(filePath, "utf8");
+  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw)));
+}
 
 async function airdrop(connection: Connection, pubkey: PublicKey, sol = 2) {
   const sig = await connection.requestAirdrop(pubkey, sol * 1_000_000_000);
@@ -68,6 +80,18 @@ async function ensureLocalnet() {
 
 function sha256Bytes(input: string): Buffer {
   return createHash("sha256").update(input).digest();
+}
+
+function sha256Hex(input: Buffer | string): string {
+  const buf = typeof input === "string" ? Buffer.from(input, "utf8") : input;
+  return createHash("sha256").update(buf).digest("hex");
+}
+
+function loadSubscriptionCoder(): anchor.BorshAccountsCoder {
+  const idlPath = path.resolve(process.cwd(), "../backend/idl/subscription_royalty.json");
+  const idlRaw = readFileSync(idlPath, "utf8");
+  const idl = JSON.parse(idlRaw) as anchor.Idl;
+  return new anchor.BorshAccountsCoder(idl);
 }
 
 function loadPersonaRegistryCoder(): anchor.BorshInstructionCoder {
@@ -145,12 +169,23 @@ async function sendSubscribeTx(args: {
 beforeAll(async () => {
   await ensureLocalnet();
 
-  const keypair = Keypair.generate();
+  const authorityPath =
+    process.env.E2E_AUTHORITY_KEYPAIR ??
+    process.env.SOLANA_KEYPAIR ??
+    path.resolve(process.cwd(), "../.keys/localnet.json");
+  let keypair: Keypair;
+  if (existsSync(authorityPath)) {
+    keypair = loadKeypairFromFile(authorityPath);
+    tempKeypairPath = authorityPath;
+  } else {
+    keypair = Keypair.generate();
+    const dir = mkdtempSync(path.join(tmpdir(), "persona-e2e-"));
+    tempKeypairPath = path.join(dir, "backend-keypair.json");
+    writeFileSync(tempKeypairPath, JSON.stringify(Array.from(keypair.secretKey)));
+  }
+  // eslint-disable-next-line no-console
+  console.log("E2E authority keypair:", tempKeypairPath, keypair.publicKey.toBase58());
   await airdrop(connection, keypair.publicKey, 5);
-
-  const dir = mkdtempSync(path.join(tmpdir(), "persona-e2e-"));
-  tempKeypairPath = path.join(dir, "backend-keypair.json");
-  writeFileSync(tempKeypairPath, JSON.stringify(Array.from(keypair.secretKey)));
 
   const coder = loadPersonaRegistryCoder();
   const personaSpecs = [
@@ -196,7 +231,7 @@ afterAll(async () => {
 });
 
 describe("E2E maker/taker flow", () => {
-  it("delivers ticks to SDK and MCP listeners", async () => {
+  it("delivers ticks to SDK and MCP listeners with strict validation", async () => {
     const personas = [
       { id: "persona-eth", tier: "trust", pricingType: 0, evidenceLevel: 0 },
       { id: "persona-anime", tier: "verifier", pricingType: 1, evidenceLevel: 1 },
@@ -204,6 +239,9 @@ describe("E2E maker/taker flow", () => {
     ];
 
     const personaMap = JSON.parse(process.env.SOLANA_PERSONA_MAP ?? "{}") as Record<string, string>;
+    const personaPubkeys = Object.fromEntries(
+      personas.map((p) => [p.id, new PublicKey(personaMap[p.id])])
+    ) as Record<string, PublicKey>;
 
     const takers = Array.from({ length: 10 }).map(() => ({
       wallet: Keypair.generate(),
@@ -217,26 +255,77 @@ describe("E2E maker/taker flow", () => {
 
     for (const [idx, taker] of takers.entries()) {
       const personaId = personas[idx % personas.length].id;
-      await fetch(`${baseUrl}/subscribe`, {
+      const res = await fetch(`${baseUrl}/subscribe`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ personaId, encPubKeyDerBase64: taker.keys.publicKeyDerBase64 }),
       });
+      expect(res.ok).toBe(true);
+      const body = (await res.json()) as { subscriberId: string };
+      const expectedId = subscriberIdFromPubkey(taker.keys.publicKeyDerBase64);
+      expect(body.subscriberId).toBe(expectedId);
     }
 
     // On-chain subscription NFTs
     for (const [idx, taker] of takers.entries()) {
       const persona = personas[idx % personas.length];
+      const personaPubkey = personaPubkeys[persona.id];
       await sendSubscribeTx({
-        persona: new PublicKey(personaMap[persona.id]),
+        persona: personaPubkey,
         subscriber: taker.wallet,
         tierId: persona.tier,
         pricingType: persona.pricingType,
         evidenceLevel: persona.evidenceLevel,
       });
+
+      const subscriptionPda = deriveSubscriptionPda(PROGRAM_ID, personaPubkey, taker.wallet.publicKey);
+      const subscriptionMint = deriveSubscriptionMint(PROGRAM_ID, personaPubkey, taker.wallet.publicKey);
+      const account = await connection.getAccountInfo(subscriptionPda, "confirmed");
+      expect(account).not.toBeNull();
+      const decoded = decodeSubscriptionAccount(subscriptionPda, account!.data);
+      expect(decoded).not.toBeNull();
+      expect(decoded!.subscriber).toBe(taker.wallet.publicKey.toBase58());
+      expect(decoded!.persona).toBe(personaPubkey.toBase58());
+      expect(decoded!.pricingType).toBe(persona.pricingType);
+      expect(decoded!.evidenceLevel).toBe(persona.evidenceLevel);
+      expect(decoded!.quotaRemaining).toBe(0);
+      expect(decoded!.status).toBe(0);
+      expect(decoded!.nftMint).toBe(subscriptionMint.toBase58());
+      const expectedTierHash = sha256Hex(Buffer.from(persona.tier, "utf8"));
+      expect(decoded!.tierIdHex).toBe(expectedTierHash);
+
+      const mint = await getMint(connection, subscriptionMint);
+      expect(mint.decimals).toBe(0);
+      expect(mint.supply).toBe(1n);
+      expect(mint.mintAuthority).toBeNull();
+      expect(mint.freezeAuthority).toBeNull();
+
+      const ata = getAssociatedTokenAddressSync(subscriptionMint, taker.wallet.publicKey);
+      const tokenAccount = await getAccount(connection, ata);
+      expect(tokenAccount.amount).toBe(1n);
+    }
+
+    const subscriptionCoder = loadSubscriptionCoder();
+    for (const persona of personas) {
+      const personaPubkey = personaPubkeys[persona.id];
+      const personaState = derivePersonaState(PROGRAM_ID, personaPubkey);
+      const account = await connection.getAccountInfo(personaState, "confirmed");
+      expect(account).not.toBeNull();
+      const decoded = subscriptionCoder.decode("PersonaState", account!.data) as {
+        persona: PublicKey;
+        subscriptionCount: anchor.BN;
+        bump: number;
+      };
+      const expectedCount = takers.filter((_, idx) => personas[idx % personas.length].id === persona.id).length;
+      expect(decoded.persona.toBase58()).toBe(personaPubkey.toBase58());
+      expect(decoded.subscriptionCount.toNumber()).toBe(expectedCount);
+      expect(decoded.bump).toBeGreaterThanOrEqual(0);
     }
 
     const actions: string[] = [];
+    const receivedByTaker = new Map<string, { personaId: string; plaintext: string }>();
+    const listenerErrors: string[] = [];
+    const duplicateSignals: string[] = [];
     const tickStats: Array<{ createdAt: number; receivedAt: number }> = [];
     const listeners: Array<() => void> = [];
 
@@ -258,7 +347,26 @@ describe("E2E maker/taker flow", () => {
         maxAgeMs: 60_000,
         includeBlockTime: true,
         onSignal: (tick) => {
-          actions.push(`sdk:${taker.wallet.publicKey.toBase58()}:${tick.plaintext}`);
+          const takerId = taker.wallet.publicKey.toBase58();
+          const expectedPlaintext = `${persona.id}-tick`;
+          if (receivedByTaker.has(takerId)) {
+            duplicateSignals.push(tick.signalHash);
+            return;
+          }
+          if (tick.metadata.personaId !== persona.id) {
+            listenerErrors.push(`persona mismatch for ${takerId}`);
+          }
+          if (tick.plaintext !== expectedPlaintext) {
+            listenerErrors.push(`plaintext mismatch for ${takerId}`);
+          }
+          if (tick.ageMs < 0 || tick.ageMs > 60_000) {
+            listenerErrors.push(`age out of range for ${takerId}`);
+          }
+          if (tick.receivedAt < tick.createdAt) {
+            listenerErrors.push(`receivedAt before createdAt for ${takerId}`);
+          }
+          actions.push(`sdk:${takerId}:${tick.plaintext}`);
+          receivedByTaker.set(takerId, { personaId: tick.metadata.personaId, plaintext: tick.plaintext });
           tickStats.push({ createdAt: tick.createdAt, receivedAt: tick.receivedAt });
         },
       });
@@ -277,9 +385,11 @@ describe("E2E maker/taker flow", () => {
     await mcpClient.connect(clientTransport);
 
     let mcpReceived = false;
+    let mcpPayload: any = null;
     mcpClient.setNotificationHandler(LoggingMessageNotificationSchema, (note) => {
       if (note.params?.data?.signalHash) {
         mcpReceived = true;
+        mcpPayload = note.params?.data;
       }
     });
 
@@ -298,6 +408,7 @@ describe("E2E maker/taker flow", () => {
     });
 
     // Makers publish signals
+    const published: Array<{ personaId: string; metadata: any }> = [];
     for (const persona of personas) {
       const payload = Buffer.from(`${persona.id}-tick`, "utf8").toString("base64");
       const res = await fetch(`${baseUrl}/signals`, {
@@ -306,14 +417,94 @@ describe("E2E maker/taker flow", () => {
         body: JSON.stringify({ personaId: persona.id, tierId: persona.tier, plaintextBase64: payload }),
       });
       expect(res.ok).toBe(true);
+      const body = (await res.json()) as { metadata: any };
+      expect(body.metadata).toBeTruthy();
+      expect(typeof body.metadata.signalHash).toBe("string");
+      expect(body.metadata.signalHash).toHaveLength(64);
+      expect(body.metadata.signalPointer).toBe(`backend://ciphertext/${body.metadata.signalHash}`);
+      expect(body.metadata.keyboxPointer).toBe(`backend://keybox/${body.metadata.keyboxHash}`);
+      expect(body.metadata.onchainTx).toBeTruthy();
+      published.push({ personaId: persona.id, metadata: body.metadata });
     }
 
-    await waitFor(() => actions.length >= takers.length, 15_000, 300);
+    await waitFor(() => receivedByTaker.size >= takers.length, 15_000, 300);
+    await waitFor(() => mcpReceived, 10_000, 250);
+
+    for (const item of published) {
+      const meta = item.metadata;
+      const latestRes = await fetch(`${baseUrl}/signals/latest?personaId=${encodeURIComponent(item.personaId)}`);
+      expect(latestRes.ok).toBe(true);
+      const latestBody = (await latestRes.json()) as { signal: any };
+      expect(latestBody.signal.signalHash).toBe(meta.signalHash);
+
+      const cipherRes = await fetch(`${baseUrl}/storage/ciphertext/${meta.signalHash}`);
+      expect(cipherRes.ok).toBe(true);
+      const cipherBody = (await cipherRes.json()) as { payload: any };
+      const cipherHash = sha256Hex(Buffer.from(JSON.stringify(cipherBody.payload)));
+      expect(cipherHash).toBe(meta.signalHash);
+
+      const keyboxRes = await fetch(`${baseUrl}/storage/keybox/${meta.keyboxHash}`);
+      expect(keyboxRes.ok).toBe(true);
+      const keyboxBody = (await keyboxRes.json()) as { keybox: Record<string, any> };
+      const keyboxHash = sha256Hex(Buffer.from(JSON.stringify(keyboxBody.keybox)));
+      expect(keyboxHash).toBe(meta.keyboxHash);
+
+      const matchingTakers = takers.filter((_, idx) => personas[idx % personas.length].id === item.personaId);
+      for (const taker of matchingTakers) {
+        const subscriberId = subscriberIdFromPubkey(taker.keys.publicKeyDerBase64);
+        const entryRes = await fetch(
+          `${baseUrl}/storage/keybox/${meta.keyboxHash}?subscriberId=${encodeURIComponent(subscriberId)}`
+        );
+        expect(entryRes.ok).toBe(true);
+      }
+
+      const personaPubkey = personaPubkeys[item.personaId];
+      const signalHashBytes = Buffer.from(meta.signalHash, "hex");
+      const [signalPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("signal"), personaPubkey.toBuffer(), Buffer.from(signalHashBytes)],
+        PROGRAM_ID
+      );
+      const signalAccount = await connection.getAccountInfo(signalPda, "confirmed");
+      expect(signalAccount).not.toBeNull();
+      const decoded = sdkTesting.decodeSignalRecord(signalAccount!.data);
+      expect(decoded).not.toBeNull();
+      expect(decoded!.persona).toBe(personaPubkey.toBase58());
+      expect(decoded!.signalHash).toBe(meta.signalHash);
+      expect(decoded!.keyboxHash).toBe(meta.keyboxHash);
+      const signalPointerHash = sha256Hex(meta.signalPointer);
+      const keyboxPointerHash = sha256Hex(meta.keyboxPointer);
+      expect(decoded!.signalPointerHash).toBe(signalPointerHash);
+      expect(decoded!.keyboxPointerHash).toBe(keyboxPointerHash);
+      expect(Math.abs(decoded!.createdAt - meta.createdAt)).toBeLessThan(120_000);
+    }
+
+    const mcpResult = await mcpClient.callTool({
+      name: "check_persona_tick",
+      arguments: {
+        personaId: "persona-eth",
+        personaPubkey: personaMap["persona-eth"],
+        subscriberPublicKeyBase64: takers[0].keys.publicKeyDerBase64,
+        subscriberPrivateKeyBase64: takers[0].keys.privateKeyDerBase64,
+        backendUrl: baseUrl,
+        rpcUrl: RPC_URL,
+        programId: PROGRAM_ID.toBase58(),
+        maxAgeMs: 60_000,
+      },
+    });
+    const contentText = mcpResult.content?.[0]?.type === "text" ? mcpResult.content[0].text : "";
+    const parsed = contentText.startsWith("{") ? JSON.parse(contentText) : null;
+    expect(parsed?.personaId).toBe("persona-eth");
+    expect(parsed?.plaintext).toBe("persona-eth-tick");
 
     listeners.forEach((stop) => stop());
 
-    expect(actions.length).toBeGreaterThanOrEqual(10);
+    expect(actions.length).toBe(takers.length);
+    expect(receivedByTaker.size).toBe(takers.length);
+    expect(listenerErrors).toEqual([]);
+    expect(duplicateSignals).toEqual([]);
     expect(tickStats.some((t) => t.receivedAt - t.createdAt < 60_000)).toBe(true);
     expect(mcpReceived).toBe(true);
+    expect(mcpPayload?.personaId).toBe("persona-eth");
+    expect(mcpPayload?.plaintext).toBe("persona-eth-tick");
   });
 });

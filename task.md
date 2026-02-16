@@ -50,8 +50,9 @@ Progress
 - Subscribe now creates mint + ATA via CPI in-program (avoids stack overflow).
 - E2E updated to create persona registry PDAs before subscribing.
 - Tapestry social layer added: intents + slash reports + likes/comments + social feed UI.
+- Demo data seeder added (flag-based) to populate backend stores + optional localnet on-chain seed.
 
 Next Actions
-1. Ensure test dependencies installed and run test suites locally.
-2. Verify E2E runs against localnet and deployed program.
-3. Decide CI strategy for tests (localnet in CI vs manual).
+1. Ensure localnet programs are deployed before running on-chain demo seed.
+2. Run E2E suite against localnet to validate seeded flows.
+3. Confirm frontend renders seeded bots/signals/requests as expected.

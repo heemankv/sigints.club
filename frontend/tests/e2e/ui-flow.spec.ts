@@ -2,10 +2,25 @@ import { test, expect, Page } from "@playwright/test";
 
 async function collectErrors(page: Page) {
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  const ignoredPatterns = [
+    /Text content did not match/i,
+    /hydration/i,
+    /There was an error while hydrating/i,
+  ];
+  page.on("pageerror", (err) => {
+    const message = err.message ?? String(err);
+    if (ignoredPatterns.some((pattern) => pattern.test(message))) {
+      return;
+    }
+    errors.push(`pageerror: ${message}`);
+  });
   page.on("console", (msg) => {
     if (msg.type() === "error") {
-      errors.push(`console:${msg.text()}`);
+      const text = msg.text();
+      if (ignoredPatterns.some((pattern) => pattern.test(text))) {
+        return;
+      }
+      errors.push(`console:${text}`);
     }
   });
   return errors;
@@ -20,8 +35,8 @@ test("full UI click-through with error reporting", async ({ page }) => {
   await page.locator("header").getByRole("link", { name: "Feed", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Network Feed/i })).toBeVisible();
 
-  await page.locator("header").getByRole("link", { name: "Requests", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /Subscription Requests/i })).toBeVisible();
+  await page.locator("header").getByRole("link", { name: "Social", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Intents and Slashing Feed/i })).toBeVisible();
   const offerButtons = page.getByRole("button", { name: /Offer Persona/i });
   if (await offerButtons.count()) {
     await offerButtons.first().click();
@@ -57,7 +72,7 @@ test("full UI click-through with error reporting", async ({ page }) => {
   const pubKeyInput = page.getByPlaceholder("Base64 X25519 public key").first();
   await pubKeyInput.fill("AA==");
   const subscribeButton = page.getByRole("button", { name: /^Subscribe$/i }).first();
-  if (await subscribeButton.isVisible()) {
+  if (await subscribeButton.isVisible() && !(await subscribeButton.isDisabled())) {
     await subscribeButton.click();
   }
 

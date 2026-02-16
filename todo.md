@@ -6,6 +6,7 @@ Open
 3. Draft instruction arguments for create_persona, subscribe, open_challenge, slash.
 4. Evaluate DA layer swap for evidence storage (future).
 5. Redeploy updated subscription_royalty program (persona registry enforcement + manual mint/ATA creation).
+6. Reset localnet and redeploy programs to fix on-chain demo seeding (AccountNotSigner).
 
 Completed
 1. Implement backend storage for ciphertext and keybox with hash verification.
@@ -21,3 +22,4 @@ Completed
 11. SDK and MCP server scaffolding for agent tick listening.
 12. Tapestry social feed + intent/slash posts integrated into UI.
 13. Auto-create Tapestry profiles on login (when API key present).
+14. Demo data seeding with backend + optional localnet on-chain seed flag.

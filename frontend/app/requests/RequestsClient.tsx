@@ -16,7 +16,14 @@ type SocialPost = {
 };
 
 type LikeResponse = { count: number };
-type CommentEntry = { id?: string; comment?: string; content?: string; profileId?: string; createdAt?: number };
+type CommentEntry = {
+  id?: string;
+  comment?: string;
+  content?: string | { text?: string };
+  text?: string;
+  profileId?: string;
+  createdAt?: number;
+};
 
 const filters = [
   { label: "All", value: "all" },
@@ -27,7 +34,7 @@ const filters = [
 
 export default function RequestsClient() {
   const { publicKey } = useWallet();
-  const wallet = publicKey?.toBase58();
+  const wallet = publicKey?.toBase58() ?? process.env.NEXT_PUBLIC_TEST_WALLET;
   const [feed, setFeed] = useState<SocialPost[]>([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -335,11 +342,23 @@ export default function RequestsClient() {
                 </button>
                 {postComments.length > 0 && (
                   <div className="comment-list">
-                    {postComments.map((c, idx) => (
+                    {postComments.map((c, idx) => {
+                      const content =
+                        typeof c.comment === "string"
+                          ? c.comment
+                          : typeof c.text === "string"
+                            ? c.text
+                            : typeof c.content === "string"
+                              ? c.content
+                              : typeof c.content === "object" && c.content?.text
+                                ? c.content.text
+                                : "Comment";
+                      return (
                       <div key={`${post.contentId}-comment-${idx}`} className="comment-item">
-                        <p>{c.comment ?? c.content ?? "Comment"}</p>
+                        <p>{content}</p>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </div>

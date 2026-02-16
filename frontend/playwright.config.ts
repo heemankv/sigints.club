@@ -17,5 +17,10 @@ export default defineConfig({
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      NEXT_PUBLIC_TEST_WALLET:
+        process.env.NEXT_PUBLIC_TEST_WALLET ?? "DRyWQCVXuTkffjmJvDUD3A57L3agpPdP9KHi4tqxFqPi",
+      NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3001",
+    },
   },
 });

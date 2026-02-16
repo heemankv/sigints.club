@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "demo": "tsx src/agents/demo.ts",
+    "seed:demo": "tsx src/seed/demo.ts",
     "provider": "tsx src/agents/provider.ts",
     "listener": "tsx src/agents/listener.ts",
     "personas:create": "tsx src/agents/create-personas.ts",

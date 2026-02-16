@@ -1,4 +1,4 @@
-import { SocialPostStore, SocialPostType } from "../social/SocialPostStore";
+import { SocialPost, SocialPostStore, SocialPostType } from "../social/SocialPostStore";
 import { UserStore } from "../social/UserStore";
 import { TapestryClient } from "../tapestry/TapestryClient";
 import { randomUUID } from "node:crypto";
@@ -116,7 +116,37 @@ export class SocialService {
   }
 
   listPosts(type?: SocialPostType) {
-    return this.posts.listPosts(type ? { type } : {});
+    return this.listTapestryPosts(type);
+  }
+
+  async listPostsWithCounts(type?: SocialPostType, limit = 50) {
+    try {
+      const entries = await this.fetchTapestryContents(type, limit);
+      const posts: SocialPost[] = [];
+      const likeCounts: Record<string, number> = {};
+      const commentCounts: Record<string, number> = {};
+      for (const entry of entries) {
+        const mapped = mapTapestryEntryToPost(entry);
+        if (!mapped) continue;
+        posts.push(mapped);
+        likeCounts[mapped.contentId] = entry.socialCounts?.likeCount ?? 0;
+        commentCounts[mapped.contentId] = entry.socialCounts?.commentCount ?? 0;
+      }
+      const merged = await this.mergeWithLocal(posts, type, limit);
+      for (const post of merged) {
+        if (!(post.contentId in likeCounts)) {
+          likeCounts[post.contentId] = 0;
+        }
+        if (!(post.contentId in commentCounts)) {
+          commentCounts[post.contentId] = 0;
+        }
+      }
+      return { posts: merged, likeCounts, commentCounts };
+    } catch (error) {
+      const fallback = await this.posts.listPosts(type ? { type } : {});
+      const trimmed = limit ? fallback.slice(0, limit) : fallback;
+      return { posts: trimmed, likeCounts: {}, commentCounts: {} };
+    }
   }
 
   async addComment(wallet: string, contentId: string, comment: string, displayName?: string) {
@@ -162,6 +192,69 @@ export class SocialService {
     const details = await this.client.getContentDetails(contentId);
     return details?.socialCounts?.likeCount ?? 0;
   }
+
+  private async listTapestryPosts(type?: SocialPostType, limit = 50) {
+    try {
+      const entries = await this.fetchTapestryContents(type, limit);
+      const posts = entries.map(mapTapestryEntryToPost).filter(Boolean) as SocialPost[];
+      return this.mergeWithLocal(posts, type, limit);
+    } catch (error) {
+      return this.posts.listPosts(type ? { type } : {});
+    }
+  }
+
+  private async mergeWithLocal(posts: SocialPost[], type?: SocialPostType, limit = 50) {
+    const local = await this.posts.listPosts(type ? { type } : {});
+    const map = new Map<string, SocialPost>();
+    for (const post of posts) {
+      map.set(post.contentId, post);
+    }
+    const now = Date.now();
+    for (const post of local) {
+      if (map.has(post.contentId)) continue;
+      if (now - post.createdAt > 5 * 60 * 1000) continue;
+      map.set(post.contentId, post);
+    }
+    const merged = Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+    return limit ? merged.slice(0, limit) : merged;
+  }
+
+  private async fetchTapestryContents(type?: SocialPostType, limit = 50) {
+    if (type) {
+      const response = await withTimeout(
+        this.client.listContents({
+          filterField: "type",
+          filterValue: type,
+          orderByField: "created_at",
+          orderByDirection: "DESC",
+          pageSize: limit,
+        }),
+        4000
+      );
+      return response.contents ?? [];
+    }
+
+    const responses = await withTimeout(
+      Promise.all([
+        this.client.listContents({
+          filterField: "type",
+          filterValue: "intent",
+          orderByField: "created_at",
+          orderByDirection: "DESC",
+          pageSize: limit,
+        }),
+        this.client.listContents({
+          filterField: "type",
+          filterValue: "slash",
+          orderByField: "created_at",
+          orderByDirection: "DESC",
+          pageSize: limit,
+        }),
+      ]),
+      4000
+    );
+    return responses.flatMap((res) => res.contents ?? []);
+  }
 }
 
 function toPropertyMap(list: { key: string; value: string | number | boolean }[]): Record<string, string> {
@@ -169,4 +262,50 @@ function toPropertyMap(list: { key: string; value: string | number | boolean }[]
     acc[item.key] = String(item.value);
     return acc;
   }, {});
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Tapestry request timed out")), timeoutMs);
+  });
+  try {
+    return (await Promise.race([promise, timeout])) as T;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function mapTapestryEntryToPost(entry: any) {
+  const content = entry?.content ?? {};
+  const type = content?.type;
+  if (type !== "intent" && type !== "slash") {
+    return null;
+  }
+  const contentId = content.id ?? "";
+  if (!contentId) return null;
+
+  const createdAt = Number(content.created_at ?? Date.now());
+  const text = content.text ?? "";
+  const profileId = entry?.authorProfile?.id ?? "";
+  const authorWallet = content.wallet ?? content.validatorWallet ?? content.makerWallet ?? "";
+
+  const omit = new Set(["id", "created_at", "namespace", "type", "text", "externalLinkURL"]);
+  const custom: Record<string, string> = {};
+  for (const [key, value] of Object.entries(content)) {
+    if (omit.has(key)) continue;
+    if (value === undefined || value === null) continue;
+    custom[key] = String(value);
+  }
+
+  return {
+    id: contentId,
+    type: type as SocialPostType,
+    contentId,
+    profileId,
+    authorWallet,
+    content: text,
+    createdAt,
+    customProperties: Object.keys(custom).length ? custom : undefined,
+  };
 }

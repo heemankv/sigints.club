@@ -1,28 +1,68 @@
 [
   {
     "personaId": "persona-eth",
-    "subscriberId": "efb70ab94881d56b460dc66a646579dfc0cf5213c3a4d0e33011099e6fe98f43",
-    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAG37U0WegIOD3UDX01GBKtDdRVdaZpYBHoYNOArLrmUM="
+    "subscriberId": "011d044ba61457d3f101460e202f29bdf747b0cb580139159e81ac4fe6dd3776",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEApR6FIEGT7XlgH6fkiV1OaMm7d9Emj67SvD3oLCqN80s="
+  },
+  {
+    "personaId": "persona-amazon",
+    "subscriberId": "e6f5ea8f1990c8907e7690928f62d5b845dc8361286eeef10a349ba08c14b29e",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEA4AuudB1TJjd1gJBcsYqy1GBEWNH+6ERrbth25WVAVRU="
+  },
+  {
+    "personaId": "persona-anime",
+    "subscriberId": "8b4850a11e1fa5322537585ae565c1d74b4551c20791f20b762ff05c17fae337",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAHW8oA5PtWh4GD+ehLCbKdm892UDzN6MPWGH9C+nEGmY="
   },
   {
     "personaId": "persona-eth",
-    "subscriberId": "ccfb5a19e3b5267ec8402e028e821c6af5339f3ab319aaa72d3c139b1f720e81",
-    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAZWbaAK8yOh0V53wmI7n2szehhJM92cWBJrBb7fC2/kY="
+    "subscriberId": "f697029d805a24671cb2e268f92a3439d86255fb10ad7d4e3fc6b20d72f1c8d1",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEA6f0Qw5dvoflonUXDeqbnsYrBWEvuyefBqLL5fuMYp3Q="
+  },
+  {
+    "personaId": "persona-amazon",
+    "subscriberId": "58f5adca82baebccfb71a2bbf8739a8df9e2edc7762105eac9b44b1aad4290f8",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAX/NvZaQCZpmx9nB58nCPpfbufz4hjPijLo+iB0NrXkU="
+  },
+  {
+    "personaId": "persona-anime",
+    "subscriberId": "8c4d22ee7116a95318a3d3778ec099ca22f334c199e1f2667ac63fa2917db11f",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAy04WgGg1YhO6fwZWwUtDGliMCOaNdL6NI/AjFlHXlVw="
   },
   {
     "personaId": "persona-eth",
-    "subscriberId": "b824218a2ad7df3c80c8cdaeb7547865718764cb7388c7a98f120cd69c684e15",
-    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAod8+u6ivRrQCumTZlh5M2bCcX6KF0ty81PsaAONthhQ="
+    "subscriberId": "8fc5215791e9719b7489c7d73f28c5196cafc03419b2c5d195bc450c29d5b70d",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEARVp+iyCrGsA6TUi+eD4hiobHd7AJpQPz7UCQxpwX2yU="
+  },
+  {
+    "personaId": "persona-amazon",
+    "subscriberId": "0c4062023acfab48e3b7afbe3cadeb8e451207c4080ea971efb7664371f69d58",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAZHvLuEr/lgXiQqDXMn2Vwp3sSGTSilctQCrzwUaoygA="
+  },
+  {
+    "personaId": "persona-anime",
+    "subscriberId": "ac4dfc8ad47036a4106e7a2f0caadc8630c7587bfb1ac001d368a3ad551ea874",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEATWk5/1EXZr0tDsJjrZNAf6+syz5JiHk/KgKsH9GdGQw="
   },
   {
     "personaId": "persona-eth",
-    "subscriberId": "c1dea618cc99263ba0ec99ad2e42f37d0ebf6e2bbdfecc1a64bbbfd14d99a928",
-    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAvhDpRCzkMjcfF+KlSrZMePEHu0FJeQgzoUKFOEGFxhU="
+    "subscriberId": "5c42a702fea1cbd930c9a5bebb3827d478d36e9ffe95f146362a1473fbae53ab",
+    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAdBkMwD+zWcArSlCIbiXP2xW0DUCjx45QW7uo95lWSAA="
   },
   {
     "personaId": "persona-eth",
-    "subscriberId": "833818df55aff23326a37eac552ab6a18735f4e9420d54f1c2f2a57193ef90fc",
-    "encPubKeyDerBase64": "MCowBQYDK2VuAyEAO+4OnQvF/hrw8yxW64GvWoDvt7LtPLHWxQnge8nUlyQ="
+    "subscriberId": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+    "encPubKeyDerBase64": "AA=="
+  },
+  {
+    "personaId": "persona-eth",
+    "subscriberId": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+    "encPubKeyDerBase64": "AA=="
+  },
+  {
+    "personaId": "persona-eth",
+    "subscriberId": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+    "encPubKeyDerBase64": "AA=="
   },
   {
     "personaId": "persona-eth",

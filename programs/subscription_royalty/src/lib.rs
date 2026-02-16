@@ -397,7 +397,11 @@ pub enum ErrorCode {
 
 fn load_persona_config(account: &AccountInfo) -> Result<PersonaConfig> {
     require_keys_eq!(*account.owner, PERSONA_REGISTRY_ID, ErrorCode::InvalidPersona);
-    let mut data: &[u8] = &account.data.borrow();
+    let data = account.data.borrow();
+    if data.len() < 8 {
+        return Err(error!(ErrorCode::InvalidPersona));
+    }
+    let mut data: &[u8] = &data[8..];
     let cfg = PersonaConfig::deserialize(&mut data)
         .map_err(|_| error!(ErrorCode::InvalidPersona))?;
     Ok(cfg)
