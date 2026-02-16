@@ -52,11 +52,16 @@ export class SignalService {
 
     const keybox: Record<string, WrappedKey> = {};
     for (const subscriber of subscribers) {
-      const wrapped = wrapKeyForSubscriber(
-        Buffer.from(subscriber.encPubKeyDerBase64, "base64"),
-        symKey
-      );
-      keybox[wrapped.subscriberId] = wrapped;
+      try {
+        const wrapped = wrapKeyForSubscriber(
+          Buffer.from(subscriber.encPubKeyDerBase64, "base64"),
+          symKey
+        );
+        keybox[wrapped.subscriberId] = wrapped;
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("Skipping invalid subscriber key", error);
+      }
     }
 
     const keyboxPayload = Buffer.from(JSON.stringify(keybox));

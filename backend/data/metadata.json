@@ -44,5 +44,23 @@
     "keyboxPointer": "backend://keybox/94564d40826cc1bdff756b11e3493b1601fd073193681839494bae9653965363",
     "createdAt": 1771141235265,
     "onchainTx": "4dh3vusLcAWx3aDvdbVkQCV2aB48qtiKLuMfipxqvn3yNRc8kqxSo2QEjSW7EVTtDLUoq7LZBjbacBn5bJRdUq3b"
+  },
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "603e3d35e2efd03d44a8e16fa2c2fdeb2abc36d47e1e0d31dd46decda96577c8",
+    "signalPointer": "backend://ciphertext/603e3d35e2efd03d44a8e16fa2c2fdeb2abc36d47e1e0d31dd46decda96577c8",
+    "keyboxHash": "8cdfb66a9e2802184d1cb2b2585b8e65b941e52bc8914c6740fba8f9d5051769",
+    "keyboxPointer": "backend://keybox/8cdfb66a9e2802184d1cb2b2585b8e65b941e52bc8914c6740fba8f9d5051769",
+    "createdAt": 1771177725357
+  },
+  {
+    "personaId": "persona-eth",
+    "tierId": "tier-eth-trust",
+    "signalHash": "48e7a926f0268c6773bafcfdee22da30f6ca4659d3b9968312e79eab42a7a183",
+    "signalPointer": "backend://ciphertext/48e7a926f0268c6773bafcfdee22da30f6ca4659d3b9968312e79eab42a7a183",
+    "keyboxHash": "7ed9b8975eee6474ce009290505515f7636e0a52e8ef7857b946d1f9375f9768",
+    "keyboxPointer": "backend://keybox/7ed9b8975eee6474ce009290505515f7636e0a52e8ef7857b946d1f9375f9768",
+    "createdAt": 1771185453076
   }
 ]

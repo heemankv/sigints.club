@@ -19,3 +19,15 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+export async function deleteJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${backendUrl()}${path}`, {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Backend error ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}

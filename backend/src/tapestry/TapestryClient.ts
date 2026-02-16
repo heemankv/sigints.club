@@ -10,21 +10,35 @@ export type CreateProfileInput = {
   username: string;
   bio?: string;
   id?: string;
-  customProperties?: { key: string; value: string }[];
+  properties?: { key: string; value: string | number | boolean }[];
   execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
 };
 
 export type CreateContentInput = {
   profileId: string;
-  content: string;
-  contentType: string;
-  customProperties?: { key: string; value: string }[];
+  properties: { key: string; value: string | number | boolean }[];
+  id?: string;
   execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
 };
 
 export type FollowInput = {
   startId: string;
   endId: string;
+  execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
+};
+
+export type CreateCommentInput = {
+  profileId: string;
+  contentId: string;
+  text: string;
+  id?: string;
+  properties?: { key: string; value: string | number | boolean }[];
+  execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
+};
+
+export type CreateLikeInput = {
+  profileId: string;
+  contentId: string;
   execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
 };
 
@@ -35,7 +49,7 @@ export class TapestryClient {
   constructor(cfg: TapestryConfig) {
     this.apiKey = cfg.apiKey;
     this.client = new SocialFi({
-      baseURL: cfg.baseURL ?? "https://api.usetapestry.dev/v1/",
+      baseURL: cfg.baseURL ?? "https://tapestry-server-prod.fly.dev/api/v1",
       apiKey: cfg.apiKey,
     });
   }
@@ -50,7 +64,7 @@ export class TapestryClient {
         bio: input.bio,
         blockchain: "SOLANA",
         execution: input.execution ?? "FAST_UNCONFIRMED",
-        customProperties: input.customProperties,
+        properties: input.properties,
       }
     );
   }
@@ -72,12 +86,46 @@ export class TapestryClient {
       { apiKey: this.apiKey },
       {
         profileId: input.profileId,
-        content: input.content,
-        contentType: input.contentType,
-        customProperties: input.customProperties,
+        id: input.id,
+        properties: input.properties,
         blockchain: "SOLANA",
         execution: input.execution ?? "FAST_UNCONFIRMED",
       }
     );
+  }
+
+  async createComment(input: CreateCommentInput) {
+    return this.client.comments.commentsCreate(
+      { apiKey: this.apiKey },
+      {
+        contentId: input.contentId,
+        profileId: input.profileId,
+        text: input.text,
+        commentId: input.id,
+        properties: input.properties,
+      }
+    );
+  }
+
+  async getCommentsByContent(contentId: string) {
+    return this.client.comments.commentsList({ apiKey: this.apiKey, contentId });
+  }
+
+  async createLike(input: CreateLikeInput) {
+    return this.client.likes.likesCreate(
+      { apiKey: this.apiKey, nodeId: input.contentId },
+      { startId: input.profileId }
+    );
+  }
+
+  async deleteLike(input: CreateLikeInput) {
+    return this.client.likes.likesDelete(
+      { apiKey: this.apiKey, nodeId: input.contentId },
+      { startId: input.profileId }
+    );
+  }
+
+  async getContentDetails(contentId: string) {
+    return this.client.contents.contentsDetail({ apiKey: this.apiKey, id: contentId });
   }
 }

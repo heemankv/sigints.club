@@ -106,6 +106,14 @@ export function deriveSubscriptionMint(programId: PublicKey, persona: PublicKey,
   return pda;
 }
 
+export function derivePersonaState(programId: PublicKey, persona: PublicKey): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("persona_state"), persona.toBuffer()],
+    programId
+  );
+  return pda;
+}
+
 export function buildSubscribeInstruction(params: {
   programId: PublicKey;
   persona: PublicKey;
@@ -119,12 +127,14 @@ export function buildSubscribeInstruction(params: {
   return encodeSubscribeData(params).then((data) => {
     const subscription = deriveSubscriptionPda(params.programId, params.persona, params.subscriber);
     const subscriptionMint = deriveSubscriptionMint(params.programId, params.persona, params.subscriber);
+    const personaState = derivePersonaState(params.programId, params.persona);
     const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, params.subscriber);
     return new TransactionInstruction({
       programId: params.programId,
       keys: [
         { pubkey: subscription, isSigner: false, isWritable: true },
         { pubkey: subscriptionMint, isSigner: false, isWritable: true },
+        { pubkey: personaState, isSigner: false, isWritable: true },
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: params.persona, isSigner: false, isWritable: false },
         { pubkey: params.subscriber, isSigner: true, isWritable: true },

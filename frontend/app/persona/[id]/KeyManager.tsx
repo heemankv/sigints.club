@@ -26,13 +26,17 @@ export default function KeyManager({ personaId }: { personaId: string }) {
 
   async function generate() {
     setStatus(null);
-    const data = await generateX25519Keypair();
-    const subId = await subscriberIdFromPubkey(data.publicKeyBase64);
-    setPubKey(data.publicKeyBase64);
-    setPrivKey(data.privateKeyBase64);
-    setSubscriberId(subId);
-    localStorage.setItem(storageKey(personaId), JSON.stringify({ ...data, subscriberId: subId }));
-    setStatus("Generated new keypair. Store your private key safely.");
+    try {
+      const data = await generateX25519Keypair();
+      const subId = await subscriberIdFromPubkey(data.publicKeyBase64);
+      setPubKey(data.publicKeyBase64);
+      setPrivKey(data.privateKeyBase64);
+      setSubscriberId(subId);
+      localStorage.setItem(storageKey(personaId), JSON.stringify({ ...data, subscriberId: subId }));
+      setStatus("Generated new keypair. Store your private key safely.");
+    } catch (err: any) {
+      setStatus(err?.message ?? "Failed to generate keypair in this browser.");
+    }
   }
 
   return (

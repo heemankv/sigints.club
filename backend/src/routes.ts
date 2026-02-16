@@ -10,6 +10,7 @@ import {
   userProfileStore,
   botProfileStore,
   subscriptionProfileStore,
+  socialServiceInstance,
 } from "./services/ServiceContainer";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 
@@ -158,10 +159,22 @@ router.post("/users/login", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const profile = await userProfileStore.upsertUser(parsed.data.wallet, {
+  let profile = await userProfileStore.upsertUser(parsed.data.wallet, {
     displayName: parsed.data.displayName,
     bio: parsed.data.bio,
   });
+  if (socialServiceInstance) {
+    try {
+      await socialServiceInstance.ensureProfile(parsed.data.wallet, parsed.data.displayName);
+      const refreshed = await userProfileStore.getUser(parsed.data.wallet);
+      if (refreshed) {
+        profile = refreshed;
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn("Tapestry profile creation failed", error);
+    }
+  }
   return res.json({ user: profile });
 });
 
@@ -262,6 +275,221 @@ router.get("/subscriptions", async (req, res) => {
   });
   return res.json({ subscriptions });
 });
+
+function requireSocial(res: any) {
+  if (!socialServiceInstance) {
+    res.status(501).json({ error: "Tapestry not configured" });
+    return false;
+  }
+  return true;
+}
+
+const intentSchema = z.object({
+  wallet: z.string(),
+  content: z.string(),
+  personaId: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  topic: z.string().optional(),
+  displayName: z.string().optional(),
+});
+
+router.post("/social/intents", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const parsed = intentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const post = await socialServiceInstance!.createIntent(parsed.data);
+    return res.json({ post });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "intent post failed" });
+  }
+});
+
+const slashSchema = z.object({
+  wallet: z.string(),
+  content: z.string(),
+  personaId: z.string().optional(),
+  makerWallet: z.string().optional(),
+  challengeTx: z.string().optional(),
+  severity: z.string().optional(),
+  displayName: z.string().optional(),
+});
+
+router.post("/social/slash", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const parsed = slashSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const post = await socialServiceInstance!.createSlashReport(parsed.data);
+    return res.json({ post });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "slash post failed" });
+  }
+});
+
+router.get("/social/feed", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const type = typeof req.query.type === "string" ? req.query.type : undefined;
+  const posts = await socialServiceInstance!.listPosts(type as any);
+  return res.json({ posts });
+});
+
+const likeSchema = z.object({
+  wallet: z.string(),
+  contentId: z.string(),
+  displayName: z.string().optional(),
+});
+
+router.post("/social/likes", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const parsed = likeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const result = await socialServiceInstance!.like(
+      parsed.data.wallet,
+      parsed.data.contentId,
+      parsed.data.displayName
+    );
+    return res.json({ result });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "like failed" });
+  }
+});
+
+router.delete("/social/likes", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const parsed = likeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const result = await socialServiceInstance!.unlike(
+      parsed.data.wallet,
+      parsed.data.contentId,
+      parsed.data.displayName
+    );
+    return res.json({ result });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "unlike failed" });
+  }
+});
+
+router.get("/social/likes", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const contentId = typeof req.query.contentId === "string" ? req.query.contentId : undefined;
+  if (!contentId) {
+    return res.status(400).json({ error: "contentId required" });
+  }
+  try {
+    const count = await socialServiceInstance!.getLikes(contentId);
+    return res.json({ count });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "likes lookup failed" });
+  }
+});
+
+const commentSchema = z.object({
+  wallet: z.string(),
+  contentId: z.string(),
+  comment: z.string(),
+  displayName: z.string().optional(),
+});
+
+const followSchema = z.object({
+  wallet: z.string(),
+  targetProfileId: z.string(),
+  displayName: z.string().optional(),
+});
+
+router.post("/social/comments", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const parsed = commentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const result = await socialServiceInstance!.addComment(
+      parsed.data.wallet,
+      parsed.data.contentId,
+      parsed.data.comment,
+      parsed.data.displayName
+    );
+    return res.json({ result });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "comment failed" });
+  }
+});
+
+router.get("/social/comments", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const contentId = typeof req.query.contentId === "string" ? req.query.contentId : undefined;
+  if (!contentId) {
+    return res.status(400).json({ error: "contentId required" });
+  }
+  try {
+    const raw = await socialServiceInstance!.getComments(contentId);
+    const comments = extractList(raw, "comments");
+    return res.json({ comments });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "comments lookup failed" });
+  }
+});
+
+router.post("/social/follow", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const parsed = followSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const result = await socialServiceInstance!.follow(
+      parsed.data.wallet,
+      parsed.data.targetProfileId,
+      parsed.data.displayName
+    );
+    return res.json({ result });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "follow failed" });
+  }
+});
+
+router.get("/social/feed/trending", async (req, res) => {
+  if (!requireSocial(res)) return;
+  const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
+  const posts = await socialServiceInstance!.listPosts();
+  const likeCounts: Record<string, number> = {};
+  for (const post of posts) {
+    try {
+      const count = await socialServiceInstance!.getLikes(post.contentId);
+      likeCounts[post.contentId] = count;
+    } catch {
+      likeCounts[post.contentId] = 0;
+    }
+  }
+  const sorted = [...posts].sort((a, b) => {
+    const aLikes = likeCounts[a.contentId] ?? 0;
+    const bLikes = likeCounts[b.contentId] ?? 0;
+    if (bLikes !== aLikes) return bLikes - aLikes;
+    return b.createdAt - a.createdAt;
+  });
+  const trimmed = limit ? sorted.slice(0, Math.max(limit, 0)) : sorted;
+  return res.json({ posts: trimmed, likeCounts });
+});
+
+function extractList(raw: any, fallbackKey: "likes" | "comments") {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw.data)) return raw.data;
+  if (Array.isArray(raw?.data?.[fallbackKey])) return raw.data[fallbackKey];
+  if (Array.isArray(raw?.[fallbackKey])) return raw[fallbackKey];
+  return [];
+}
 
 const subscribeSchema = z.object({
   personaId: z.string(),

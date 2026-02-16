@@ -1,9 +1,17 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke_signed;
+use anchor_lang::solana_program::program_pack::Pack;
+use anchor_lang::solana_program::pubkey::Pubkey;
+use anchor_lang::solana_program::system_instruction;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{self, Mint, MintTo, SetAuthority, Token, TokenAccount};
+use anchor_spl::associated_token::get_associated_token_address;
+use anchor_spl::token::{self, MintTo, SetAuthority, Token};
+use anchor_spl::token::spl_token::state::Mint as SplMint;
 use anchor_spl::token::spl_token::instruction::AuthorityType;
 
 declare_id!("BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE");
+
+const PERSONA_REGISTRY_ID: Pubkey = pubkey!("5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi");
 
 #[program]
 pub mod subscription_royalty {
@@ -17,6 +25,12 @@ pub mod subscription_royalty {
         expires_at: i64,
         quota_remaining: u32,
     ) -> Result<()> {
+        let persona_config = validate_persona(&ctx.accounts.persona)?;
+        require!(
+            persona_config.status == PersonaStatus::Active as u8,
+            ErrorCode::PersonaInactive
+        );
+
         let sub = &mut ctx.accounts.subscription;
         sub.subscriber = ctx.accounts.subscriber.key();
         sub.persona = ctx.accounts.persona.key();
@@ -29,8 +43,79 @@ pub mod subscription_royalty {
         sub.nft_mint = ctx.accounts.subscription_mint.key();
         sub.bump = ctx.bumps.subscription;
 
+        let persona_state = &mut ctx.accounts.persona_state;
+        if persona_state.persona == Pubkey::default() {
+            persona_state.persona = ctx.accounts.persona.key();
+            persona_state.subscription_count = 0;
+            persona_state.bump = ctx.bumps.persona_state;
+        }
+        persona_state.subscription_count = persona_state.subscription_count.saturating_add(1);
+
         let persona_key = ctx.accounts.persona.key();
         let subscriber_key = ctx.accounts.subscriber.key();
+        let expected_ata =
+            get_associated_token_address(&subscriber_key, &ctx.accounts.subscription_mint.key());
+        require_keys_eq!(
+            expected_ata,
+            ctx.accounts.subscriber_ata.key(),
+            ErrorCode::InvalidSubscriberAta
+        );
+
+        if ctx.accounts.subscription_mint.data_is_empty() {
+            let rent = Rent::get()?;
+            let mint_lamports = rent.minimum_balance(SplMint::LEN);
+            let create_ix = system_instruction::create_account(
+                &ctx.accounts.subscriber.key(),
+                &ctx.accounts.subscription_mint.key(),
+                mint_lamports,
+                SplMint::LEN as u64,
+                &ctx.accounts.token_program.key(),
+            );
+            let mint_seeds: &[&[u8]] = &[
+                b"subscription_mint",
+                persona_key.as_ref(),
+                subscriber_key.as_ref(),
+                &[ctx.bumps.subscription_mint],
+            ];
+            invoke_signed(
+                &create_ix,
+                &[
+                    ctx.accounts.subscriber.to_account_info(),
+                    ctx.accounts.subscription_mint.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+                &[mint_seeds],
+            )?;
+
+            token::initialize_mint(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::InitializeMint {
+                        mint: ctx.accounts.subscription_mint.to_account_info(),
+                        rent: ctx.accounts.rent.to_account_info(),
+                    },
+                ),
+                0,
+                &ctx.accounts.subscription.key(),
+                Some(&ctx.accounts.subscription.key()),
+            )?;
+        }
+
+        if ctx.accounts.subscriber_ata.data_is_empty() {
+            let cpi_ctx = CpiContext::new(
+                ctx.accounts.associated_token_program.to_account_info(),
+                anchor_spl::associated_token::Create {
+                    payer: ctx.accounts.subscriber.to_account_info(),
+                    associated_token: ctx.accounts.subscriber_ata.to_account_info(),
+                    authority: ctx.accounts.subscriber.to_account_info(),
+                    mint: ctx.accounts.subscription_mint.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+            );
+            anchor_spl::associated_token::create(cpi_ctx)?;
+        }
+
         let signer_seeds: &[&[u8]] = &[
             b"subscription",
             persona_key.as_ref(),
@@ -83,12 +168,23 @@ pub mod subscription_royalty {
         let sub = &mut ctx.accounts.subscription;
         sub.expires_at = expires_at;
         sub.quota_remaining = quota_remaining;
+        if sub.status != SubscriptionStatus::Active as u8 {
+            sub.status = SubscriptionStatus::Active as u8;
+            ctx.accounts.persona_state.subscription_count =
+                ctx.accounts.persona_state.subscription_count.saturating_add(1);
+        }
         Ok(())
     }
 
-    pub fn cancel(ctx: Context<Renew>) -> Result<()> {
+    pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let sub = &mut ctx.accounts.subscription;
-        sub.status = SubscriptionStatus::Canceled as u8;
+        if sub.status == SubscriptionStatus::Active as u8 {
+            sub.status = SubscriptionStatus::Canceled as u8;
+            ctx.accounts.persona_state.subscription_count =
+                ctx.accounts.persona_state.subscription_count.saturating_sub(1);
+        } else {
+            sub.status = SubscriptionStatus::Canceled as u8;
+        }
         Ok(())
     }
 
@@ -99,6 +195,21 @@ pub mod subscription_royalty {
         keybox_hash: [u8; 32],
         keybox_pointer_hash: [u8; 32],
     ) -> Result<()> {
+        let persona_config = validate_persona(&ctx.accounts.persona)?;
+        require!(
+            persona_config.status == PersonaStatus::Active as u8,
+            ErrorCode::PersonaInactive
+        );
+        require_keys_eq!(
+            persona_config.authority,
+            ctx.accounts.authority.key(),
+            ErrorCode::UnauthorizedPersona
+        );
+        require!(
+            ctx.accounts.persona_state.subscription_count > 0,
+            ErrorCode::NoSubscribers
+        );
+
         let signal = &mut ctx.accounts.signal;
         signal.persona = ctx.accounts.persona.key();
         signal.signal_hash = signal_hash;
@@ -121,26 +232,27 @@ pub struct Subscribe<'info> {
         seeds = [b"subscription", persona.key().as_ref(), subscriber.key().as_ref()],
         bump
     )]
-    pub subscription: Account<'info, Subscription>,
+    pub subscription: Box<Account<'info, Subscription>>,
     #[account(
-        init,
-        payer = subscriber,
+        mut,
         seeds = [b"subscription_mint", persona.key().as_ref(), subscriber.key().as_ref()],
-        bump,
-        mint::decimals = 0,
-        mint::authority = subscription,
-        mint::freeze_authority = subscription,
+        bump
     )]
-    pub subscription_mint: Account<'info, Mint>,
+    /// CHECK: PDA mint is created and validated in handler.
+    pub subscription_mint: AccountInfo<'info>,
     #[account(
-        init,
+        init_if_needed,
         payer = subscriber,
-        associated_token::mint = subscription_mint,
-        associated_token::authority = subscriber,
+        space = PersonaState::SPACE,
+        seeds = [b"persona_state", persona.key().as_ref()],
+        bump
     )]
-    pub subscriber_ata: Account<'info, TokenAccount>,
-    /// CHECK: persona is validated off-chain in MVP
-    pub persona: UncheckedAccount<'info>,
+    pub persona_state: Box<Account<'info, PersonaState>>,
+    #[account(mut)]
+    /// CHECK: ATA address is validated in handler.
+    pub subscriber_ata: AccountInfo<'info>,
+    /// CHECK: persona is validated against registry in handler
+    pub persona: AccountInfo<'info>,
     #[account(mut)]
     pub subscriber: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -153,6 +265,25 @@ pub struct Subscribe<'info> {
 pub struct Renew<'info> {
     #[account(mut, has_one = subscriber)]
     pub subscription: Account<'info, Subscription>,
+    #[account(
+        mut,
+        seeds = [b"persona_state", subscription.persona.as_ref()],
+        bump = persona_state.bump
+    )]
+    pub persona_state: Account<'info, PersonaState>,
+    pub subscriber: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct Cancel<'info> {
+    #[account(mut, has_one = subscriber)]
+    pub subscription: Account<'info, Subscription>,
+    #[account(
+        mut,
+        seeds = [b"persona_state", subscription.persona.as_ref()],
+        bump = persona_state.bump
+    )]
+    pub persona_state: Account<'info, PersonaState>,
     pub subscriber: Signer<'info>,
 }
 
@@ -161,16 +292,21 @@ pub struct Renew<'info> {
 pub struct RecordSignal<'info> {
     #[account(
         init,
-        payer = payer,
+        payer = authority,
         space = SignalRecord::SPACE,
         seeds = [b"signal", persona.key().as_ref(), &signal_hash],
         bump
     )]
     pub signal: Account<'info, SignalRecord>,
-    /// CHECK: persona is validated off-chain in MVP
-    pub persona: UncheckedAccount<'info>,
+    /// CHECK: validated in handler against persona registry
+    pub persona: AccountInfo<'info>,
+    #[account(
+        seeds = [b"persona_state", persona.key().as_ref()],
+        bump = persona_state.bump
+    )]
+    pub persona_state: Account<'info, PersonaState>,
     #[account(mut)]
-    pub payer: Signer<'info>,
+    pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -207,6 +343,17 @@ impl SignalRecord {
     pub const SPACE: usize = 8 + 32 + 32 + 32 + 32 + 32 + 8 + 1;
 }
 
+#[account]
+pub struct PersonaState {
+    pub persona: Pubkey,
+    pub subscription_count: u64,
+    pub bump: u8,
+}
+
+impl PersonaState {
+    pub const SPACE: usize = 8 + 32 + 8 + 1;
+}
+
 pub enum PricingType {
     SubscriptionLimited = 0,
     SubscriptionUnlimited = 1,
@@ -216,6 +363,55 @@ pub enum PricingType {
 pub enum EvidenceLevel {
     Trust = 0,
     Verifier = 1,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct PersonaConfig {
+    pub persona_id: [u8; 32],
+    pub authority: Pubkey,
+    pub dao: Pubkey,
+    pub tiers_hash: [u8; 32],
+    pub status: u8,
+    pub bump: u8,
+}
+
+pub enum PersonaStatus {
+    Inactive = 0,
+    Active = 1,
+    Paused = 2,
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Persona account is invalid or not registered")]
+    InvalidPersona,
+    #[msg("Persona is not active")]
+    PersonaInactive,
+    #[msg("Signer is not the persona authority")]
+    UnauthorizedPersona,
+    #[msg("No subscribers exist for this persona")]
+    NoSubscribers,
+    #[msg("Subscriber ATA does not match expected address")]
+    InvalidSubscriberAta,
+}
+
+fn load_persona_config(account: &AccountInfo) -> Result<PersonaConfig> {
+    require_keys_eq!(*account.owner, PERSONA_REGISTRY_ID, ErrorCode::InvalidPersona);
+    let mut data: &[u8] = &account.data.borrow();
+    let cfg = PersonaConfig::deserialize(&mut data)
+        .map_err(|_| error!(ErrorCode::InvalidPersona))?;
+    Ok(cfg)
+}
+
+fn validate_persona(account: &AccountInfo) -> Result<PersonaConfig> {
+    let cfg = load_persona_config(account)?;
+    let expected = Pubkey::find_program_address(
+        &[b"persona", cfg.persona_id.as_ref()],
+        &PERSONA_REGISTRY_ID,
+    )
+    .0;
+    require_keys_eq!(expected, *account.key, ErrorCode::InvalidPersona);
+    Ok(cfg)
 }
 
 #[cfg(test)]
@@ -230,6 +426,11 @@ mod tests {
     #[test]
     fn signal_record_space_constant() {
         assert_eq!(SignalRecord::SPACE, 177);
+    }
+
+    #[test]
+    fn persona_state_space_constant() {
+        assert_eq!(PersonaState::SPACE, 49);
     }
 
     #[test]

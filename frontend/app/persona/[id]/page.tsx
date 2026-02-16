@@ -2,6 +2,7 @@ import SubscribeForm from "./SubscribeForm";
 import KeyManager from "./KeyManager";
 import PublishSignal from "./PublishSignal";
 import DecryptPanel from "./DecryptPanel";
+import FollowMaker from "./FollowMaker";
 import { fetchJson } from "../../lib/api";
 import { getFallbackPersona, PersonaDetail as FallbackPersonaDetail } from "../../lib/fallback";
 
@@ -15,6 +16,7 @@ type PersonaDetail = {
   evidence: string;
   description: string;
   onchainAddress?: string;
+  tapestryProfileId?: string;
   tiers: Array<{
     tierId: string;
     pricingType: string;
@@ -48,6 +50,9 @@ export default async function PersonaPage({ params }: { params: { id: string } }
         <span className="kicker">Persona dossier</span>
         <h1>{persona.name}</h1>
         <p>{persona.description}</p>
+        {"tapestryProfileId" in persona && (
+          <FollowMaker targetProfileId={persona.tapestryProfileId} />
+        )}
       </div>
       <div className="badges">
         <span className="badge">Accuracy {persona.accuracy}</span>

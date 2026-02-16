@@ -29,3 +29,9 @@ Date: 2026-02-15
 26. Keybox stored as a map (subscriber_id -> wrapped_key) so listeners decrypt only their own entry.
 27. SDK and MCP server added for agent tick listening (Solana + backend pointers).
 28. Signal `created_at` is now anchored on-chain via Solana Clock sysvar (stored in ms) to prevent maker backdating.
+29. Persona registry is enforced on-chain for subscribe and record_signal; only active registered personas can emit ticks.
+30. Makers can only emit ticks when there is at least one active subscription (subscription count tracked on-chain; cancel decrements, renew reactivates).
+31. Social layer is Tapestry-first: intents and slash reports are Tapestry posts, votes are likes, and comments are Tapestry comments; backend only indexes the feed.
+32. Social feed now supports follows and trending (sorted by Tapestry like counts); slash posts can link to challenge tx.
+33. Persona pages expose a Follow button (uses Tapestry profileId from persona map) and homepage shows Trending leaderboard.
+34. Tapestry API expects `properties` for content/profile and `text` for comments; base URL now uses the fly.dev `/api/v1` host for successful requests.

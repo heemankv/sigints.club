@@ -42,6 +42,10 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
       [Buffer.from("signal"), personaPubkey.toBuffer(), Buffer.from(signalHashBytes)],
       this.programId
     );
+    const [personaState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+      this.programId
+    );
 
     const data = coder.encode("record_signal", {
       signal_hash: Array.from(signalHashBytes),
@@ -55,6 +59,7 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
       keys: [
         { pubkey: signalPda, isSigner: false, isWritable: true },
         { pubkey: personaPubkey, isSigner: false, isWritable: false },
+        { pubkey: personaState, isSigner: false, isWritable: false },
         { pubkey: walletPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],

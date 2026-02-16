@@ -24,6 +24,37 @@
           "writable": true
         },
         {
+          "name": "persona_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  114,
+                  115,
+                  111,
+                  110,
+                  97,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscription.persona",
+                "account": "Subscription"
+              }
+            ]
+          }
+        },
+        {
           "name": "subscriber",
           "signer": true,
           "relations": [
@@ -77,7 +108,36 @@
           "name": "persona"
         },
         {
-          "name": "payer",
+          "name": "persona_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  114,
+                  115,
+                  111,
+                  110,
+                  97,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "persona"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
           "writable": true,
           "signer": true
         },
@@ -141,6 +201,37 @@
         {
           "name": "subscription",
           "writable": true
+        },
+        {
+          "name": "persona_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  114,
+                  115,
+                  111,
+                  110,
+                  97,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscription.persona",
+                "account": "Subscription"
+              }
+            ]
+          }
         },
         {
           "name": "subscriber",
@@ -208,6 +299,78 @@
           }
         },
         {
+          "name": "subscription_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  98,
+                  115,
+                  99,
+                  114,
+                  105,
+                  112,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "persona"
+              },
+              {
+                "kind": "account",
+                "path": "subscriber"
+              }
+            ]
+          }
+        },
+        {
+          "name": "persona_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  114,
+                  115,
+                  111,
+                  110,
+                  97,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "persona"
+              }
+            ]
+          }
+        },
+        {
+          "name": "subscriber_ata",
+          "writable": true
+        },
+        {
           "name": "persona"
         },
         {
@@ -218,6 +381,18 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
       "args": [
@@ -251,6 +426,19 @@
   ],
   "accounts": [
     {
+      "name": "PersonaState",
+      "discriminator": [
+        55,
+        103,
+        48,
+        67,
+        188,
+        107,
+        28,
+        181
+      ]
+    },
+    {
       "name": "SignalRecord",
       "discriminator": [
         32,
@@ -277,7 +465,54 @@
       ]
     }
   ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidPersona",
+      "msg": "Persona account is invalid or not registered"
+    },
+    {
+      "code": 6001,
+      "name": "PersonaInactive",
+      "msg": "Persona is not active"
+    },
+    {
+      "code": 6002,
+      "name": "UnauthorizedPersona",
+      "msg": "Signer is not the persona authority"
+    },
+    {
+      "code": 6003,
+      "name": "NoSubscribers",
+      "msg": "No subscribers exist for this persona"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidSubscriberAta",
+      "msg": "Subscriber ATA does not match expected address"
+    }
+  ],
   "types": [
+    {
+      "name": "PersonaState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "persona",
+            "type": "pubkey"
+          },
+          {
+            "name": "subscription_count",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "SignalRecord",
       "type": {
@@ -375,6 +610,10 @@
           {
             "name": "status",
             "type": "u8"
+          },
+          {
+            "name": "nft_mint",
+            "type": "pubkey"
           },
           {
             "name": "bump",

@@ -6,6 +6,7 @@ export type PersonaSummary = {
   latency: string;
   price: string;
   evidence: string;
+  tapestryProfileId?: string;
 };
 
 export type TierOption = {

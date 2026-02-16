@@ -101,6 +101,10 @@ export class OnChainSubscriptionClient {
       [Buffer.from("subscription_mint"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
+    const [personaState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+      this.programId
+    );
 
     const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, subscriberPubkey);
 
@@ -109,6 +113,7 @@ export class OnChainSubscriptionClient {
       keys: [
         { pubkey: subscriptionPda, isSigner: false, isWritable: true },
         { pubkey: subscriptionMint, isSigner: false, isWritable: true },
+        { pubkey: personaState, isSigner: false, isWritable: true },
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: personaPubkey, isSigner: false, isWritable: false },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: true },
@@ -135,6 +140,10 @@ export class OnChainSubscriptionClient {
       [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
+    const [personaState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+      this.programId
+    );
 
     const data = coder.encode("renew", {
       expires_at: new BN(input.expiresAt ?? defaultExpiry()),
@@ -145,6 +154,7 @@ export class OnChainSubscriptionClient {
       programId: this.programId,
       keys: [
         { pubkey: subscriptionPda, isSigner: false, isWritable: true },
+        { pubkey: personaState, isSigner: false, isWritable: true },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: false },
       ],
       data,
@@ -164,6 +174,10 @@ export class OnChainSubscriptionClient {
       [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
+    const [personaState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+      this.programId
+    );
 
     const data = coder.encode("cancel", {});
 
@@ -171,6 +185,7 @@ export class OnChainSubscriptionClient {
       programId: this.programId,
       keys: [
         { pubkey: subscriptionPda, isSigner: false, isWritable: true },
+        { pubkey: personaState, isSigner: false, isWritable: true },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: false },
       ],
       data,

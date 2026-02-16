@@ -46,6 +46,10 @@ Progress
 - Frontend component tests added (NetworkBanner).
 - Cross-component integration tests added (SDK + backend).
 - E2E flow test added (3 makers, 10 takers, SDK + MCP, localnet).
+- Persona registry enforced on-chain for subscribe + record_signal (active-only).
+- Subscribe now creates mint + ATA via CPI in-program (avoids stack overflow).
+- E2E updated to create persona registry PDAs before subscribing.
+- Tapestry social layer added: intents + slash reports + likes/comments + social feed UI.
 
 Next Actions
 1. Ensure test dependencies installed and run test suites locally.

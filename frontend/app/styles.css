@@ -537,6 +537,21 @@ main {
   letter-spacing: 0.08em;
 }
 
+.chip {
+  cursor: pointer;
+}
+
+.chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip--active {
+  background: rgba(29, 176, 166, 0.22);
+  border-color: rgba(29, 176, 166, 0.5);
+}
+
 .badge.accent {
   background: rgba(255, 107, 53, 0.12);
   border-color: rgba(255, 107, 53, 0.2);
@@ -570,6 +585,42 @@ main {
   background: linear-gradient(90deg, rgba(29, 176, 166, 0.12), transparent 60%);
   opacity: 0;
   transition: opacity 0.2s ease;
+}
+
+.stream-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.comment-box {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.comment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.comment-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(11, 31, 42, 0.12);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.follow-card {
+  margin-top: 12px;
+}
+
+.stack {
+  display: grid;
+  gap: 16px;
 }
 
 .stream-item:hover::before {

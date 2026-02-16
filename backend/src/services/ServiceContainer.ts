@@ -17,9 +17,12 @@ import {
   InMemoryUserStore,
   InMemoryBotStore,
   InMemorySubscriptionStore,
+  FileSocialPostStore,
+  InMemorySocialPostStore,
 } from "../social";
 import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 import { getTapestryClient } from "../tapestry";
+import { SocialService } from "./SocialService";
 
 const solanaProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
 const solanaKeypairPath = process.env.SOLANA_KEYPAIR;
@@ -27,17 +30,19 @@ const solanaSecretKey = process.env.SOLANA_PRIVATE_KEY;
 const solanaRpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const solanaIdlPath = process.env.SOLANA_IDL_PATH;
 const solanaPersonaMap = parsePersonaMap(process.env.SOLANA_PERSONA_MAP);
+const tapestryProfileMap = parsePersonaMap(process.env.TAPESTRY_PROFILE_MAP);
 const solanaPersonaDefault = process.env.SOLANA_PERSONA_DEFAULT;
 
 const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : new BackendStorage();
 const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
 const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
 const subscribers = persist ? new FileSubscriberDirectory() : new InMemorySubscriberDirectory();
-const discovery = new DiscoveryService(solanaPersonaMap);
+const discovery = new DiscoveryService(solanaPersonaMap, tapestryProfileMap);
 const listener = new ListenerService(storage);
 const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
 const botStore = persist ? new FileBotStore() : new InMemoryBotStore();
 const subscriptionStore = persist ? new FileSubscriptionStore() : new InMemorySubscriptionStore();
+const socialPostStore = persist ? new FileSocialPostStore() : new InMemorySocialPostStore();
 
 const onChainRecorder =
   solanaProgramId && (solanaKeypairPath || solanaSecretKey)
@@ -65,14 +70,11 @@ const onChainSubscriptions =
     : undefined;
 
 let socialPublisher: TapestryPublisher | undefined;
+let socialService: SocialService | undefined;
 if (process.env.TAPESTRY_API_KEY) {
-  const mapEnv = process.env.TAPESTRY_PROFILE_MAP;
-  const profileMap = mapEnv ? (JSON.parse(mapEnv) as Record<string, string>) : undefined;
-  socialPublisher = new TapestryPublisher(
-    getTapestryClient(),
-    process.env.TAPESTRY_PROFILE_ID,
-    profileMap
-  );
+  const client = getTapestryClient();
+  socialPublisher = new TapestryPublisher(client, process.env.TAPESTRY_PROFILE_ID, tapestryProfileMap);
+  socialService = new SocialService(client, socialPostStore, userStore);
 }
 
 export const signalService = new SignalService(storage, metadata, socialPublisher, onChainRecorder);
@@ -85,6 +87,8 @@ export const onChainSubscriptionClient = onChainSubscriptions;
 export const userProfileStore = userStore;
 export const botProfileStore = botStore;
 export const subscriptionProfileStore = subscriptionStore;
+export const socialPostStoreInstance = socialPostStore;
+export const socialServiceInstance = socialService;
 
 function parsePersonaMap(value?: string): Record<string, string> | undefined {
   if (!value) {

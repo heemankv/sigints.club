@@ -7,6 +7,7 @@ export type PersonaSummary = {
   price: string;
   evidence: string;
   onchainAddress?: string;
+  tapestryProfileId?: string;
 };
 
 export type TierOption = {
@@ -31,7 +32,10 @@ export type RequestSummary = {
 };
 
 export class DiscoveryService {
-  constructor(private personaMap?: Record<string, string>) {}
+  constructor(
+    private personaMap?: Record<string, string>,
+    private tapestryProfileMap?: Record<string, string>
+  ) {}
 
   listPersonas(): PersonaSummary[] {
     return [
@@ -44,6 +48,7 @@ export class DiscoveryService {
         price: "$5/mo",
         evidence: "Verifier supported",
         onchainAddress: this.personaMap?.["persona-eth"],
+        tapestryProfileId: this.tapestryProfileMap?.["persona-eth"],
       },
       {
         id: "persona-amazon",
@@ -54,6 +59,7 @@ export class DiscoveryService {
         price: "$8/mo",
         evidence: "Verifier supported",
         onchainAddress: this.personaMap?.["persona-amazon"],
+        tapestryProfileId: this.tapestryProfileMap?.["persona-amazon"],
       },
       {
         id: "persona-anime",
@@ -64,6 +70,7 @@ export class DiscoveryService {
         price: "$2/mo",
         evidence: "Trust + Verifier",
         onchainAddress: this.personaMap?.["persona-anime"],
+        tapestryProfileId: this.tapestryProfileMap?.["persona-anime"],
       },
     ];
   }

@@ -51,6 +51,18 @@ When these are set, the backend sends a real Anchor transaction to record signal
 - `POST /subscriptions` store off-chain subscription record
 - `GET /subscriptions?listener=&botId=` list subscriptions
 - `GET /feed` aggregate signal feed
+
+## Social layer (Tapestry-backed)
+- `POST /social/intents` create intent post
+- `POST /social/slash` create slashing report post
+- `GET /social/feed?type=` list intent/slash feed
+- `GET /social/feed/trending?limit=` list feed sorted by like counts
+- `POST /social/follow` follow a profile
+- `POST /social/likes` vote (like)
+- `DELETE /social/likes` remove vote
+- `GET /social/likes?contentId=` list likes/count
+- `POST /social/comments` comment on a post
+- `GET /social/comments?contentId=` list comments
 - `SOLANA_IDL_PATH` (optional, defaults to `backend/idl/subscription_royalty.json`)
 - `SOLANA_PERSONA_MAP` (optional JSON map: personaId -> persona account pubkey)
 - `SOLANA_PERSONA_DEFAULT` (optional fallback persona pubkey)

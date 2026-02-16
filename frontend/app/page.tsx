@@ -3,11 +3,21 @@ import { fallbackPersonas } from "./lib/fallback";
 
 export default async function Home() {
   let personas = fallbackPersonas;
+  let trending: Array<{ id: string; content: string; authorWallet: string; contentId: string }> = [];
+  let likeCounts: Record<string, number> = {};
   try {
     const data = await fetchJson<{
       personas: Array<{ id: string; name: string; domain: string; accuracy: string; latency: string; price: string; evidence: string }>;
     }>("/personas");
     personas = data.personas;
+  } catch {
+  }
+  try {
+    const data = await fetchJson<{ posts: Array<{ id: string; content: string; authorWallet: string; contentId: string }>; likeCounts: Record<string, number> }>(
+      "/social/feed/trending?limit=3"
+    );
+    trending = data.posts ?? [];
+    likeCounts = data.likeCounts ?? {};
   } catch {
   }
 
@@ -26,7 +36,7 @@ export default async function Home() {
             </p>
             <div className="hero-actions">
               <a className="button primary" href="/feed">Explore Feed</a>
-              <a className="button ghost" href="/requests">View Requests</a>
+              <a className="button ghost" href="/requests">Open Social Feed</a>
             </div>
             <div className="stat-grid">
               <div className="stat">
@@ -43,18 +53,42 @@ export default async function Home() {
               </div>
             </div>
           </div>
-          <div className="module accent-teal">
-            <div className="hud-corners" />
-            <span className="kicker">Featured makers</span>
-            {featured.map((p) => (
-              <div key={p.id} className="row" style={{ marginTop: 12 }}>
-                <div>
-                  <strong>{p.name}</strong>
-                  <div className="subtext">{p.domain}</div>
+          <div className="stack">
+            <div className="module accent-teal">
+              <div className="hud-corners" />
+              <span className="kicker">Featured makers</span>
+              {featured.map((p) => (
+                <div key={p.id} className="row" style={{ marginTop: 12 }}>
+                  <div>
+                    <strong>{p.name}</strong>
+                    <div className="subtext">{p.domain}</div>
+                  </div>
+                  <span className="badge">{p.evidence}</span>
                 </div>
-                <span className="badge">{p.evidence}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <div className="module accent-orange">
+              <div className="hud-corners" />
+              <span className="kicker">Trending social</span>
+              {trending.length === 0 && (
+                <div className="row" style={{ marginTop: 12 }}>
+                  <div>
+                    <strong>No trending posts yet</strong>
+                    <div className="subtext">Post an intent or slash report to get started.</div>
+                  </div>
+                </div>
+              )}
+              {trending.map((post) => (
+                <div key={post.id} className="row" style={{ marginTop: 12 }}>
+                  <div>
+                    <strong>{post.content.slice(0, 48)}{post.content.length > 48 ? "…" : ""}</strong>
+                    <div className="subtext">{post.authorWallet.slice(0, 10)}…</div>
+                  </div>
+                  <span className="badge">Votes {likeCounts[post.contentId] ?? 0}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

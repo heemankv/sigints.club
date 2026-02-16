@@ -2,6 +2,7 @@ export type UserProfile = {
   wallet: string;
   displayName?: string;
   bio?: string;
+  tapestryProfileId?: string;
   createdAt: number;
   updatedAt: number;
 };

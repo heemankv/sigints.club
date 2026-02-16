@@ -1,9 +1,12 @@
 export * from "./UserStore";
 export * from "./BotStore";
 export * from "./SubscriptionStore";
+export * from "./SocialPostStore";
 export { FileUserStore } from "./FileUserStore";
 export { FileBotStore } from "./FileBotStore";
 export { FileSubscriptionStore } from "./FileSubscriptionStore";
+export { FileSocialPostStore } from "./FileSocialPostStore";
 export { InMemoryUserStore } from "./InMemoryUserStore";
 export { InMemoryBotStore } from "./InMemoryBotStore";
 export { InMemorySubscriptionStore } from "./InMemorySubscriptionStore";
+export { InMemorySocialPostStore } from "./InMemorySocialPostStore";

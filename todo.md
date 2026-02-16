@@ -4,8 +4,8 @@ Open
 1. Define exact tier object fields and defaults in on-chain schema.
 2. Finalize PDA account layouts and sizes for each program.
 3. Draft instruction arguments for create_persona, subscribe, open_challenge, slash.
-4. Pull Tapestry feed into the UI and auto-create Tapestry profiles on login (optional).
-5. Evaluate DA layer swap for evidence storage (future).
+4. Evaluate DA layer swap for evidence storage (future).
+5. Redeploy updated subscription_royalty program (persona registry enforcement + manual mint/ATA creation).
 
 Completed
 1. Implement backend storage for ciphertext and keybox with hash verification.
@@ -19,3 +19,5 @@ Completed
 9. Subscription now mints an on-chain 1-of-1 NFT and profile reads subscriptions from chain.
 10. Wallet-signed on-chain subscribe flow in the frontend (no backend signer).
 11. SDK and MCP server scaffolding for agent tick listening.
+12. Tapestry social feed + intent/slash posts integrated into UI.
+13. Auto-create Tapestry profiles on login (when API key present).

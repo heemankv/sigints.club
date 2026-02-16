@@ -28,6 +28,7 @@ export class FileUserStore implements UserStore {
       wallet,
       displayName: profile.displayName,
       bio: profile.bio,
+      tapestryProfileId: profile.tapestryProfileId,
       createdAt: now,
       updatedAt: now,
     };

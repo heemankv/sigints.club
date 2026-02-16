@@ -1,0 +1,19 @@
+{
+  "name": "persona-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:integration": "vitest run --config vitest.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+  },
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@personafun/sdk": "file:../sdk",
+    "@solana/spl-token": "^0.4.12",
+    "@solana/web3.js": "^1.98.0",
+    "@types/node": "^20.14.12",
+    "tsx": "^4.16.0",
+    "vitest": "^1.6.0"
+  }
+}
