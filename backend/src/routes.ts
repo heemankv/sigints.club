@@ -426,8 +426,28 @@ router.post("/social/slash", async (req, res) => {
 router.get("/social/feed", async (req, res) => {
   if (!requireSocial(res)) return;
   const type = typeof req.query.type === "string" ? req.query.type : undefined;
-  const posts = await socialServiceInstance!.listPosts(type as any);
-  return res.json({ posts });
+  const scope = typeof req.query.scope === "string" ? req.query.scope : undefined;
+  const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+  const page = typeof req.query.page === "string" ? Number(req.query.page) : undefined;
+  const pageSize = typeof req.query.pageSize === "string" ? Number(req.query.pageSize) : undefined;
+  if (scope === "following") {
+    if (!wallet) {
+      return res.status(400).json({ error: "wallet required for following feed" });
+    }
+    try {
+      const result = await socialServiceInstance!.listFollowingPosts({
+        wallet,
+        type: type as any,
+        page,
+        pageSize,
+      });
+      return res.json(result);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message ?? "following feed failed" });
+    }
+  }
+  const result = await socialServiceInstance!.listPostsWithCounts(type as any, pageSize ?? 50);
+  return res.json(result);
 });
 
 const likeSchema = z.object({
@@ -524,10 +544,19 @@ router.get("/social/comments", async (req, res) => {
   if (!contentId) {
     return res.status(400).json({ error: "contentId required" });
   }
+  const page = typeof req.query.page === "string" ? Number(req.query.page) : undefined;
+  const pageSize = typeof req.query.pageSize === "string" ? Number(req.query.pageSize) : undefined;
   try {
     const raw = await socialServiceInstance!.getComments(contentId);
     const comments = extractList(raw, "comments");
-    return res.json({ comments });
+    if (page && pageSize) {
+      const safePage = Math.max(1, page);
+      const safeSize = Math.max(1, pageSize);
+      const start = (safePage - 1) * safeSize;
+      const paged = comments.slice(start, start + safeSize);
+      return res.json({ comments: paged, page: safePage, pageSize: safeSize, total: comments.length });
+    }
+    return res.json({ comments, total: comments.length });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "comments lookup failed" });
   }
@@ -554,7 +583,7 @@ router.post("/social/follow", async (req, res) => {
 router.get("/social/feed/trending", async (req, res) => {
   if (!requireSocial(res)) return;
   const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
-  const { posts, likeCounts } = await socialServiceInstance!.listPostsWithCounts(undefined, limit ?? 50);
+  const { posts, likeCounts, commentCounts } = await socialServiceInstance!.listPostsWithCounts(undefined, limit ?? 50);
   const sorted = [...posts].sort((a, b) => {
     const aLikes = likeCounts[a.contentId] ?? 0;
     const bLikes = likeCounts[b.contentId] ?? 0;
@@ -562,7 +591,7 @@ router.get("/social/feed/trending", async (req, res) => {
     return b.createdAt - a.createdAt;
   });
   const trimmed = limit ? sorted.slice(0, Math.max(limit, 0)) : sorted;
-  return res.json({ posts: trimmed, likeCounts });
+  return res.json({ posts: trimmed, likeCounts, commentCounts });
 });
 
 function extractList(raw: any, fallbackKey: "likes" | "comments") {

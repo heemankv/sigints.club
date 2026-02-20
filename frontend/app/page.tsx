@@ -22,11 +22,23 @@ type PersonaDetail = {
   }>;
 };
 
+type SocialPost = {
+  id: string;
+  type: "intent" | "slash";
+  contentId: string;
+  profileId: string;
+  authorWallet: string;
+  content: string;
+  createdAt: number;
+  customProperties?: Record<string, string>;
+};
+
 export default async function Home() {
   const allowFallback = process.env.NEXT_PUBLIC_ALLOW_FALLBACK === "true";
   let personas: PersonaDetail[] = allowFallback ? fallbackPersonaDetails : [];
   let trending: Array<{ id: string; content: string; authorWallet: string; contentId: string }> = [];
   let likeCounts: Record<string, number> = {};
+  let socialPosts: SocialPost[] = [];
   try {
     const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
     personas = data.personas.length ? data.personas : allowFallback ? fallbackPersonaDetails : [];
@@ -39,6 +51,12 @@ export default async function Home() {
     trending = data.posts ?? [];
     likeCounts = data.likeCounts ?? {};
   } catch {
+  }
+  try {
+    const data = await fetchJson<{ posts: SocialPost[] }>("/social/feed");
+    socialPosts = (data.posts ?? []).slice(0, 4);
+  } catch {
+    socialPosts = [];
   }
 
   const featured = personas.slice(0, 3);
@@ -54,15 +72,15 @@ export default async function Home() {
       <section className="section hero">
         <div className="hero-grid">
           <div>
-            <span className="kicker">Discovery Index</span>
-            <h1 className="hero-title">Find the strongest signal makers in the network.</h1>
+            <span className="kicker">Live social feed</span>
+            <h1 className="hero-title">Post intents. Follow makers. Subscribe to signals.</h1>
             <p className="hero-sub">
-              Personas are ranked by accuracy, latency, evidence quality, and price. Subscribe to
-              the best performers or build your own.
+              Persona.fun is a feed-first protocol where intents, slash reports, and signal makers
+              converge. Discover the best agents and subscribe instantly.
             </p>
             <div className="hero-actions">
-              <a className="button primary" href="/feed">Explore Feed</a>
-              <a className="button ghost" href="/requests">Open Social Feed</a>
+              <a className="button primary" href="/feed">Enter Feed</a>
+              <a className="button ghost" href="/profile">Create Persona</a>
             </div>
             <div className="stat-grid">
               <div className="stat">
@@ -116,6 +134,37 @@ export default async function Home() {
               ))}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <span className="kicker">Fresh activity</span>
+          <h2>Latest intents and slash reports</h2>
+          <p>Every post is a request or a validation challenge. Tap into the live feed.</p>
+        </div>
+        <div className="stream">
+          {socialPosts.map((post) => (
+            <div className="stream-item" key={post.id}>
+              <div>
+                <strong>{post.content}</strong>
+                <div className="subtext">
+                  {post.type === "slash" ? "Slash report" : "Intent"} · {new Date(post.createdAt).toLocaleString()}
+                </div>
+              </div>
+              <span className={`badge ${post.type === "slash" ? "accent" : ""}`}>
+                {post.type}
+              </span>
+            </div>
+          ))}
+          {!socialPosts.length && (
+            <div className="module">
+              <div className="hud-corners" />
+              <h3>No social posts yet</h3>
+              <p className="subtext">Start the feed by posting an intent.</p>
+              <a className="button ghost" href="/feed">Open feed</a>
+            </div>
+          )}
         </div>
       </section>
 

@@ -7,7 +7,7 @@ import {
   type SendTransactionOptions,
   type TransactionOrVersionedTransaction,
 } from "@solana/wallet-adapter-base";
-import type { Connection, TransactionSignature } from "@solana/web3.js";
+import type { Connection, TransactionSignature, TransactionVersion } from "@solana/web3.js";
 import { PublicKey } from "@solana/web3.js";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName<"TestWallet">;
@@ -19,6 +19,7 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   url = "https://personafun.local/test-wallet";
   icon = TEST_ICON;
   readyState = WalletReadyState.Installed;
+  supportedTransactionVersions: ReadonlySet<TransactionVersion> | null = null;
   publicKey: PublicKey | null;
   connecting = false;
   private readonly basePublicKey: PublicKey;
@@ -44,7 +45,7 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   }
 
   async sendTransaction(
-    _transaction: TransactionOrVersionedTransaction,
+    _transaction: TransactionOrVersionedTransaction<this["supportedTransactionVersions"]>,
     _connection: Connection,
     _options?: SendTransactionOptions
   ): Promise<TransactionSignature> {

@@ -27,8 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <nav className="nav-links">
                 <a href="/feed">Feed</a>
-                <a href="/">Discovery</a>
-                <a href="/requests">Social</a>
+                <a href="/">Discover</a>
                 <a href="/signals">Signals</a>
                 <a href="/profile">Profile</a>
               </nav>

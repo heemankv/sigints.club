@@ -1,5 +1,5 @@
-import RequestsClient from "./RequestsClient";
+import FeedClient from "../feed/FeedClient";
 
 export default async function RequestsPage() {
-  return <RequestsClient />;
+  return <FeedClient searchQuery="" />;
 }

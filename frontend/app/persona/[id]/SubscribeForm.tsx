@@ -78,6 +78,9 @@ export default function SubscribeForm({
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
       }
+      if (!personaOnchainAddress || !personaAuthority || !personaDao) {
+        throw new Error("On-chain persona or payout accounts not configured.");
+      }
       const programId = resolveProgramId();
       const personaPubkey = resolvePersonaPubkey(personaOnchainAddress);
       const ix = await buildSubscribeInstruction({

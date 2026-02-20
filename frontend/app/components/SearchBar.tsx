@@ -26,7 +26,7 @@ export default function SearchBar() {
     <form onSubmit={submit}>
       <input
         className="nav-search"
-        placeholder="Search bots"
+        placeholder="Search makers, intents"
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />

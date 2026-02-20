@@ -119,6 +119,67 @@ export class SocialService {
     return this.listTapestryPosts(type);
   }
 
+  async listFollowingPosts(args: {
+    wallet: string;
+    type?: SocialPostType;
+    limit?: number;
+    page?: number;
+    pageSize?: number;
+    displayName?: string;
+  }) {
+    const profileId = await this.ensureProfile(args.wallet, args.displayName);
+    if (!profileId) {
+      throw new Error("Unable to resolve profile for following feed");
+    }
+    const followRes = await withTimeout(
+      this.client.listFollowing({
+        profileId,
+        page: args.page,
+        pageSize: args.pageSize ?? 50,
+      }),
+      4000
+    );
+    const followingIds = extractFollowingProfileIds(followRes);
+    if (!followingIds.length) {
+      return { posts: [], likeCounts: {}, commentCounts: {} };
+    }
+
+    const limit = args.limit ?? args.pageSize ?? 50;
+    const perProfile = Math.max(1, Math.ceil(limit / followingIds.length));
+    const responses = await withTimeout(
+      Promise.all(
+        followingIds.map((id) =>
+          this.client.listContents({
+            profileId: id,
+            filterField: args.type ? "type" : undefined,
+            filterValue: args.type,
+            orderByField: "created_at",
+            orderByDirection: "DESC",
+            pageSize: perProfile,
+          })
+        )
+      ),
+      4000
+    );
+
+    const posts: SocialPost[] = [];
+    const likeCounts: Record<string, number> = {};
+    const commentCounts: Record<string, number> = {};
+    for (const res of responses) {
+      for (const entry of res.contents ?? []) {
+        const mapped = mapTapestryEntryToPost(entry);
+        if (!mapped) continue;
+        posts.push(mapped);
+        likeCounts[mapped.contentId] = entry.socialCounts?.likeCount ?? likeCounts[mapped.contentId] ?? 0;
+        commentCounts[mapped.contentId] = entry.socialCounts?.commentCount ?? commentCounts[mapped.contentId] ?? 0;
+      }
+    }
+
+    const merged = posts.sort((a, b) => b.createdAt - a.createdAt);
+    const trimmed = limit ? merged.slice(0, limit) : merged;
+    return { posts: trimmed, likeCounts, commentCounts };
+  }
+
   async listPostsWithCounts(type?: SocialPostType, limit = 50) {
     try {
       const entries = await this.fetchTapestryContents(type, limit);
@@ -308,4 +369,27 @@ function mapTapestryEntryToPost(entry: any) {
     createdAt,
     customProperties: Object.keys(custom).length ? custom : undefined,
   };
+}
+
+function extractFollowingProfileIds(raw: any): string[] {
+  const candidates: any[] = [];
+  if (Array.isArray(raw)) candidates.push(raw);
+  if (Array.isArray(raw?.following)) candidates.push(raw.following);
+  if (Array.isArray(raw?.data?.following)) candidates.push(raw.data.following);
+  if (Array.isArray(raw?.profiles)) candidates.push(raw.profiles);
+  if (Array.isArray(raw?.data?.profiles)) candidates.push(raw.data.profiles);
+  if (Array.isArray(raw?.data?.data)) candidates.push(raw.data.data);
+  const ids = new Set<string>();
+  for (const list of candidates) {
+    for (const item of list) {
+      const id =
+        item?.id ??
+        item?.profileId ??
+        item?.profile?.id ??
+        item?.endId ??
+        item?.targetProfileId;
+      if (id && typeof id === "string") ids.add(id);
+    }
+  }
+  return Array.from(ids);
 }
