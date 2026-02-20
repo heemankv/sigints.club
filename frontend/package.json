@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "generate:art": "node scripts/generate-card-art.js"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.12",

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { postJson } from "../../lib/api";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import {
   buildSubscribeInstruction,
   defaultExpiryMs,
@@ -12,21 +12,28 @@ import {
   resolvePricingType,
   resolveProgramId,
 } from "../../lib/solana";
+import { parseSolLamports } from "../../lib/pricing";
 
 export default function SubscribeForm({
   personaId,
   tierId,
   pricingType,
   evidenceLevel,
+  price,
   quota,
   personaOnchainAddress,
+  personaAuthority,
+  personaDao,
 }: {
   personaId: string;
   tierId: string;
   pricingType: string;
   evidenceLevel: string;
+  price: string;
   quota?: string;
   personaOnchainAddress?: string;
+  personaAuthority?: string;
+  personaDao?: string;
 }) {
   const [pubKey, setPubKey] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -40,9 +47,16 @@ export default function SubscribeForm({
     setLoading(true);
     setStatus(null);
     try {
+      if (!publicKey) {
+        throw new Error("Connect your wallet first.");
+      }
+      if (!personaAuthority || !personaDao) {
+        throw new Error("Persona payout accounts missing.");
+      }
       const data = await postJson<{ subscriberId: string }>("/subscribe", {
         personaId,
         encPubKeyDerBase64: pubKey,
+        subscriberWallet: publicKey.toBase58(),
       });
       setStatus(`Subscribed. Subscriber ID: ${data.subscriberId}`);
     } catch (err: any) {
@@ -78,6 +92,9 @@ export default function SubscribeForm({
         evidenceLevel: resolveEvidenceLevel(evidenceLevel),
         expiresAtMs: defaultExpiryMs(),
         quotaRemaining: parseQuota(quota) ?? 0,
+        priceLamports: parseSolLamports(price),
+        maker: new PublicKey(personaAuthority),
+        treasury: new PublicKey(personaDao),
       });
       const tx = new Transaction().add(ix);
       tx.feePayer = publicKey;
@@ -115,12 +132,12 @@ export default function SubscribeForm({
       <button
         className="button ghost"
         onClick={submitOnchain}
-        disabled={loading || !personaOnchainAddress}
+        disabled={loading || !personaOnchainAddress || !personaAuthority || !personaDao}
       >
         {loading ? "Submitting…" : "Subscribe on-chain"}
       </button>
-      {!personaOnchainAddress && (
-        <p className="subtext">On-chain persona address not configured.</p>
+      {(!personaOnchainAddress || !personaAuthority || !personaDao) && (
+        <p className="subtext">On-chain persona or payout accounts not configured.</p>
       )}
       {chainStatus && <p className="subtext">{chainStatus}</p>}
       {chainTx && (

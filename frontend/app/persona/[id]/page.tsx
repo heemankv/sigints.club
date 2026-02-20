@@ -16,6 +16,8 @@ type PersonaDetail = {
   evidence: string;
   description: string;
   onchainAddress?: string;
+  authority?: string;
+  dao?: string;
   tapestryProfileId?: string;
   tiers: Array<{
     tierId: string;
@@ -71,7 +73,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           <div className="hud-corners" />
           <h3>Listener Tools</h3>
           <p>Manage keys and decrypt messages you subscribe to.</p>
-          <KeyManager personaId={persona.id} />
+          <KeyManager personaId={persona.id} personaOnchainAddress={"onchainAddress" in persona ? persona.onchainAddress : undefined} />
           <DecryptPanel personaId={persona.id} />
         </div>
       </div>
@@ -96,8 +98,11 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                 tierId={tier.tierId}
                 pricingType={tier.pricingType}
                 evidenceLevel={tier.evidenceLevel}
+                price={tier.price}
                 quota={tier.quota}
                 personaOnchainAddress={"onchainAddress" in persona ? persona.onchainAddress : undefined}
+                personaAuthority={"authority" in persona ? persona.authority : undefined}
+                personaDao={"dao" in persona ? persona.dao : undefined}
               />
             </div>
           ))}

@@ -41,6 +41,7 @@ let connection: Connection;
 let server: Server;
 let baseUrl: string;
 let tempKeypairPath: string;
+let authorityKeypair: Keypair;
 
 function loadKeypairFromFile(filePath: string): Keypair {
   const raw = readFileSync(filePath, "utf8");
@@ -143,6 +144,8 @@ async function ensurePersonaExists(args: {
 async function sendSubscribeTx(args: {
   persona: PublicKey;
   subscriber: Keypair;
+  maker: PublicKey;
+  treasury: PublicKey;
   tierId: string;
   pricingType: number;
   evidenceLevel: number;
@@ -157,6 +160,9 @@ async function sendSubscribeTx(args: {
     evidenceLevel: args.evidenceLevel,
     expiresAtMs: defaultExpiryMs(),
     quotaRemaining: 0,
+    priceLamports: 0,
+    maker: args.maker,
+    treasury: args.treasury,
   });
 
   const tx = new Transaction().add(ix);
@@ -185,6 +191,7 @@ beforeAll(async () => {
   }
   // eslint-disable-next-line no-console
   console.log("E2E authority keypair:", tempKeypairPath, keypair.publicKey.toBase58());
+  authorityKeypair = keypair;
   await airdrop(connection, keypair.publicKey, 5);
 
   const coder = loadPersonaRegistryCoder();
@@ -253,19 +260,6 @@ describe("E2E maker/taker flow", () => {
       await airdrop(connection, taker.wallet.publicKey, 2);
     }
 
-    for (const [idx, taker] of takers.entries()) {
-      const personaId = personas[idx % personas.length].id;
-      const res = await fetch(`${baseUrl}/subscribe`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personaId, encPubKeyDerBase64: taker.keys.publicKeyDerBase64 }),
-      });
-      expect(res.ok).toBe(true);
-      const body = (await res.json()) as { subscriberId: string };
-      const expectedId = subscriberIdFromPubkey(taker.keys.publicKeyDerBase64);
-      expect(body.subscriberId).toBe(expectedId);
-    }
-
     // On-chain subscription NFTs
     for (const [idx, taker] of takers.entries()) {
       const persona = personas[idx % personas.length];
@@ -273,6 +267,8 @@ describe("E2E maker/taker flow", () => {
       await sendSubscribeTx({
         persona: personaPubkey,
         subscriber: taker.wallet,
+        maker: authorityKeypair.publicKey,
+        treasury: authorityKeypair.publicKey,
         tierId: persona.tier,
         pricingType: persona.pricingType,
         evidenceLevel: persona.evidenceLevel,
@@ -303,6 +299,23 @@ describe("E2E maker/taker flow", () => {
       const ata = getAssociatedTokenAddressSync(subscriptionMint, taker.wallet.publicKey);
       const tokenAccount = await getAccount(connection, ata);
       expect(tokenAccount.amount).toBe(1n);
+    }
+
+    for (const [idx, taker] of takers.entries()) {
+      const personaId = personas[idx % personas.length].id;
+      const res = await fetch(`${baseUrl}/subscribe`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          personaId,
+          encPubKeyDerBase64: taker.keys.publicKeyDerBase64,
+          subscriberWallet: taker.wallet.publicKey.toBase58(),
+        }),
+      });
+      expect(res.ok).toBe(true);
+      const body = (await res.json()) as { subscriberId: string };
+      const expectedId = subscriberIdFromPubkey(taker.keys.publicKeyDerBase64);
+      expect(body.subscriberId).toBe(expectedId);
     }
 
     const subscriptionCoder = loadSubscriptionCoder();

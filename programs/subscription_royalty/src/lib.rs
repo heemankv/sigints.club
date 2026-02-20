@@ -12,6 +12,7 @@ use anchor_spl::token::spl_token::instruction::AuthorityType;
 declare_id!("BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE");
 
 const PERSONA_REGISTRY_ID: Pubkey = pubkey!("5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi");
+const PLATFORM_FEE_BPS: u64 = 1_000;
 
 #[program]
 pub mod subscription_royalty {
@@ -24,11 +25,22 @@ pub mod subscription_royalty {
         evidence_level: u8,
         expires_at: i64,
         quota_remaining: u32,
+        price_lamports: u64,
     ) -> Result<()> {
         let persona_config = validate_persona(&ctx.accounts.persona)?;
         require!(
             persona_config.status == PersonaStatus::Active as u8,
             ErrorCode::PersonaInactive
+        );
+        require_keys_eq!(
+            persona_config.authority,
+            ctx.accounts.maker.key(),
+            ErrorCode::UnauthorizedPersona
+        );
+        require_keys_eq!(
+            persona_config.dao,
+            ctx.accounts.treasury.key(),
+            ErrorCode::InvalidTreasury
         );
 
         let sub = &mut ctx.accounts.subscription;
@@ -42,6 +54,41 @@ pub mod subscription_royalty {
         sub.status = SubscriptionStatus::Active as u8;
         sub.nft_mint = ctx.accounts.subscription_mint.key();
         sub.bump = ctx.bumps.subscription;
+
+        if price_lamports > 0 {
+            let fee = price_lamports.saturating_mul(PLATFORM_FEE_BPS) / 10_000;
+            let maker_amount = price_lamports.saturating_sub(fee);
+            if maker_amount > 0 {
+                let ix = system_instruction::transfer(
+                    &ctx.accounts.subscriber.key(),
+                    &ctx.accounts.maker.key(),
+                    maker_amount,
+                );
+                anchor_lang::solana_program::program::invoke(
+                    &ix,
+                    &[
+                        ctx.accounts.subscriber.to_account_info(),
+                        ctx.accounts.maker.to_account_info(),
+                        ctx.accounts.system_program.to_account_info(),
+                    ],
+                )?;
+            }
+            if fee > 0 {
+                let ix = system_instruction::transfer(
+                    &ctx.accounts.subscriber.key(),
+                    &ctx.accounts.treasury.key(),
+                    fee,
+                );
+                anchor_lang::solana_program::program::invoke(
+                    &ix,
+                    &[
+                        ctx.accounts.subscriber.to_account_info(),
+                        ctx.accounts.treasury.to_account_info(),
+                        ctx.accounts.system_program.to_account_info(),
+                    ],
+                )?;
+            }
+        }
 
         let persona_state = &mut ctx.accounts.persona_state;
         if persona_state.persona == Pubkey::default() {
@@ -188,6 +235,23 @@ pub mod subscription_royalty {
         Ok(())
     }
 
+    pub fn register_key(ctx: Context<RegisterKey>, enc_pubkey: [u8; 32]) -> Result<()> {
+        let sub = &ctx.accounts.subscription;
+        require!(
+            sub.status == SubscriptionStatus::Active as u8,
+            ErrorCode::SubscriptionInactive
+        );
+        let key = &mut ctx.accounts.subscriber_key;
+        key.subscription = sub.key();
+        key.persona = sub.persona;
+        key.subscriber = sub.subscriber;
+        key.enc_pubkey = enc_pubkey;
+        let clock = Clock::get()?;
+        key.updated_at = clock.unix_timestamp.saturating_mul(1_000);
+        key.bump = ctx.bumps.subscriber_key;
+        Ok(())
+    }
+
     pub fn record_signal(
         ctx: Context<RecordSignal>,
         signal_hash: [u8; 32],
@@ -255,6 +319,10 @@ pub struct Subscribe<'info> {
     pub persona: AccountInfo<'info>,
     #[account(mut)]
     pub subscriber: Signer<'info>,
+    #[account(mut)]
+    pub maker: SystemAccount<'info>,
+    #[account(mut)]
+    pub treasury: SystemAccount<'info>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -285,6 +353,22 @@ pub struct Cancel<'info> {
     )]
     pub persona_state: Account<'info, PersonaState>,
     pub subscriber: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RegisterKey<'info> {
+    #[account(mut, has_one = subscriber)]
+    pub subscription: Account<'info, Subscription>,
+    #[account(
+        init_if_needed,
+        payer = subscriber,
+        space = SubscriberKey::SPACE,
+        seeds = [b"subscriber_key", subscription.key().as_ref()],
+        bump
+    )]
+    pub subscriber_key: Account<'info, SubscriberKey>,
+    pub subscriber: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -326,6 +410,20 @@ pub struct Subscription {
 
 impl Subscription {
     pub const SPACE: usize = 8 + 32 + 32 + 32 + 1 + 1 + 8 + 4 + 1 + 32 + 1;
+}
+
+#[account]
+pub struct SubscriberKey {
+    pub subscription: Pubkey,
+    pub persona: Pubkey,
+    pub subscriber: Pubkey,
+    pub enc_pubkey: [u8; 32],
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+impl SubscriberKey {
+    pub const SPACE: usize = 8 + 32 + 32 + 32 + 32 + 8 + 1;
 }
 
 #[account]
@@ -389,10 +487,14 @@ pub enum ErrorCode {
     PersonaInactive,
     #[msg("Signer is not the persona authority")]
     UnauthorizedPersona,
+    #[msg("Treasury account does not match persona registry")]
+    InvalidTreasury,
     #[msg("No subscribers exist for this persona")]
     NoSubscribers,
     #[msg("Subscriber ATA does not match expected address")]
     InvalidSubscriberAta,
+    #[msg("Subscription is not active")]
+    SubscriptionInactive,
 }
 
 fn load_persona_config(account: &AccountInfo) -> Result<PersonaConfig> {

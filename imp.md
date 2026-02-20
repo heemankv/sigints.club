@@ -35,3 +35,6 @@ Date: 2026-02-15
 32. Social feed now supports follows and trending (sorted by Tapestry like counts); slash posts can link to challenge tx.
 33. Persona pages expose a Follow button (uses Tapestry profileId from persona map) and homepage shows Trending leaderboard.
 34. Tapestry API expects `properties` for content/profile and `text` for comments; base URL now uses the fly.dev `/api/v1` host for successful requests.
+35. Subscribe inputs are tier-derived in the UI; users select a tier, and pricing type / evidence / quota / expiry are not user-editable at subscribe time (revisit later).
+36. On-chain subscribe now transfers lamports: a platform cut (10% = 1000 bps) to persona `dao` and the remainder to persona `authority` (maker).
+37. On-chain subscriber key registration is supported via `register_key` (SubscriberKey PDA) to bind X25519 pubkeys on-chain.

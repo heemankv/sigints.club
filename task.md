@@ -51,6 +51,10 @@ Progress
 - E2E updated to create persona registry PDAs before subscribing.
 - Tapestry social layer added: intents + slash reports + likes/comments + social feed UI.
 - Demo data seeder added (flag-based) to populate backend stores + optional localnet on-chain seed.
+- Network onboarding modal + wrong-network indicator added for wallet connections.
+- Profile page network status banner added.
+- Localnet setup instructions added for Phantom and Solflare.
+- Unit tests added for network onboarding modal + indicator logic.
 
 Next Actions
 1. Ensure localnet programs are deployed before running on-chain demo seed.

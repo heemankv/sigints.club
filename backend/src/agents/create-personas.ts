@@ -73,6 +73,9 @@ async function main() {
   const wallet = new anchor.Wallet(keypair);
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   const coder = await loadCoder();
+  const treasury = process.env.SOLANA_TREASURY_ADDRESS
+    ? new PublicKey(process.env.SOLANA_TREASURY_ADDRESS)
+    : wallet.publicKey;
 
   const personaMap: Record<string, string> = {};
 
@@ -94,7 +97,7 @@ async function main() {
     const data = coder.encode("create_persona", {
       persona_id: Array.from(personaIdBytes),
       tiers_hash: Array.from(tiersHashBytes),
-      dao: wallet.publicKey,
+      dao: treasury,
     });
 
     const ix = new anchor.web3.TransactionInstruction({

@@ -1,15 +1,35 @@
 import { fetchJson } from "./lib/api";
-import { fallbackPersonas } from "./lib/fallback";
+import { fallbackPersonaDetails } from "./lib/fallback";
+import SubscriptionCard from "./components/SubscriptionCard";
+
+type PersonaDetail = {
+  id: string;
+  name: string;
+  domain: string;
+  accuracy: string;
+  latency: string;
+  price: string;
+  evidence: string;
+  onchainAddress?: string;
+  authority?: string;
+  dao?: string;
+  tiers: Array<{
+    tierId: string;
+    pricingType: string;
+    price: string;
+    quota?: string;
+    evidenceLevel: string;
+  }>;
+};
 
 export default async function Home() {
-  let personas = fallbackPersonas;
+  const allowFallback = process.env.NEXT_PUBLIC_ALLOW_FALLBACK === "true";
+  let personas: PersonaDetail[] = allowFallback ? fallbackPersonaDetails : [];
   let trending: Array<{ id: string; content: string; authorWallet: string; contentId: string }> = [];
   let likeCounts: Record<string, number> = {};
   try {
-    const data = await fetchJson<{
-      personas: Array<{ id: string; name: string; domain: string; accuracy: string; latency: string; price: string; evidence: string }>;
-    }>("/personas");
-    personas = data.personas;
+    const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
+    personas = data.personas.length ? data.personas : allowFallback ? fallbackPersonaDetails : [];
   } catch {
   }
   try {
@@ -22,6 +42,12 @@ export default async function Home() {
   }
 
   const featured = personas.slice(0, 3);
+  const tierCards = personas.flatMap((persona) =>
+    persona.tiers.map((tier) => ({
+      persona,
+      tier,
+    }))
+  );
 
   return (
     <>
@@ -95,26 +121,37 @@ export default async function Home() {
 
       <section className="section">
         <div className="section-head">
-          <h2>All Personas</h2>
-          <p>Compare pricing, evidence level, and latency before subscribing.</p>
+          <h2>Subscription Marketplace</h2>
+          <p>Pick a tier and mint the subscription NFT directly from the explore grid.</p>
         </div>
-        <div className="module-grid">
-          {personas.map((p, idx) => (
-            <div key={p.id} className={`module ${idx % 3 === 0 ? "accent-teal" : idx % 3 === 1 ? "accent-orange" : "accent-gold"}`}>
-              <div className="hud-corners" />
-              <h3>{p.name}</h3>
-              <p>Domain: {p.domain}</p>
-              <div className="badges">
-                <span className="badge">Accuracy {p.accuracy}</span>
-                <span className="badge">Latency {p.latency}</span>
-                <span className="badge">{p.evidence}</span>
-              </div>
-              <p>Starting at {p.price}</p>
-              <a className="button ghost" href={`/persona/${p.id}`}>
-                View Persona
-              </a>
-            </div>
+        <div className="data-grid">
+          {tierCards.map(({ persona, tier }) => (
+            <SubscriptionCard
+              key={`${persona.id}-${tier.tierId}`}
+              personaId={persona.id}
+              personaName={persona.name}
+              domain={persona.domain}
+              accuracy={persona.accuracy}
+              latency={persona.latency}
+              evidence={persona.evidence}
+              tierId={tier.tierId}
+              pricingType={tier.pricingType}
+              price={tier.price}
+              quota={tier.quota}
+              evidenceLevel={tier.evidenceLevel}
+              personaOnchainAddress={persona.onchainAddress}
+              maker={persona.authority}
+              treasury={persona.dao}
+            />
           ))}
+          {!tierCards.length && (
+            <div className="module">
+              <div className="hud-corners" />
+              <h3>No on-chain personas yet</h3>
+              <p className="subtext">Register a persona on-chain to publish it to the marketplace.</p>
+              <a className="button ghost" href="/profile">Register Persona</a>
+            </div>
+          )}
         </div>
       </section>
     </>

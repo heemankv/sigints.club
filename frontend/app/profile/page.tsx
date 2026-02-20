@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { fetchJson, postJson } from "../lib/api";
-import { decodeSubscriptionAccount, resolveProgramId } from "../lib/solana";
+import { decodeSubscriptionAccount, resolveProgramId, sha256Bytes } from "../lib/solana";
+import NetworkStatusCard from "../components/NetworkStatusCard";
+import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
+import RegisterPersonaForm from "../components/RegisterPersonaForm";
 
 type UserProfile = {
   wallet: string;
@@ -33,6 +36,47 @@ type SubscriptionRecord = {
   nftMint: string;
 };
 
+type TierOption = {
+  tierId: string;
+  pricingType: string;
+  price: string;
+  quota?: string;
+  evidenceLevel: string;
+};
+
+type PersonaDetail = {
+  id: string;
+  name: string;
+  onchainAddress?: string;
+  tiers: TierOption[];
+};
+
+type TierLookupEntry = {
+  persona: PersonaDetail;
+  tier: TierOption;
+};
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function pricingTypeLabel(value?: number): string | undefined {
+  if (value === undefined) return undefined;
+  if (value === 0) return "subscription_limited";
+  if (value === 1) return "subscription_unlimited";
+  if (value === 2) return "per_signal";
+  return undefined;
+}
+
+function evidenceLabel(value?: number): string | undefined {
+  if (value === undefined) return undefined;
+  if (value === 0) return "trust";
+  if (value === 1) return "verifier";
+  return undefined;
+}
+
 export default function ProfilePage() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
@@ -41,6 +85,8 @@ export default function ProfilePage() {
   const [listenerBots, setListenerBots] = useState<BotProfile[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
   const [status, setStatus] = useState<string | null>(null);
+  const [personaLookup, setPersonaLookup] = useState<Record<string, PersonaDetail>>({});
+  const [tierLookup, setTierLookup] = useState<Record<string, TierLookupEntry>>({});
 
   const [botName, setBotName] = useState("");
   const [botDomain, setBotDomain] = useState("");
@@ -92,6 +138,31 @@ export default function ProfilePage() {
         setSubscriptions(decoded);
       } catch {
         setSubscriptions([]);
+      }
+
+      try {
+        const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
+        const personaMap: Record<string, PersonaDetail> = {};
+        data.personas.forEach((persona) => {
+          if (persona.onchainAddress) {
+            personaMap[persona.onchainAddress] = persona;
+          }
+        });
+        setPersonaLookup(personaMap);
+
+        const entries = await Promise.all(
+          data.personas.flatMap((persona) =>
+            persona.tiers.map(async (tier) => {
+              const hash = await sha256Bytes(tier.tierId);
+              const hex = bytesToHex(hash);
+              return [hex, { persona, tier }] as const;
+            })
+          )
+        );
+        setTierLookup(Object.fromEntries(entries));
+      } catch {
+        setPersonaLookup({});
+        setTierLookup({});
       }
     }
 
@@ -150,6 +221,15 @@ export default function ProfilePage() {
         <span className="kicker">Control center</span>
         <h1>Your Profile</h1>
         <p>Manage maker bots, listener bots, and subscriptions.</p>
+      </div>
+      <NetworkStatusCard />
+      <div className="section">
+        <div className="section-head">
+          <span className="kicker">On-chain</span>
+          <h2>Register Persona</h2>
+          <p>Create a persona entry on-chain and publish it to the Explore marketplace.</p>
+        </div>
+        <RegisterPersonaForm />
       </div>
       <div className="split">
         <div className="module accent-teal">
@@ -237,20 +317,27 @@ export default function ProfilePage() {
           <h2>Subscriptions</h2>
           <p>Subscriptions derived directly from on-chain NFT mints.</p>
         </div>
-        <div className="stream">
-          {subscriptions.map((sub) => (
-            <div className="stream-item" key={sub.subscription}>
-              <div>
-                <strong>{sub.persona}</strong>
-                <div className="subtext">Tier {sub.tierIdHex.slice(0, 8)}… · Pricing {sub.pricingType}</div>
-                <div className="subtext">Evidence {sub.evidenceLevel} · Status {sub.status}</div>
-                <div className="subtext">NFT mint {sub.nftMint.slice(0, 10)}…</div>
-              </div>
-              <a className="link" href={`https://explorer.solana.com/address/${sub.nftMint}?cluster=devnet`} target="_blank">
-                NFT
-              </a>
-            </div>
-          ))}
+        <div className="data-grid">
+          {subscriptions.map((sub) => {
+            const tierEntry = tierLookup[sub.tierIdHex];
+            const persona = tierEntry?.persona ?? personaLookup[sub.persona];
+            const tier = tierEntry?.tier;
+            const personaName = persona?.name ?? `${sub.persona.slice(0, 8)}…`;
+            const tierLabel = tier?.tierId ?? `tier-${sub.tierIdHex.slice(0, 6)}`;
+            return (
+              <OwnedSubscriptionCard
+                key={sub.subscription}
+                personaName={personaName}
+                personaId={persona?.id ?? sub.persona}
+                tierLabel={tierLabel}
+                price={tier?.price}
+                evidenceLevel={tier?.evidenceLevel ?? evidenceLabel(sub.evidenceLevel)}
+                pricingType={tier?.pricingType ?? pricingTypeLabel(sub.pricingType)}
+                expiresAt={sub.expiresAt}
+                nftMint={sub.nftMint}
+              />
+            );
+          })}
           {!subscriptions.length && <div className="subtext">No subscriptions yet.</div>}
         </div>
       </div>

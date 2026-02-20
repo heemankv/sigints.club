@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Connection, PublicKey } from "@solana/web3.js";
 import {
   signalService,
   metadataStore,
@@ -11,8 +12,11 @@ import {
   botProfileStore,
   subscriptionProfileStore,
   socialServiceInstance,
+  personaStore,
+  personaRegistry,
 } from "./services/ServiceContainer";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
+import { hashTiersHex } from "./personas/tiersHash";
 
 const router = Router();
 
@@ -114,38 +118,97 @@ router.get("/storage/keybox/:sha", async (req, res) => {
 
 router.get("/feed", async (_req, res) => {
   const signals = await metadataStore.listAllSignals();
-  const feed = signals
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .slice(0, 50)
-    .map((s) => {
-      const persona = discoveryService.getPersona(s.personaId);
-      return {
-        id: s.signalHash,
-        type: "signal",
-        personaId: s.personaId,
-        personaName: persona?.name ?? s.personaId,
-        tierId: s.tierId,
-        createdAt: s.createdAt,
-        onchainTx: s.onchainTx,
-      };
+  const feed = [];
+  const recent = signals.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+  for (const signal of recent) {
+    const persona = await discoveryService.getPersona(signal.personaId);
+    feed.push({
+      id: signal.signalHash,
+      type: "signal",
+      personaId: signal.personaId,
+      personaName: persona?.name ?? signal.personaId,
+      tierId: signal.tierId,
+      createdAt: signal.createdAt,
+      onchainTx: signal.onchainTx,
     });
+  }
   return res.json({ feed });
 });
 
-router.get("/personas", (_req, res) => {
-  return res.json({ personas: discoveryService.listPersonas() });
+router.get("/personas", async (req, res) => {
+  const includeTiers =
+    req.query.includeTiers === "true" || req.query.includeTiers === "1";
+  if (includeTiers) {
+    const personas = await discoveryService.listPersonaDetails();
+    return res.json({ personas });
+  }
+  const personas = await discoveryService.listPersonas();
+  return res.json({ personas });
 });
 
-router.get("/personas/:id", (req, res) => {
-  const persona = discoveryService.getPersona(req.params.id);
+router.get("/personas/:id", async (req, res) => {
+  const persona = await discoveryService.getPersona(req.params.id);
   if (!persona) {
     return res.status(404).json({ error: "persona not found" });
   }
   return res.json({ persona });
 });
 
-router.get("/requests", (_req, res) => {
-  return res.json({ requests: discoveryService.listRequests() });
+const tierSchema = z.object({
+  tierId: z.string(),
+  pricingType: z.enum(["subscription_limited", "subscription_unlimited", "per_signal"]),
+  price: z.string(),
+  quota: z.string().optional(),
+  evidenceLevel: z.enum(["trust", "verifier"]),
+});
+
+const personaSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  domain: z.string(),
+  description: z.string(),
+  accuracy: z.string(),
+  latency: z.string(),
+  price: z.string(),
+  evidence: z.string(),
+  ownerWallet: z.string(),
+  tiers: z.array(tierSchema).min(1),
+});
+
+router.post("/personas", async (req, res) => {
+  if (!personaRegistry) {
+    return res.status(503).json({ error: "persona registry not configured" });
+  }
+  const parsed = personaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const tiersHash = hashTiersHex(parsed.data.tiers);
+  const onchain = await personaRegistry.getPersonaConfig(parsed.data.id);
+  if (!onchain) {
+    return res.status(400).json({ error: "persona not registered on-chain" });
+  }
+  if (onchain.status !== 1) {
+    return res.status(400).json({ error: "persona is not active" });
+  }
+  if (onchain.authority !== parsed.data.ownerWallet) {
+    return res.status(403).json({ error: "wallet is not persona authority" });
+  }
+  if (onchain.tiersHashHex !== tiersHash) {
+    return res.status(400).json({ error: "tiers hash mismatch with on-chain" });
+  }
+  const stored = await personaStore.upsertPersona(parsed.data);
+  return res.json({
+    persona: {
+      ...stored,
+      onchainAddress: onchain.pda,
+    },
+  });
+});
+
+router.get("/requests", async (_req, res) => {
+  const requests = await discoveryService.listRequests();
+  return res.json({ requests });
 });
 
 const loginSchema = z.object({
@@ -485,12 +548,36 @@ function extractList(raw: any, fallbackKey: "likes" | "comments") {
 const subscribeSchema = z.object({
   personaId: z.string(),
   encPubKeyDerBase64: z.string(),
+  subscriberWallet: z.string(),
 });
 
 router.post("/subscribe", async (req, res) => {
   const parsed = subscribeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  if (!personaRegistry) {
+    return res.status(503).json({ error: "persona registry not configured" });
+  }
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  if (!subscriptionProgramId) {
+    return res.status(503).json({ error: "subscription program not configured" });
+  }
+  try {
+    const subscriberPubkey = new PublicKey(parsed.data.subscriberWallet);
+    const personaPda = personaRegistry.derivePersonaPda(parsed.data.personaId);
+    const [subscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), personaPda.toBuffer(), subscriberPubkey.toBuffer()],
+      new PublicKey(subscriptionProgramId)
+    );
+    const connection = new Connection(rpcUrl, "confirmed");
+    const subscriptionAccount = await connection.getAccountInfo(subscriptionPda);
+    if (!subscriptionAccount) {
+      return res.status(400).json({ error: "on-chain subscription not found" });
+    }
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message ?? "invalid subscriber wallet" });
   }
   const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
   const subscriberId = subscriberIdFromPubkey(pub);
@@ -507,9 +594,12 @@ const onchainSubscribeSchema = z.object({
   tierId: z.string(),
   pricingType: z.union([z.enum(["subscription_limited", "subscription_unlimited", "per_signal"]), z.number().int()]),
   evidenceLevel: z.union([z.enum(["trust", "verifier"]), z.number().int()]),
+  priceLamports: z.number().int().nonnegative().optional(),
   expiresAt: z.number().optional(),
   quotaRemaining: z.number().int().optional(),
   subscriberPubkey: z.string().optional(),
+  makerPubkey: z.string().optional(),
+  treasuryPubkey: z.string().optional(),
 });
 
 router.post("/subscribe/onchain", async (req, res) => {
@@ -521,7 +611,18 @@ router.post("/subscribe/onchain", async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const signature = await onChainSubscriptionClient.subscribe(parsed.data);
+    let payload = parsed.data;
+    if (personaRegistry && (!payload.makerPubkey || !payload.treasuryPubkey)) {
+      const config = await personaRegistry.getPersonaConfig(payload.personaId);
+      if (config) {
+        payload = {
+          ...payload,
+          makerPubkey: payload.makerPubkey ?? config.authority,
+          treasuryPubkey: payload.treasuryPubkey ?? config.dao,
+        };
+      }
+    }
+    const signature = await onChainSubscriptionClient.subscribe(payload);
     return res.json({ signature });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "on-chain subscribe failed" });

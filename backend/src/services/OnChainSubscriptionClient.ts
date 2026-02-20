@@ -15,7 +15,10 @@ export type SubscriptionRequest = {
   evidenceLevel: string | number;
   expiresAt?: number;
   quotaRemaining?: number;
+  priceLamports?: number;
   subscriberPubkey?: string;
+  makerPubkey?: string;
+  treasuryPubkey?: string;
 };
 
 export type RenewalRequest = {
@@ -64,6 +67,8 @@ const EVIDENCE_LEVEL_MAP: Record<string, number> = {
   verifier: 1,
 };
 
+const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
+
 export class OnChainSubscriptionClient {
   private client?: { provider: anchor.AnchorProvider; coder: anchor.BorshInstructionCoder; idl: anchor.Idl };
   private readonly programId: PublicKey;
@@ -77,24 +82,31 @@ export class OnChainSubscriptionClient {
     const walletPubkey = provider.wallet.publicKey;
     const subscriberPubkey = this.resolveSubscriber(input.subscriberPubkey, walletPubkey);
     const personaPubkey = this.resolvePersona(input.personaId, walletPubkey);
+    if (!input.makerPubkey || !input.treasuryPubkey) {
+      throw new Error("makerPubkey and treasuryPubkey are required for subscribe");
+    }
+    const makerPubkey = new PublicKey(input.makerPubkey);
+    const treasuryPubkey = new PublicKey(input.treasuryPubkey);
 
     const tierHashBytes = toBytes32(sha256Hex(Buffer.from(input.tierId)), "tierIdHash");
     const pricingType = normalizeEnum(input.pricingType, PRICING_TYPE_MAP, "pricingType");
     const evidenceLevel = normalizeEnum(input.evidenceLevel, EVIDENCE_LEVEL_MAP, "evidenceLevel");
     const expiresAt = new BN(input.expiresAt ?? defaultExpiry());
     const quotaRemaining = input.quotaRemaining ?? 0;
+    const priceLamports = input.priceLamports ?? 0;
 
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
 
-    const data = coder.encode("subscribe", {
-      tier_id: Array.from(tierHashBytes),
-      pricing_type: pricingType,
-      evidence_level: evidenceLevel,
-      expires_at: expiresAt,
-      quota_remaining: quotaRemaining,
+    const data = encodeSubscribeData({
+      tierHash: tierHashBytes,
+      pricingType,
+      evidenceLevel,
+      expiresAt: expiresAt.toNumber(),
+      quotaRemaining,
+      priceLamports,
     });
 
     const [subscriptionMint] = PublicKey.findProgramAddressSync(
@@ -117,6 +129,8 @@ export class OnChainSubscriptionClient {
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: personaPubkey, isSigner: false, isWritable: false },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: true },
+        { pubkey: makerPubkey, isSigner: false, isWritable: true },
+        { pubkey: treasuryPubkey, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -292,6 +306,40 @@ function normalizeEnum(value: string | number, map: Record<string, number>, labe
     throw new Error(`Unknown ${label}: ${value}`);
   }
   return mapped;
+}
+
+function writeBigInt64LE(buffer: Uint8Array, value: bigint, offset: number) {
+  let v = value;
+  for (let i = 0; i < 8; i += 1) {
+    buffer[offset + i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+}
+
+function writeUint32LE(buffer: Uint8Array, value: number, offset: number) {
+  buffer[offset] = value & 0xff;
+  buffer[offset + 1] = (value >> 8) & 0xff;
+  buffer[offset + 2] = (value >> 16) & 0xff;
+  buffer[offset + 3] = (value >> 24) & 0xff;
+}
+
+function encodeSubscribeData(params: {
+  tierHash: Buffer;
+  pricingType: number;
+  evidenceLevel: number;
+  expiresAt: number;
+  quotaRemaining: number;
+  priceLamports: number;
+}): Buffer {
+  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4 + 8);
+  data.set(SUBSCRIBE_DISCRIMINATOR, 0);
+  data.set(params.tierHash, 8);
+  data[40] = params.pricingType;
+  data[41] = params.evidenceLevel;
+  writeBigInt64LE(data, BigInt(params.expiresAt), 42);
+  writeUint32LE(data, params.quotaRemaining, 50);
+  writeBigInt64LE(data, BigInt(params.priceLamports), 54);
+  return Buffer.from(data);
 }
 
 function toBytes32(hex: string, label: string): Buffer {

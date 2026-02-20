@@ -1,3 +1,7 @@
+import { PersonaStore, PersonaTier } from "../personas";
+import { hashTiersHex } from "../personas/tiersHash";
+import { PersonaRegistryClient } from "./PersonaRegistryClient";
+
 export type PersonaSummary = {
   id: string;
   name: string;
@@ -10,17 +14,14 @@ export type PersonaSummary = {
   tapestryProfileId?: string;
 };
 
-export type TierOption = {
-  tierId: string;
-  pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal";
-  price: string;
-  quota?: string;
-  evidenceLevel: "trust" | "verifier";
-};
+export type TierOption = PersonaTier;
 
 export type PersonaDetail = PersonaSummary & {
   description: string;
   tiers: TierOption[];
+  ownerWallet?: string;
+  authority?: string;
+  dao?: string;
 };
 
 export type RequestSummary = {
@@ -33,129 +34,81 @@ export type RequestSummary = {
 
 export class DiscoveryService {
   constructor(
-    private personaMap?: Record<string, string>,
+    private personaStore: PersonaStore,
+    private personaRegistry?: PersonaRegistryClient,
     private tapestryProfileMap?: Record<string, string>
   ) {}
 
-  listPersonas(): PersonaSummary[] {
-    return [
-      {
-        id: "persona-eth",
-        name: "ETH-Price Scout",
-        domain: "pricing",
-        accuracy: "98.2%",
-        latency: "1.4s",
-        price: "$5/mo",
-        evidence: "Verifier supported",
-        onchainAddress: this.personaMap?.["persona-eth"],
-        tapestryProfileId: this.tapestryProfileMap?.["persona-eth"],
-      },
-      {
-        id: "persona-amazon",
-        name: "Amazon-Deal Scout",
-        domain: "e-commerce",
-        accuracy: "94.1%",
-        latency: "3.2s",
-        price: "$8/mo",
-        evidence: "Verifier supported",
-        onchainAddress: this.personaMap?.["persona-amazon"],
-        tapestryProfileId: this.tapestryProfileMap?.["persona-amazon"],
-      },
-      {
-        id: "persona-anime",
-        name: "Anime-Release Scout",
-        domain: "media",
-        accuracy: "99.1%",
-        latency: "5.0s",
-        price: "$2/mo",
-        evidence: "Trust + Verifier",
-        onchainAddress: this.personaMap?.["persona-anime"],
-        tapestryProfileId: this.tapestryProfileMap?.["persona-anime"],
-      },
-    ];
+  async listPersonas(): Promise<PersonaSummary[]> {
+    const personas = await this.listPersonaDetails();
+    return personas.map((persona) => ({
+      id: persona.id,
+      name: persona.name,
+      domain: persona.domain,
+      accuracy: persona.accuracy,
+      latency: persona.latency,
+      price: persona.price,
+      evidence: persona.evidence,
+      onchainAddress: persona.onchainAddress,
+      tapestryProfileId: persona.tapestryProfileId,
+    }));
   }
 
-  getPersona(id: string): PersonaDetail | null {
-    const summaries = this.listPersonas();
-    const base = summaries.find((p) => p.id === id);
-    if (!base) return null;
-
-    const tiers: Record<string, TierOption[]> = {
-      "persona-eth": [
-        {
-          tierId: "tier-eth-trust",
-          pricingType: "subscription_limited",
-          price: "$5/mo",
-          quota: "200 signals",
-          evidenceLevel: "trust",
-        },
-        {
-          tierId: "tier-eth-verifier",
-          pricingType: "subscription_unlimited",
-          price: "$15/mo",
-          evidenceLevel: "verifier",
-        },
-        {
-          tierId: "tier-eth-per",
-          pricingType: "per_signal",
-          price: "$0.02/signal",
-          evidenceLevel: "trust",
-        },
-      ],
-      "persona-amazon": [
-        {
-          tierId: "tier-amz-trust",
-          pricingType: "subscription_limited",
-          price: "$8/mo",
-          quota: "50 signals",
-          evidenceLevel: "trust",
-        },
-        {
-          tierId: "tier-amz-verifier",
-          pricingType: "per_signal",
-          price: "$0.10/signal",
-          evidenceLevel: "verifier",
-        },
-      ],
-      "persona-anime": [
-        {
-          tierId: "tier-anime-trust",
-          pricingType: "subscription_unlimited",
-          price: "$2/mo",
-          evidenceLevel: "trust",
-        },
-        {
-          tierId: "tier-anime-verifier",
-          pricingType: "per_signal",
-          price: "$0.01/signal",
-          evidenceLevel: "verifier",
-        },
-      ],
-    };
-
-    return {
-      ...base,
-      description: `Signals for ${base.name} with maker-defined tiers.`,
-      tiers: tiers[id] ?? [],
-    };
+  async listPersonaDetails(): Promise<PersonaDetail[]> {
+    const personas = await this.personaStore.listPersonas();
+    const enriched = await this.attachOnchain(personas);
+    return enriched;
   }
 
-  listRequests(): RequestSummary[] {
+  async getPersona(id: string): Promise<PersonaDetail | null> {
+    const persona = await this.personaStore.getPersona(id);
+    if (!persona) return null;
+    const enriched = await this.attachOnchain([persona]);
+    return enriched[0] ?? null;
+  }
+
+  async listRequests(): Promise<RequestSummary[]> {
     return [
       {
         id: "req-eth",
         title: "ETH best price across 5 venues",
-        budget: "$10/mo",
+        budget: "0.1 SOL/mo",
         latency: "<3s",
         evidence: "Verifier",
       },
       {
         id: "req-anime",
         title: "Anime episode releases with timestamps",
-        budget: "$2/mo",
+        budget: "0.02 SOL/mo",
         latency: "<10s",
         evidence: "Trust",
       },
     ];
+  }
+
+  private async attachOnchain(personas: Array<PersonaDetail & { ownerWallet?: string }>): Promise<PersonaDetail[]> {
+    if (!this.personaRegistry || personas.length === 0) {
+      return [];
+    }
+    const configs = await this.personaRegistry.getPersonaConfigs(personas.map((p) => p.id));
+    return personas
+      .map((persona) => {
+        const config = configs[persona.id];
+        if (!config || config.status !== 1) {
+          return null;
+        }
+        const tiersHash = hashTiersHex(persona.tiers);
+        if (tiersHash !== config.tiersHashHex) {
+          return null;
+        }
+        return {
+          ...persona,
+          onchainAddress: config.pda,
+          authority: config.authority,
+          dao: config.dao,
+          tapestryProfileId: this.tapestryProfileMap?.[persona.id],
+        };
+      })
+      .filter((persona): persona is PersonaDetail => persona !== null);
   }
 }

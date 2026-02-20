@@ -5,6 +5,7 @@ import NetworkBanner from "./components/NetworkBanner";
 import Providers from "./providers";
 import WalletConnect from "./components/WalletConnect";
 import SearchBar from "./components/SearchBar";
+import NetworkOnboarding from "./components/NetworkOnboarding";
 
 export const metadata = {
   title: "Persona.fun",
@@ -35,7 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Suspense fallback={<div className="nav-search nav-search--placeholder" />}>
                   <SearchBar />
                 </Suspense>
-                <WalletConnect />
+                <div className="wallet-shell">
+                  <WalletConnect />
+                  <NetworkOnboarding />
+                </div>
               </div>
             </div>
           </header>

@@ -215,15 +215,17 @@ function encodeSubscribeData(params: {
   evidenceLevel: number;
   expiresAtMs: number;
   quotaRemaining: number;
+  priceLamports: number;
 }): Uint8Array {
   const tierHash = sha256Bytes(params.tierId);
-  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4);
+  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4 + 8);
   data.set(SUBSCRIBE_DISCRIMINATOR, 0);
   data.set(tierHash, 8);
   data[40] = params.pricingType;
   data[41] = params.evidenceLevel;
   writeBigInt64LE(data, BigInt(params.expiresAtMs), 42);
   writeUint32LE(data, params.quotaRemaining, 50);
+  writeBigInt64LE(data, BigInt(params.priceLamports), 54);
   return data;
 }
 
@@ -256,11 +258,14 @@ async function sendSubscribeTx(args: {
   programId: PublicKey;
   persona: PublicKey;
   subscriber: Keypair;
+  maker: PublicKey;
+  treasury: PublicKey;
   tierId: string;
   pricingType: number;
   evidenceLevel: number;
   expiresAtMs?: number;
   quotaRemaining?: number;
+  priceLamports?: number;
 }): Promise<string> {
   const data = encodeSubscribeData({
     tierId: args.tierId,
@@ -268,6 +273,7 @@ async function sendSubscribeTx(args: {
     evidenceLevel: args.evidenceLevel,
     expiresAtMs: args.expiresAtMs ?? defaultExpiryMs(),
     quotaRemaining: args.quotaRemaining ?? 0,
+    priceLamports: args.priceLamports ?? 0,
   });
   const subscription = deriveSubscriptionPda(args.programId, args.persona, args.subscriber.publicKey);
   const subscriptionMint = deriveSubscriptionMint(args.programId, args.persona, args.subscriber.publicKey);
@@ -283,6 +289,8 @@ async function sendSubscribeTx(args: {
       { pubkey: subscriberAta, isSigner: false, isWritable: true },
       { pubkey: args.persona, isSigner: false, isWritable: false },
       { pubkey: args.subscriber.publicKey, isSigner: true, isWritable: true },
+      { pubkey: args.maker, isSigner: false, isWritable: true },
+      { pubkey: args.treasury, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -563,9 +571,12 @@ export async function seedDemoData(options: SeedOptions = {}) {
               programId,
               persona: new PublicKey(personaPda),
               subscriber: listener,
+              maker: authority.publicKey,
+              treasury: authority.publicKey,
               tierId: tier.tierId,
               pricingType: PRICING_TYPE_MAP[tier.pricingType],
               evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
+              priceLamports: 0,
             });
             onchainSubscriptions.push({
               personaId: persona.id,

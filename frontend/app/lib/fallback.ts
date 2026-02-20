@@ -37,7 +37,7 @@ export const fallbackPersonas: PersonaSummary[] = [
     domain: "pricing",
     accuracy: "98.2%",
     latency: "1.4s",
-    price: "$5/mo",
+    price: "0.05 SOL/mo",
     evidence: "Verifier supported",
   },
   {
@@ -46,7 +46,7 @@ export const fallbackPersonas: PersonaSummary[] = [
     domain: "e-commerce",
     accuracy: "94.1%",
     latency: "3.2s",
-    price: "$8/mo",
+    price: "0.08 SOL/mo",
     evidence: "Verifier supported",
   },
   {
@@ -55,7 +55,7 @@ export const fallbackPersonas: PersonaSummary[] = [
     domain: "media",
     accuracy: "99.1%",
     latency: "5.0s",
-    price: "$2/mo",
+    price: "0.02 SOL/mo",
     evidence: "Trust + Verifier",
   },
 ];
@@ -65,20 +65,20 @@ export const fallbackTiers: Record<string, TierOption[]> = {
     {
       tierId: "tier-eth-trust",
       pricingType: "subscription_limited",
-      price: "$5/mo",
+      price: "0.05 SOL/mo",
       quota: "200 signals",
       evidenceLevel: "trust",
     },
     {
       tierId: "tier-eth-verifier",
       pricingType: "subscription_unlimited",
-      price: "$15/mo",
+      price: "0.15 SOL/mo",
       evidenceLevel: "verifier",
     },
     {
       tierId: "tier-eth-per",
       pricingType: "per_signal",
-      price: "$0.02/signal",
+      price: "0.002 SOL/signal",
       evidenceLevel: "trust",
     },
   ],
@@ -86,14 +86,14 @@ export const fallbackTiers: Record<string, TierOption[]> = {
     {
       tierId: "tier-amz-trust",
       pricingType: "subscription_limited",
-      price: "$8/mo",
+      price: "0.08 SOL/mo",
       quota: "50 signals",
       evidenceLevel: "trust",
     },
     {
       tierId: "tier-amz-verifier",
       pricingType: "per_signal",
-      price: "$0.10/signal",
+      price: "0.01 SOL/signal",
       evidenceLevel: "verifier",
     },
   ],
@@ -101,30 +101,36 @@ export const fallbackTiers: Record<string, TierOption[]> = {
     {
       tierId: "tier-anime-trust",
       pricingType: "subscription_unlimited",
-      price: "$2/mo",
+      price: "0.02 SOL/mo",
       evidenceLevel: "trust",
     },
     {
       tierId: "tier-anime-verifier",
       pricingType: "per_signal",
-      price: "$0.01/signal",
+      price: "0.001 SOL/signal",
       evidenceLevel: "verifier",
     },
   ],
 };
 
+export const fallbackPersonaDetails: PersonaDetail[] = fallbackPersonas.map((persona) => ({
+  ...persona,
+  description: `Signals for ${persona.name} with maker-defined tiers.`,
+  tiers: fallbackTiers[persona.id] ?? [],
+}));
+
 export const fallbackRequests: RequestSummary[] = [
   {
     id: "req-eth",
     title: "ETH best price across 5 venues",
-    budget: "$10/mo",
+    budget: "0.1 SOL/mo",
     latency: "<3s",
     evidence: "Verifier",
   },
   {
     id: "req-anime",
     title: "Anime episode releases with timestamps",
-    budget: "$2/mo",
+    budget: "0.02 SOL/mo",
     latency: "<10s",
     evidence: "Trust",
   },
