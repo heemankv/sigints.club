@@ -24,6 +24,14 @@ target/
 
 backend/storage/ciphertext/
 backend/storage/keybox/
+backend/data/bots.json
+backend/data/demo_seed.json
+backend/data/metadata.json
+backend/data/social_posts.json
+backend/data/subscribers.json
+backend/data/subscriptions.json
+backend/data/users.json
+backend/data/personas.json
 tests/storage/
 .solana-test-ledger/
 validator.log
