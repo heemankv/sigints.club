@@ -1,124 +1,108 @@
-Below is a **complete, concrete summary** of what works right now, plus a **clean SDK design** for agent subscriptions and event listening. I’ll also call out the **current limitations** so expectations are clear.
+Below is a **current, concrete summary** of what works right now, plus the **SDK/MCP surface** that agents can use today. I also call out **real limitations** so expectations are clear.
 
 ---
 
-**What a user can do right now (working end‑to‑end)**  
-1. **Connect wallet** (Phantom/Solflare) in the UI.  
-2. **Register a profile** (auto on login via backend).  
-3. **Create bots** (maker or listener) with domain + evidence type.  
-4. **Browse discovery + requests + signals** (backend-backed + fallback).  
-5. **Subscribe off‑chain** by registering an **encryption public key** for a persona.  
-6. **Publish signals** (hybrid encryption; ciphertext + keybox stored; metadata logged on‑chain).  
-7. **Decrypt signals client‑side** using the user’s private key.  
-8. **On‑chain record_signal** is live (Anchor client).  
-9. **Subscription NFTs** are minted on‑chain per subscription and shown in the profile, **if the subscription is signed by that wallet** (see limitation below).  
-10. **Localnet deployments** are confirmed working.
+## What works end-to-end (today)
+1. **Wallet login** in UI (Phantom/Solflare).  
+2. **Feed-first social UI** with:
+   - Intent + Slash composer
+   - Following + Type filters
+   - Like, Comment, Follow
+   - Trending + maker rails
+   - Shimmer loading states
+3. **Tapestry social integration** (profiles, posts, likes, comments, follows).  
+4. **On-chain persona + tier registry** (persona_registry program).  
+5. **On-chain subscription NFT** minted to subscriber wallet, with **price + tier enforcement**.  
+6. **On-chain fee split** (1% platform fee + maker payout).  
+7. **Hybrid encryption delivery** (ciphertext + keybox off-chain).  
+8. **On-chain record_signal** with Clock-based `createdAt`.  
+9. **SDK + MCP** for agent listening and decryption.  
+10. **Localnet E2E tests pass** (subscribe, NFT mint, record_signal, SDK + MCP streaming).  
 
 ---
 
-**Critical limitations (so it’s crystal‑clear)**  
-1. **On‑chain subscribe uses backend wallet**, not the user’s wallet.  
-   - That means the NFT is minted to the backend wallet, not the user.  
-   - UI now reads subscriptions from **user’s wallet**, so it may show nothing if user didn’t sign the on‑chain tx.  
-   - Fix: move on‑chain subscribe to frontend wallet‑signed flow.  
-2. **On‑chain record_signal stores hashes + pointer hash**, not the pointer itself.  
-   - So agents still need **backend or storage index** to resolve the pointer.  
-3. **Tapestry** is optional today. We’ve wired it, but it’s not required for core flows.
+## Current limitations (explicit)
+1. **On-chain only stores hashes** (signal_hash + pointer_hash). Agents still need backend/DA to resolve pointers.  
+2. **Tapestry is required for social feeds**; no API key = social feed disabled.  
+3. **Following feed depends on Tapestry follow graph** and may be eventually consistent.  
+4. **Slashing program is not fully wired to UI** (slash posts exist, on-chain challenge flow pending).  
 
 ---
 
-**How AI agents can subscribe to events (today)**  
-There are **three viable ways**:
+## How AI agents can subscribe to ticks (today)
+There are three viable paths:
 
-1. **On‑chain logs (best for integrity)**  
-   - Listen to `subscription_royalty` program logs, detect `record_signal`.  
-   - Decode instruction or fetch the `SignalRecord` PDA.  
-   - Use the **signal hash** to resolve the **ciphertext pointer** from storage/index.  
-   - Fetch keybox, decrypt with your private key.
+1. **On-chain logs (best integrity)**  
+   - Listen to `subscription_royalty` for `record_signal` PDA changes.  
+   - Fetch `SignalRecord` to get `createdAt` and hashes.  
+   - Resolve ciphertext/keybox pointers via backend storage.  
 
-2. **Backend feed (simplest)**  
-   - Poll `GET /signals?personaId=...` or `GET /feed`.  
-   - This already includes the pointers.
+2. **Backend signals feed (simplest)**  
+   - `GET /signals/latest?personaId=...`  
+   - `GET /signals?personaId=...`  
+   - Use signal metadata to resolve ciphertext/keybox.  
 
-3. **Tapestry feed (social layer)**  
-   - Subscribe to Tapestry content stream (when mandatory in v2).
-
----
-
-**Does an SDK make sense?**  
-Yes — strongly. It hides complexity and gives agents a clean “subscribe + listen + decrypt” workflow.  
-But **it must still rely on a pointer resolver** (backend or storage index), because the chain does not store pointers directly.
+3. **Tapestry feed (social context)**  
+   - Use Tapestry posts for intents/slash reports.  
+   - This is the discovery layer, not the signal delivery layer.  
 
 ---
 
-**SDK design (minimal, clean, works today)**  
-Package: `@personafun/sdk`  
+## SDK (current API surface)
+Package: `@personafun/sdk`
 
-**Core primitives**
-1. `createClient({ rpcUrl, programIds, backendUrl, storageUrl })`
-2. `registerEncryptionKey(personaId, pubKeyBase64, subscriberWallet)`  
-3. `subscribeOnChain(personaId, tierId, pricingType, evidenceLevel, quota?)`
-4. `listenSignals({ personaId, onSignal })`  
-   - Uses logs or polling
-5. `fetchSignal(signalHash)`  
-   - Resolves ciphertext + keybox pointer
-6. `decryptSignal({ ciphertext, keybox, privateKey })`
+**Key API:**
+- `PersonaClient.generateKeys()`
+- `registerEncryptionKey(personaId, publicKeyDerBase64, subscriberWallet)`
+- `fetchLatestSignal(personaId)` / `fetchSignalByHash(signalHash)`
+- `decryptSignal(meta, keys)`
+- `listenForSignals({ personaPubkey, personaId, subscriberKeys, maxAgeMs, includeBlockTime, onSignal })`
+- `fetchSignalRecordCreatedAt(personaPubkey, signalHash)`
 
-**Example usage (agent side)**
+**Example (agent)**
 ```ts
-import { createClient } from "@personafun/sdk";
+import { PersonaClient } from "@personafun/sdk";
 
-const client = createClient({
+const client = new PersonaClient({
   rpcUrl: "http://127.0.0.1:8899",
-  programIds: { subscription: "BMDH..." },
   backendUrl: "http://localhost:3001",
+  programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
 });
 
-const keys = client.crypto.generateKeypair();
+const keys = PersonaClient.generateKeys();
+await client.registerEncryptionKey("persona-eth", keys.publicKeyDerBase64, subscriberWallet);
 
-await client.registerEncryptionKey("persona-eth", keys.publicKeyBase64, subscriberWallet);
-
-await client.subscribeOnChain({
+const stop = await client.listenForSignals({
   personaId: "persona-eth",
-  tierId: "fast",
-  pricingType: "subscription_unlimited",
-  evidenceLevel: "trust",
-});
-
-client.listenSignals({
-  personaId: "persona-eth",
-  onSignal: async (signal) => {
-    const { ciphertext, keybox } = await client.fetchSignal(signal.signalHash);
-    const plaintext = client.decryptSignal({ ciphertext, keybox, privateKey: keys.privateKeyBase64 });
-    console.log("Signal:", plaintext);
+  personaPubkey: personaPda,
+  subscriberKeys: keys,
+  maxAgeMs: 60_000,
+  includeBlockTime: true,
+  onSignal: (tick) => {
+    console.log("Signal:", tick.plaintext, "age", tick.ageMs);
   },
 });
+
+// later: stop();
 ```
 
 ---
 
-**Design alternatives (in case you prefer)**
-1. **Pure on‑chain only**  
-   - Hard today because pointers aren’t on‑chain.  
-2. **Tapestry‑first**  
-   - Good for v2 when Tapestry is mandatory.  
-3. **Backend‑only**  
-   - Easiest to ship, less verifiability.
+## MCP Server (current tools)
+- `check_persona_tick` → checks the latest signal, decrypts it, returns JSON text.  
+- `listen_persona_ticks` → long-running stream; emits notifications with decrypted ticks.  
+- `stop_persona_ticks` → stops a stream by ID.  
 
 ---
 
-**Questions to lock the SDK design**
-1. Should the SDK **require a backendUrl**, or make it optional?  
-2. Should the SDK **always verify on‑chain subscription NFT** before decrypting?  
-3. Do you want **events as async iterator** (`for await`) or callbacks?
+## Open Questions (optional, for later)
+1. Should SDK enforce subscription NFT ownership before decrypting?  
+2. Should we push pointer resolution to a DA layer instead of backend?  
+3. Should Tapestry become mandatory for all discovery and feed views (v2)?  
 
 ---
 
-**Mini exercise (quick check)**
-1. If the agent only listens to Tapestry and never checks on‑chain, what can go wrong?  
-2. Why do we still need a pointer resolver even with on‑chain logs?  
-3. Which part of the SDK should own keypair generation: SDK or the agent?
-
----
-
-If you say “go”, I’ll add the SDK package under `/Users/heemankverma/Work/graveyard/sdk`, wire it to backend + on‑chain, and ship the first NPM‑ready version.
+## Mini check (quick exercise)
+1. If a tick is old (90s) and `maxAgeMs=60s`, what should the SDK do?  
+2. Why can’t on-chain alone deliver ciphertext?  
+3. What breaks if you only read the social feed but never check `record_signal`?  

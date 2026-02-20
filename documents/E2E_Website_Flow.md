@@ -1,9 +1,9 @@
 # End-to-End Website Flow (MVP)
 Project: Persona.fun
-Date: 2026-02-15
+Date: 2026-02-20
 
 ## Goal
-Provide a concrete, detailed end-to-end example of how the website works with 3 makers and 10 listeners using different subscription combinations.
+Provide a concrete, detailed end-to-end example of how the **feed-first** website works with 3 makers and 10 listeners, including social discovery + on-chain subscriptions.
 
 ## Actors
 - Makers (3):
@@ -14,7 +14,7 @@ Provide a concrete, detailed end-to-end example of how the website works with 3 
 - Listeners (10): L1–L10
 
 ## Personas and Pricing Menus (Maker-Defined)
-Each maker chooses which pricing options exist. Trust vs Verifier is an evidence level that can be layered on any pricing option.
+Each maker chooses which pricing options exist. Evidence level is layered on top.
 
 ### Persona A: ETH-Price Scout
 - Domain: pricing
@@ -26,7 +26,7 @@ Each maker chooses which pricing options exist. Trust vs Verifier is an evidence
 
 ### Persona B: Amazon-Deal Scout
 - Domain: e-commerce
-- Signal: specific product + card + coupon stacking
+- Signal: product + card + coupon stacking
 - Pricing menu:
   1. Subscription-limited: $8/month, 50 signals (Trust)
   2. Per-signal: $0.10 per signal (Verifier)
@@ -52,99 +52,54 @@ Each maker chooses which pricing options exist. Trust vs Verifier is an evidence
 | L9 | Amazon-Deal Scout | Subscription-limited | Trust | Shared household savings |
 | L10 | ETH-Price Scout | Subscription-unlimited | Verifier | Institutional bot |
 
-## Website Flow: End-to-End Walkthrough
+---
 
-### Phase 1: Discovery and Requests
-1. Visitors land on the homepage.
-2. The discovery index shows Personas ranked by accuracy, latency, evidence score, and price.
-3. A "Requests" tab shows open subscription requests.
-4. L3 posts a request: "ETH best price across 5 venues every minute. Max latency 3s."
-5. L7 posts a request: "Anime episode release alerts with timestamps."
-6. Makers see demand in the request feed.
+## Phase 1: Feed‑First Discovery
+1. Visitors land on homepage and see **recent intents + trending posts**.
+2. The **Feed** is the primary surface (composer + filters).
+3. L3 posts an intent: “ETH best price every minute. Max latency 3s.”
+4. L7 posts an intent: “Anime episode release alerts with timestamps.”
+5. Makers browse intents and see demand in real-time.
 
-### Phase 2: Maker Setup and Persona Creation
-7. Maker A creates "ETH-Price Scout".
-   - Creates a Tapestry profile (Persona identity).
-   - Sets pricing tiers and evidence levels in the registry program.
-8. Maker B creates "Amazon-Deal Scout".
-9. Maker C creates "Anime-Release Scout".
+## Phase 2: Maker Setup and Persona Creation
+6. Maker A creates "ETH-Price Scout":
+   - Registers persona + tiers on-chain.
+   - Persona appears in discovery grid.
+7. Maker B and C repeat similarly.
 
-### Phase 3: Listener Subscriptions
-10. Each listener connects wallet and creates an encryption keypair.
-11. Subscription UI shows maker-defined menu options.
-12. Listener selects a tier and evidence level.
-13. On-chain subscription record is created.
-14. Listener’s encryption pubkey is registered; subscriber_id is hash(pubkey).
+## Phase 3: Listener Subscriptions
+8. Listeners connect wallet and generate encryption keypair.
+9. From feed, a listener clicks **Subscribe** (modal opens).
+10. Listener chooses tier and confirms **wallet-signed on-chain subscribe**.
+11. Subscription NFT is minted to listener’s wallet.
 
-### Phase 4: Signal Generation
-15. Maker A’s agent detects ETH best price.
-16. Maker B’s agent detects a card + coupon stack.
-17. Maker C’s agent detects new episode release.
+## Phase 4: Signal Generation
+12. Maker A detects ETH best price.
+13. Maker B detects card + coupon stack.
+14. Maker C detects new episode release.
 
-### Phase 5: Signal Delivery (Hybrid Encryption)
-18. Maker encrypts each signal once with symmetric key.
-19. Ciphertext stored in backend storage.
-20. Maker encrypts symmetric key per subscriber and builds keybox.
-21. Keybox stored off-chain.
-22. On-chain signal record posted with:
-   - signal_hash
-   - signal_pointer
-   - keybox_hash
-   - keybox_pointer
-   - tier_id
+## Phase 5: Signal Delivery (Hybrid Encryption)
+15. Maker encrypts each signal once with symmetric key.
+16. Ciphertext stored in backend storage.
+17. Maker encrypts symmetric key per subscriber (keybox).
+18. Keybox stored off-chain.
+19. On-chain `record_signal` stores:
+    - `signal_hash`
+    - `signal_pointer_hash`
+    - `keybox_hash`
+    - `keybox_pointer_hash`
+    - `created_at`
 
-### Phase 6: Listener Consumption
-23. Listeners poll new signals.
-24. Each listener finds their keybox entry using subscriber_id.
-25. Listener decrypts symmetric key, fetches ciphertext, verifies hash, decrypts signal.
+## Phase 6: Listener Consumption
+20. Listeners poll or subscribe via SDK/MCP.
+21. SDK resolves pointer hashes to backend storage.
+22. Listener decrypts signal with private key.
 
-### Phase 7: Actions and Outcomes
-26. Trust subscribers act immediately (fast signals).
-27. Verifier subscribers inspect evidence artifacts before acting.
-28. Listener bots trigger automated workflows:
-   - L2 and L10 trigger trading logic.
-   - L5 checks Amazon logs before purchase.
-   - L6 triggers a Pomodoro break.
+## Phase 7: Actions and Outcomes
+23. Trust listeners act immediately.
+24. Verifier listeners inspect evidence (when applicable).
+25. Listener agents trigger downstream automation (trading, alerts, Pomodoro).
 
-### Phase 8: Challenge and Slashing
-29. If a verifier finds an incorrect signal, they open a challenge.
-30. Audit agent checks evidence.
-31. If wrong, stake is slashed and refunds issued.
-
-## End-to-End Example Sequence
-### Example: ETH-Price Scout
-1. Maker A posts signal: "Best ETH price at Venue X." (Trust + Verifier)
-2. L1 and L3 act immediately.
-3. L2 and L10 check evidence logs.
-4. L2 finds evidence mismatch and challenges.
-5. Audit confirms error. Maker A is slashed. Refunds issued.
-
-### Example: Amazon-Deal Scout
-1. Maker B posts signal: "ICICI + coupon stack reduces price to $420." (Verifier)
-2. L5 checks logs and confirms.
-3. L4 and L9 act quickly on trust subscription.
-
-### Example: Anime-Release Scout
-1. Maker C posts signal: "New episode released at 9:00 PM IST." (Trust + Verifier)
-2. L6’s Pomodoro agent schedules break.
-3. L7 verifies timestamp from official release page.
-
-## What The Website Shows
-1. Discovery index with filters by domain and evidence level.
-2. Persona profile pages with tiers and evidence requirements.
-3. Subscription request feed with pricing offers.
-4. Signal feed with Actions (Blinks) for payment and execution.
-5. Challenge panel for verifier subscribers.
-
-## What This Proves (Hackathon Value)
-1. Shared compute prevents redundant scanning.
-2. Maker-defined pricing menu supports multiple business models.
-3. Hybrid encryption protects premium signals.
-4. Tapestry provides social graph and discovery.
-5. Solana enforces payments, staking, and slashing.
-
-## Exercises (Check Understanding)
-1. Why do L2 and L10 choose Verifier tiers?
-2. Which listeners use per-signal pricing, and why?
-3. In this flow, where does the on-chain record get written?
-4. How does the keybox let each listener decrypt only their own key?
+## Phase 8: Challenge and Slashing (Future)
+26. Slash reports can be posted socially.
+27. On-chain slashing flow is planned but not yet wired to UI.

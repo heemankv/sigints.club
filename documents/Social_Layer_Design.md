@@ -1,65 +1,64 @@
 # Social Layer Design (Tapestry-First)
-Date: 2026-02-15
+Date: 2026-02-20
 
-This design embeds a social layer into the app using Tapestry as the canonical content system. Backend only indexes and helps query the feed.
+This design embeds a social layer into the app using **Tapestry as the canonical content graph**. The backend only orchestrates queries and caches a lightweight index for resilience.
 
 ## Goals
 - Let users post **intents** (what they want) and **slash reports** (validator challenges).
-- Provide a unified **social feed** with reactions (votes) and comments.
-- Maximize **legitimate Tapestry usage** (profiles, content, likes, comments, follows).
+- Provide a **single feed-first UI** with reactions, comments, and follow graph.
+- Maximize **legitimate Tapestry usage**: profiles, content, likes, comments, follows.
 
 ## Core Mapping (Tapestry)
-- **Profiles**: every user wallet has a Tapestry profile.
+- **Profiles**: every wallet has a Tapestry profile (auto-created on first action).
 - **Content**:
-  - `contentType = "text"`
-  - Intents: `customProperties` include `type=intent`, `personaId`, `tags`, `wallet`, `topic`.
-  - Slash reports: `customProperties` include `type=slash`, `personaId`, `validatorWallet`, `makerWallet?`, `challengeTx?`, `severity?`.
-  - Signals already post as `type=signal` (existing implementation).
-- **Votes**: Tapestry Likes act as votes.
-- **Comments**: Tapestry Comments act as discussion + evidence.
-- **Follows**: optional in UI to follow makers/validators.
-- **Trending**: computed by like counts (backend aggregates likes per contentId).
+  - Intents: `type=intent`, `text`, `wallet`, `personaId?`, `tags?`, `topic?`.
+  - Slash reports: `type=slash`, `text`, `validatorWallet`, `personaId?`, `makerWallet?`, `challengeTx?`, `severity?`.
+- **Votes**: Likes.
+- **Comments**: Comments.
+- **Follows**: Follow graph for “Following” feed and maker discovery.
 
-## Why a Backend Index?
-Tapestry does not expose a single “global feed” endpoint that is scoped by our app namespace.  
-So we store a lightweight index of every intent/slash content ID we create.
+## Why a Backend Index Still Exists
+Tapestry does not provide a scoped “global feed” by app namespace. The backend:
+- Queries Tapestry via `listContents`.
+- Merges recent locally indexed posts for resilience (5-minute window).
+- Adds cached `likeCounts` + `commentCounts` to each response.
 
-The **index** is not a source of truth; it only holds:
-- `contentId`
-- `profileId`
-- `type` (`intent` | `slash`)
-- `authorWallet`
-- `contentPreview`
-- `createdAt`
-- `customProperties` (copied for quick filtering)
+The index is **not** source-of-truth. It only stores:
+- `contentId`, `profileId`, `authorWallet`, `type`, `createdAt`, and `customProperties`.
 
-## Feed UX
-1. **Intent feed**: all intents (questions / requests) from all users.
-2. **Slash feed**: all slashing reports from validators.
-3. **Trending**: likes-ranked posts across intents + slash reports.
-3. Each item shows:
-   - content text
-   - author wallet / profile
-   - vote count (likes)
-   - comments list
+## Feed UX (Feed‑First)
+- **Composer**: Intent / Slash toggle.
+- **Filters**:
+  - Scope: `All` or `Following`.
+  - Type: `All` / `Intents` / `Slash`.
+- **Engagement**: Like, Comment, Follow, Subscribe.
+- **Trending rail**: posts sorted by like count.
 
-## Backend API (MVP)
+## Backend API (Current)
 - `POST /social/intents`
 - `POST /social/slash`
-- `GET /social/feed?type=`
-- `GET /social/feed/trending?limit=`
+- `GET /social/feed?type=&scope=following&wallet=`  
+  Returns `{ posts, likeCounts, commentCounts }`.
+- `GET /social/feed/trending?limit=`  
+  Returns `{ posts, likeCounts, commentCounts }`.
+- `POST /social/likes` / `DELETE /social/likes`
+- `POST /social/comments` / `GET /social/comments?contentId=&page=&pageSize=`
 - `POST /social/follow`
-- `POST /social/likes`
-- `DELETE /social/likes`
-- `GET /social/likes?contentId=`
-- `POST /social/comments`
-- `GET /social/comments?contentId=`
 
-## Fallback if Tapestry is Down
-- Intents/slash posts return a clear error (no silent fallback).
-- The app still works for signal feed + on-chain data.
+## Following Feed (New)
+- Backend calls `listFollowing(profileId)` on Tapestry.
+- Fetches recent posts for each followed profile via `listContents(profileId)`.
+- Merges + sorts by recency.
 
-## Future (Not Required for MVP)
-- Follow graph in UI (Tapestry followers API).
-- “Trending” via like counts.
-- Slash post linking to on-chain challenge PDA.
+## Comment Pagination
+- Backend supports `page` + `pageSize`.
+- Frontend drawer supports “Load more.”
+
+## Failure Behavior
+- If Tapestry is down or API key is missing, social features are disabled.
+- Core signal delivery still works (backend + on-chain).
+
+## Future (Post‑MVP)
+- On-chain slashing to be linked directly to slash posts.
+- Fully Tapestry-based discovery rankings.
+- Follow graph-based recommendations.
