@@ -54,6 +54,17 @@ export type ListContentsInput = {
   requestingProfileId?: string;
 };
 
+export type UpdateContentInput = {
+  contentId: string;
+  properties: { key: string; value: string | number | boolean }[];
+};
+
+export type ListFollowingInput = {
+  profileId: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type ListContentsResponse = {
   contents: Array<{
     content?: Record<string, any> | null;
@@ -160,6 +171,13 @@ export class TapestryClient {
     return this.client.contents.contentsDetail({ apiKey: this.apiKey, id: contentId });
   }
 
+  async updateContent(input: UpdateContentInput) {
+    return this.client.contents.contentsUpdate(
+      { apiKey: this.apiKey, id: input.contentId },
+      { properties: input.properties }
+    );
+  }
+
   async listContents(input: ListContentsInput): Promise<ListContentsResponse> {
     return this.client.contents.contentsList({
       apiKey: this.apiKey,
@@ -173,5 +191,18 @@ export class TapestryClient {
       profileId: input.profileId,
       requestingProfileId: input.requestingProfileId,
     }) as unknown as ListContentsResponse;
+  }
+
+  async getProfileDetails(profileId: string) {
+    return this.client.profiles.profilesDetail({ apiKey: this.apiKey, id: profileId });
+  }
+
+  async listFollowing(input: ListFollowingInput) {
+    return this.client.profiles.followingList({
+      apiKey: this.apiKey,
+      id: input.profileId,
+      page: input.page ? String(input.page) : undefined,
+      pageSize: input.pageSize ? String(input.pageSize) : undefined,
+    });
   }
 }

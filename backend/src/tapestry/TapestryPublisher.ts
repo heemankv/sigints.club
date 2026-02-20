@@ -1,15 +1,21 @@
 import { TapestryClient } from "./TapestryClient";
 import { SocialPublishInput, SocialPublisher } from "../services/SocialPublisher";
+import { PersonaStore } from "../personas";
 
 export class TapestryPublisher implements SocialPublisher {
   constructor(
     private client: TapestryClient,
     private defaultProfileId?: string,
-    private profileMap?: Record<string, string>
+    private profileMap?: Record<string, string>,
+    private personaStore?: PersonaStore
   ) {}
 
   async publishSignal(input: SocialPublishInput): Promise<void> {
-    const profileId = this.profileMap?.[input.personaId] ?? this.defaultProfileId;
+    let profileId = this.profileMap?.[input.personaId] ?? this.defaultProfileId;
+    if (!profileId && this.personaStore) {
+      const persona = await this.personaStore.getPersona(input.personaId);
+      profileId = persona?.tapestryProfileId;
+    }
     if (!profileId) {
       return;
     }

@@ -25,6 +25,7 @@ import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 import { getTapestryClient } from "../tapestry";
 import { SocialService } from "./SocialService";
 import { FilePersonaStore, InMemoryPersonaStore } from "../personas";
+import { TapestryPersonaService } from "./TapestryPersonaService";
 
 const solanaProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
 const solanaKeypairPath = process.env.SOLANA_KEYPAIR;
@@ -33,6 +34,7 @@ const solanaRpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.co
 const solanaIdlPath = process.env.SOLANA_IDL_PATH;
 const solanaPersonaMap = parsePersonaMap(process.env.SOLANA_PERSONA_MAP);
 const tapestryProfileMap = parsePersonaMap(process.env.TAPESTRY_PROFILE_MAP);
+const tapestryRegistryProfileId = process.env.TAPESTRY_REGISTRY_PROFILE_ID;
 const solanaPersonaDefault = process.env.SOLANA_PERSONA_DEFAULT;
 const solanaPersonaRegistryId = process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID;
 
@@ -47,7 +49,7 @@ const personaRegistryInstance = solanaPersonaRegistryId
       programId: solanaPersonaRegistryId,
     })
   : undefined;
-const discovery = new DiscoveryService(personaStoreInstance, personaRegistryInstance, tapestryProfileMap);
+let tapestryPersonaService: TapestryPersonaService | undefined;
 const listener = new ListenerService(storage);
 const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
 const botStore = persist ? new FileBotStore() : new InMemoryBotStore();
@@ -84,9 +86,22 @@ let socialPublisher: TapestryPublisher | undefined;
 let socialService: SocialService | undefined;
 if (process.env.TAPESTRY_API_KEY) {
   const client = getTapestryClient();
-  socialPublisher = new TapestryPublisher(client, process.env.TAPESTRY_PROFILE_ID, tapestryProfileMap);
+  socialPublisher = new TapestryPublisher(
+    client,
+    process.env.TAPESTRY_PROFILE_ID,
+    tapestryProfileMap,
+    personaStoreInstance
+  );
   socialService = new SocialService(client, socialPostStore, userStore);
+  tapestryPersonaService = new TapestryPersonaService(client, tapestryRegistryProfileId);
 }
+
+const discovery = new DiscoveryService(
+  personaStoreInstance,
+  personaRegistryInstance,
+  tapestryProfileMap,
+  tapestryPersonaService
+);
 
 export const signalService = new SignalService(storage, metadata, socialPublisher, onChainRecorder);
 export const metadataStore = metadata;
@@ -102,6 +117,7 @@ export const botProfileStore = botStore;
 export const subscriptionProfileStore = subscriptionStore;
 export const socialPostStoreInstance = socialPostStore;
 export const socialServiceInstance = socialService;
+export const tapestryPersonaServiceInstance = tapestryPersonaService;
 
 function parsePersonaMap(value?: string): Record<string, string> | undefined {
   if (!value) {

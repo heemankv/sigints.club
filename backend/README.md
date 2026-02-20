@@ -28,6 +28,7 @@ Integration tests live in `backend/tests/integration` and should cover:
 - `TAPESTRY_BASE_URL` (optional, defaults to https://api.usetapestry.dev/v1/)
 - `TAPESTRY_PROFILE_ID` (default profile for publishing signals)
 - `TAPESTRY_PROFILE_MAP` (JSON map: personaId -> profileId)
+- `TAPESTRY_REGISTRY_PROFILE_ID` (optional registry profile for persona discovery)
 
 ## Solana Env Vars (On-chain record_signal)
 When these are set, the backend sends a real Anchor transaction to record signals.

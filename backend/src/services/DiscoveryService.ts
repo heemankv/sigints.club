@@ -1,6 +1,7 @@
 import { PersonaStore, PersonaTier } from "../personas";
 import { hashTiersHex } from "../personas/tiersHash";
 import { PersonaRegistryClient } from "./PersonaRegistryClient";
+import { TapestryPersonaService } from "./TapestryPersonaService";
 
 export type PersonaSummary = {
   id: string;
@@ -36,7 +37,8 @@ export class DiscoveryService {
   constructor(
     private personaStore: PersonaStore,
     private personaRegistry?: PersonaRegistryClient,
-    private tapestryProfileMap?: Record<string, string>
+    private tapestryProfileMap?: Record<string, string>,
+    private tapestryPersonas?: TapestryPersonaService
   ) {}
 
   async listPersonas(): Promise<PersonaSummary[]> {
@@ -55,12 +57,30 @@ export class DiscoveryService {
   }
 
   async listPersonaDetails(): Promise<PersonaDetail[]> {
+    if (this.tapestryPersonas) {
+      try {
+        const personas = await this.tapestryPersonas.listPersonas();
+        return this.attachOnchain(personas);
+      } catch {
+        // fall back to local store if Tapestry is unavailable
+      }
+    }
     const personas = await this.personaStore.listPersonas();
-    const enriched = await this.attachOnchain(personas);
-    return enriched;
+    return this.attachOnchain(personas);
   }
 
   async getPersona(id: string): Promise<PersonaDetail | null> {
+    if (this.tapestryPersonas) {
+      try {
+        const persona = await this.tapestryPersonas.getPersona(id);
+        if (persona) {
+          const enriched = await this.attachOnchain([persona]);
+          return enriched[0] ?? null;
+        }
+      } catch {
+        // fall back to local store if Tapestry is unavailable
+      }
+    }
     const persona = await this.personaStore.getPersona(id);
     if (!persona) return null;
     const enriched = await this.attachOnchain([persona]);
@@ -87,8 +107,15 @@ export class DiscoveryService {
   }
 
   private async attachOnchain(personas: Array<PersonaDetail & { ownerWallet?: string }>): Promise<PersonaDetail[]> {
-    if (!this.personaRegistry || personas.length === 0) {
+    if (personas.length === 0) {
       return [];
+    }
+    if (!this.personaRegistry) {
+      return personas.map((persona) => ({
+        ...persona,
+        tapestryProfileId:
+          persona.tapestryProfileId ?? this.tapestryProfileMap?.[persona.id],
+      }));
     }
     const configs = await this.personaRegistry.getPersonaConfigs(personas.map((p) => p.id));
     return personas
@@ -106,7 +133,8 @@ export class DiscoveryService {
           onchainAddress: config.pda,
           authority: config.authority,
           dao: config.dao,
-          tapestryProfileId: this.tapestryProfileMap?.[persona.id],
+          tapestryProfileId:
+            persona.tapestryProfileId ?? this.tapestryProfileMap?.[persona.id],
         };
       })
       .filter((persona): persona is PersonaDetail => persona !== null);

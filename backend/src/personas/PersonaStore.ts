@@ -17,6 +17,7 @@ export type PersonaProfile = {
   price: string;
   tiers: PersonaTier[];
   ownerWallet: string;
+  tapestryProfileId?: string;
   createdAt: number;
   updatedAt: number;
 };

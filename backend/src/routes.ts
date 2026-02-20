@@ -14,6 +14,7 @@ import {
   socialServiceInstance,
   personaStore,
   personaRegistry,
+  tapestryPersonaServiceInstance,
 } from "./services/ServiceContainer";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 import { hashTiersHex } from "./personas/tiersHash";
@@ -197,11 +198,39 @@ router.post("/personas", async (req, res) => {
   if (onchain.tiersHashHex !== tiersHash) {
     return res.status(400).json({ error: "tiers hash mismatch with on-chain" });
   }
-  const stored = await personaStore.upsertPersona(parsed.data);
+  let tapestryProfileId: string | undefined;
+  if (tapestryPersonaServiceInstance) {
+    try {
+      tapestryProfileId = await tapestryPersonaServiceInstance.upsertPersona(
+        {
+          personaId: parsed.data.id,
+          name: parsed.data.name,
+          domain: parsed.data.domain,
+          description: parsed.data.description,
+          accuracy: parsed.data.accuracy,
+          latency: parsed.data.latency,
+          price: parsed.data.price,
+          evidence: parsed.data.evidence,
+          ownerWallet: parsed.data.ownerWallet,
+          authority: onchain.authority,
+          dao: onchain.dao,
+          onchainAddress: onchain.pda,
+        },
+        parsed.data.tiers
+      );
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message ?? "Tapestry persona sync failed" });
+    }
+  }
+  const stored = await personaStore.upsertPersona({
+    ...parsed.data,
+    ...(tapestryProfileId ? { tapestryProfileId } : {}),
+  });
   return res.json({
     persona: {
       ...stored,
       onchainAddress: onchain.pda,
+      tapestryProfileId: tapestryProfileId ?? stored.tapestryProfileId,
     },
   });
 });
