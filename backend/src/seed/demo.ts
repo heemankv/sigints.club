@@ -19,10 +19,13 @@ import { BackendStorage } from "../storage/providers/BackendStorage";
 import { FileMetadata } from "../metadata/providers/FileMetadata";
 import { FileSubscriberDirectory } from "../services/FileSubscriberDirectory";
 import { FileUserStore, FileBotStore, FileSubscriptionStore, FileSocialPostStore } from "../social";
+import { FilePersonaStore, PersonaTier } from "../personas";
+import { buildTiersSeed } from "../personas/tiersHash";
 import { generateX25519Keypair, subscriberIdFromPubkey } from "../crypto/hybrid";
 import { SignalService } from "../services/SignalService";
 import { getTapestryClient } from "../tapestry";
 import { SocialService } from "../services/SocialService";
+import { TapestryPersonaService } from "../services/TapestryPersonaService";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,10 +43,37 @@ const EVIDENCE_LEVEL_MAP: Record<string, number> = {
   verifier: 1,
 };
 
-const personaSeeds = [
-  { id: "persona-eth", tiersSeed: "tiers:persona-eth" },
-  { id: "persona-amazon", tiersSeed: "tiers:persona-amazon" },
-  { id: "persona-anime", tiersSeed: "tiers:persona-anime" },
+const personaSpecs = [
+  {
+    id: "persona-eth",
+    name: "ETH Scout",
+    domain: "pricing",
+    description: "Best ETH price alerts across top venues.",
+    accuracy: "98%",
+    latency: "<2s",
+    price: "0.05 SOL/mo",
+    evidence: "trust",
+  },
+  {
+    id: "persona-amazon",
+    name: "Amazon Dropwatch",
+    domain: "commerce",
+    description: "Live Amazon availability + deal alerts.",
+    accuracy: "95%",
+    latency: "<5s",
+    price: "0.08 SOL/mo",
+    evidence: "trust",
+  },
+  {
+    id: "persona-anime",
+    name: "Anime Pulse",
+    domain: "media",
+    description: "Anime episode drop alerts with timestamps.",
+    accuracy: "93%",
+    latency: "<10s",
+    price: "0.02 SOL/signal",
+    evidence: "verifier",
+  },
 ];
 
 const personaTiers: Record<string, { tierId: string; pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal"; evidenceLevel: "trust" | "verifier"; priceLamports: number; quota: number }> = {
@@ -51,6 +81,11 @@ const personaTiers: Record<string, { tierId: string; pricingType: "subscription_
   "persona-amazon": { tierId: "tier-amz-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 80_000_000, quota: 0 },
   "persona-anime": { tierId: "tier-anime-verifier", pricingType: "per_signal", evidenceLevel: "verifier", priceLamports: 20_000_000, quota: 0 },
 };
+
+function formatTierPriceLabel(tier: { pricingType: string; priceLamports: number }) {
+  const sol = tier.priceLamports / 1_000_000_000;
+  return tier.pricingType === "per_signal" ? `${sol} SOL/signal` : `${sol} SOL/mo`;
+}
 
 const signalTemplates: Record<string, string[]> = {
   "persona-eth": [
@@ -157,11 +192,12 @@ async function ensurePersonaConfig(args: {
   programId: PublicKey;
   authority: Keypair;
   personaId: string;
-  tiersSeed: string;
+  tiers: PersonaTier[];
   coder: anchor.BorshInstructionCoder;
 }): Promise<PublicKey> {
   const personaIdBytes = sha256Bytes(args.personaId);
-  const tiersHashBytes = sha256Bytes(args.tiersSeed);
+  const tiersSeed = buildTiersSeed(args.tiers);
+  const tiersHashBytes = sha256Bytes(tiersSeed);
   const [pda] = PublicKey.findProgramAddressSync(
     [Buffer.from("persona"), personaIdBytes],
     args.programId
@@ -492,12 +528,31 @@ export async function seedDemoData(options: SeedOptions = {}) {
   const botStore = new FileBotStore(path.resolve(backendRoot, "data", "bots.json"));
   const subscriptionStore = new FileSubscriptionStore(path.resolve(backendRoot, "data", "subscriptions.json"));
   const socialPostStore = new FileSocialPostStore(path.resolve(backendRoot, "data", "social_posts.json"));
+  const personaStore = new FilePersonaStore(path.resolve(backendRoot, "data", "personas.json"));
 
   const seedOnchain = options.seedOnchain ?? true;
   const seedSocial = options.seedSocial ?? false;
 
   const makerWallets = Array.from({ length: 3 }).map(() => Keypair.generate());
   const listenerWallets = Array.from({ length: 10 }).map(() => Keypair.generate());
+
+  const personaProfiles = personaSpecs.map((spec, idx) => {
+    const tierConfig = personaTiers[spec.id];
+    const tiers: PersonaTier[] = [
+      {
+        tierId: tierConfig.tierId,
+        pricingType: tierConfig.pricingType,
+        price: formatTierPriceLabel(tierConfig),
+        quota: tierConfig.quota ? String(tierConfig.quota) : undefined,
+        evidenceLevel: tierConfig.evidenceLevel,
+      },
+    ];
+    return {
+      ...spec,
+      ownerWallet: makerWallets[idx % makerWallets.length].publicKey.toBase58(),
+      tiers,
+    };
+  });
 
   for (const [idx, maker] of makerWallets.entries()) {
     await userStore.upsertUser(maker.publicKey.toBase58(), {
@@ -514,20 +569,20 @@ export async function seedDemoData(options: SeedOptions = {}) {
   }
 
   const makerBots = await Promise.all(
-    personaSeeds.map((persona, idx) =>
+    personaProfiles.map((persona, idx) =>
       botStore.createBot({
         ownerWallet: makerWallets[idx % makerWallets.length].publicKey.toBase58(),
         name: `${persona.id.replace("persona-", "")} Scout`,
         role: "maker",
-        domain: persona.id.includes("eth") ? "pricing" : persona.id.includes("amazon") ? "commerce" : "media",
+        domain: persona.domain,
         description: `Seeded maker bot for ${persona.id}.`,
-        evidence: persona.id.includes("anime") ? "trust" : "verifier",
+        evidence: persona.evidence as "trust" | "verifier",
         tiers: [
           {
-            tierId: personaTiers[persona.id].tierId,
-            pricingType: personaTiers[persona.id].pricingType,
-            price: `${personaTiers[persona.id].priceLamports / 1_000_000_000} SOL/mo`,
-            evidenceLevel: personaTiers[persona.id].evidenceLevel,
+            tierId: persona.tiers[0].tierId,
+            pricingType: persona.tiers[0].pricingType,
+            price: persona.tiers[0].price,
+            evidenceLevel: persona.tiers[0].evidenceLevel,
           },
         ],
       })
@@ -549,7 +604,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   for (const [idx, bot] of listenerBots.entries()) {
     const makerBot = makerBots[idx % makerBots.length];
-    const persona = personaSeeds[idx % personaSeeds.length];
+    const persona = personaProfiles[idx % personaProfiles.length];
     const tier = personaTiers[persona.id];
     await subscriptionStore.createSubscription({
       listenerWallet: bot.ownerWallet,
@@ -562,7 +617,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   const subscriberKeys: DemoSummary["subscriberKeys"] = [];
   for (const [idx, listener] of listenerWallets.entries()) {
-    const persona = personaSeeds[idx % personaSeeds.length];
+    const persona = personaProfiles[idx % personaProfiles.length];
     const keys = generateX25519Keypair();
     const encPub = keys.publicKey.toString("base64");
     const subscriberId = subscriberIdFromPubkey(keys.publicKey);
@@ -610,13 +665,13 @@ export async function seedDemoData(options: SeedOptions = {}) {
         }
         const coder = await loadPersonaRegistryCoder();
         personaMap = {};
-        for (const persona of personaSeeds) {
+        for (const persona of personaProfiles) {
           const pda = await ensurePersonaConfig({
             connection,
             programId: registryProgramId,
             authority,
             personaId: persona.id,
-            tiersSeed: persona.tiersSeed,
+            tiers: persona.tiers,
             coder,
           });
           personaMap[persona.id] = pda.toBase58();
@@ -643,7 +698,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
           if (isLocalnet(rpcUrl)) {
             await ensureBalance(connection, listener.publicKey, 2);
           }
-          const persona = personaSeeds[idx % personaSeeds.length];
+          const persona = personaProfiles[idx % personaProfiles.length];
           const tier = personaTiers[persona.id];
           try {
             const personaPda = personaMap?.[persona.id];
@@ -684,7 +739,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   const signalService = new SignalService(storage, metadata);
   const signals: DemoSummary["signals"] = [];
-  for (const persona of personaSeeds) {
+  for (const persona of personaProfiles) {
     const tier = personaTiers[persona.id];
     const messages = signalTemplates[persona.id] ?? [];
     const personaSubscribers = await subscribers.listSubscribers(persona.id);
@@ -722,11 +777,48 @@ export async function seedDemoData(options: SeedOptions = {}) {
     }
   }
 
-  if (seedSocial && process.env.TAPESTRY_API_KEY) {
+  const enableSocial = seedSocial && Boolean(process.env.TAPESTRY_API_KEY);
+  if (enableSocial) {
+    const client = getTapestryClient();
+    const tapestryPersonas = new TapestryPersonaService(
+      client,
+      process.env.TAPESTRY_REGISTRY_PROFILE_ID
+    );
+    for (const persona of personaProfiles) {
+      const onchainAddress = personaMap?.[persona.id];
+      const authority = chainAuthority?.publicKey.toBase58();
+      const dao = chainAuthority?.publicKey.toBase58();
+      let tapestryProfileId: string | undefined;
+      try {
+        tapestryProfileId = await tapestryPersonas.upsertPersona(
+          {
+            personaId: persona.id,
+            name: persona.name,
+            domain: persona.domain,
+            description: persona.description,
+            accuracy: persona.accuracy,
+            latency: persona.latency,
+            price: persona.price,
+            evidence: persona.evidence,
+            ownerWallet: persona.ownerWallet,
+            authority,
+            dao,
+            onchainAddress,
+          },
+          persona.tiers
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`Tapestry persona seed failed for ${persona.id}`, error);
+      }
+      await personaStore.upsertPersona({
+        ...persona,
+        ...(tapestryProfileId ? { tapestryProfileId } : {}),
+      });
+    }
     try {
-      const client = getTapestryClient();
       const social = new SocialService(client, socialPostStore, userStore);
-      for (const persona of personaSeeds) {
+      for (const persona of personaProfiles) {
         const makerWallet = makerWallets[0]?.publicKey.toBase58();
         await social.createIntent({
           wallet: makerWallet,
@@ -747,11 +839,15 @@ export async function seedDemoData(options: SeedOptions = {}) {
       // eslint-disable-next-line no-console
       console.warn("Social seeding failed", error);
     }
+  } else {
+    for (const persona of personaProfiles) {
+      await personaStore.upsertPersona(persona);
+    }
   }
 
   const summary: DemoSummary = {
     createdAt: Date.now(),
-    personas: personaSeeds.map((p) => ({ id: p.id, pda: personaMap?.[p.id] })),
+    personas: personaProfiles.map((p) => ({ id: p.id, pda: personaMap?.[p.id] })),
     makerWallets: makerWallets.map((w) => w.publicKey.toBase58()),
     listenerWallets: listenerWallets.map((w) => w.publicKey.toBase58()),
     subscriberKeys,
