@@ -56,7 +56,7 @@ Package: `@personafun/sdk`
 
 **Core primitives**
 1. `createClient({ rpcUrl, programIds, backendUrl, storageUrl })`
-2. `registerEncryptionKey(personaId, pubKeyBase64)`  
+2. `registerEncryptionKey(personaId, pubKeyBase64, subscriberWallet)`  
 3. `subscribeOnChain(personaId, tierId, pricingType, evidenceLevel, quota?)`
 4. `listenSignals({ personaId, onSignal })`  
    - Uses logs or polling
@@ -76,7 +76,7 @@ const client = createClient({
 
 const keys = client.crypto.generateKeypair();
 
-await client.registerEncryptionKey("persona-eth", keys.publicKeyBase64);
+await client.registerEncryptionKey("persona-eth", keys.publicKeyBase64, subscriberWallet);
 
 await client.subscribeOnChain({
   personaId: "persona-eth",

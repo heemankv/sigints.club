@@ -51,6 +51,7 @@ type AnchorSubscriptionConfig = {
   keypairPath?: string;
   secretKeyBase58?: string;
   programId: string;
+  personaRegistryProgramId?: string;
   commitment?: anchor.web3.Commitment;
   personaMap?: Record<string, string>;
   personaDefault?: string;
@@ -72,9 +73,13 @@ const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183
 export class OnChainSubscriptionClient {
   private client?: { provider: anchor.AnchorProvider; coder: anchor.BorshInstructionCoder; idl: anchor.Idl };
   private readonly programId: PublicKey;
+  private readonly personaRegistryId?: PublicKey;
 
   constructor(private config: AnchorSubscriptionConfig) {
     this.programId = new PublicKey(config.programId);
+    this.personaRegistryId = config.personaRegistryProgramId
+      ? new PublicKey(config.personaRegistryProgramId)
+      : undefined;
   }
 
   async subscribe(input: SubscriptionRequest): Promise<string> {
@@ -98,6 +103,13 @@ export class OnChainSubscriptionClient {
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
+    );
+    if (!this.personaRegistryId) {
+      throw new Error("personaRegistryProgramId not configured");
+    }
+    const [tierConfig] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tier"), personaPubkey.toBuffer(), tierHashBytes],
+      this.personaRegistryId
     );
 
     const data = encodeSubscribeData({
@@ -128,6 +140,7 @@ export class OnChainSubscriptionClient {
         { pubkey: personaState, isSigner: false, isWritable: true },
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: personaPubkey, isSigner: false, isWritable: false },
+        { pubkey: tierConfig, isSigner: false, isWritable: false },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: true },
         { pubkey: makerPubkey, isSigner: false, isWritable: true },
         { pubkey: treasuryPubkey, isSigner: false, isWritable: true },

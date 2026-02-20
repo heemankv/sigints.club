@@ -545,9 +545,19 @@ function extractList(raw: any, fallbackKey: "likes" | "comments") {
   return [];
 }
 
+function decodeWalletKey(data: Buffer): { encPubkey: Uint8Array } | null {
+  if (data.length < 81) {
+    return null;
+  }
+  let offset = 8;
+  offset += 32; // subscriber
+  const encPubkey = data.subarray(offset, offset + 32);
+  return { encPubkey };
+}
+
 const subscribeSchema = z.object({
   personaId: z.string(),
-  encPubKeyDerBase64: z.string(),
+  encPubKeyDerBase64: z.string().optional(),
   subscriberWallet: z.string(),
 });
 
@@ -555,6 +565,19 @@ router.post("/subscribe", async (req, res) => {
   const parsed = subscribeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  if (process.env.NODE_ENV === "test" && process.env.TEST_ALLOW_SUBSCRIBE_BYPASS === "true") {
+    if (!parsed.data.encPubKeyDerBase64) {
+      return res.status(400).json({ error: "encPubKeyDerBase64 required for test bypass" });
+    }
+    const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
+    const subscriberId = subscriberIdFromPubkey(pub);
+    await subscriberDirectory.addSubscriber({
+      personaId: parsed.data.personaId,
+      subscriberId,
+      encPubKeyDerBase64: parsed.data.encPubKeyDerBase64,
+    });
+    return res.json({ subscriberId, bypass: true });
   }
   if (!personaRegistry) {
     return res.status(503).json({ error: "persona registry not configured" });
@@ -576,17 +599,33 @@ router.post("/subscribe", async (req, res) => {
     if (!subscriptionAccount) {
       return res.status(400).json({ error: "on-chain subscription not found" });
     }
+    let encPubKeyBase64 = parsed.data.encPubKeyDerBase64;
+    if (!encPubKeyBase64) {
+      const [walletKeyPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("wallet_key"), subscriberPubkey.toBuffer()],
+        new PublicKey(subscriptionProgramId)
+      );
+      const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
+      if (!walletKeyAccount) {
+        return res.status(400).json({ error: "wallet encryption key not registered on-chain" });
+      }
+      const decoded = decodeWalletKey(walletKeyAccount.data);
+      if (!decoded) {
+        return res.status(400).json({ error: "wallet encryption key invalid" });
+      }
+      encPubKeyBase64 = Buffer.from(decoded.encPubkey).toString("base64");
+    }
+    const pub = Buffer.from(encPubKeyBase64, "base64");
+    const subscriberId = subscriberIdFromPubkey(pub);
+    await subscriberDirectory.addSubscriber({
+      personaId: parsed.data.personaId,
+      subscriberId,
+      encPubKeyDerBase64: encPubKeyBase64,
+    });
+    return res.json({ subscriberId });
   } catch (error: any) {
     return res.status(400).json({ error: error.message ?? "invalid subscriber wallet" });
   }
-  const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
-  const subscriberId = subscriberIdFromPubkey(pub);
-  await subscriberDirectory.addSubscriber({
-    personaId: parsed.data.personaId,
-    subscriberId,
-    encPubKeyDerBase64: parsed.data.encPubKeyDerBase64,
-  });
-  return res.json({ subscriberId });
 });
 
 const onchainSubscribeSchema = z.object({

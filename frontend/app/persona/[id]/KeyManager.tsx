@@ -3,18 +3,12 @@
 import { useEffect, useState } from "react";
 import { generateX25519Keypair, subscriberIdFromPubkey } from "../../lib/crypto";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { buildRegisterKeyInstruction, resolvePersonaPubkey, resolveProgramId } from "../../lib/solana";
+import { buildRegisterWalletKeyInstruction, resolveProgramId } from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
 
-const storageKey = (personaId: string) => `persona.keys.${personaId}`;
+const storageKey = (wallet?: string) => `wallet.keys.${wallet ?? "unknown"}`;
 
-export default function KeyManager({
-  personaId,
-  personaOnchainAddress,
-}: {
-  personaId: string;
-  personaOnchainAddress?: string;
-}) {
+export default function KeyManager() {
   const [pubKey, setPubKey] = useState("");
   const [privKey, setPrivKey] = useState("");
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
@@ -24,7 +18,8 @@ export default function KeyManager({
   const { connection } = useConnection();
 
   useEffect(() => {
-    const raw = localStorage.getItem(storageKey(personaId));
+    if (!publicKey) return;
+    const raw = localStorage.getItem(storageKey(publicKey.toBase58()));
     if (!raw) return;
     try {
       const data = JSON.parse(raw);
@@ -34,7 +29,7 @@ export default function KeyManager({
     } catch {
       // ignore
     }
-  }, [personaId]);
+  }, [publicKey]);
 
   async function generate() {
     setStatus(null);
@@ -44,7 +39,8 @@ export default function KeyManager({
       setPubKey(data.publicKeyBase64);
       setPrivKey(data.privateKeyBase64);
       setSubscriberId(subId);
-      localStorage.setItem(storageKey(personaId), JSON.stringify({ ...data, subscriberId: subId }));
+      const key = storageKey(publicKey?.toBase58());
+      localStorage.setItem(key, JSON.stringify({ ...data, subscriberId: subId }));
       setStatus("Generated new keypair. Store your private key safely.");
     } catch (err: any) {
       setStatus(err?.message ?? "Failed to generate keypair in this browser.");
@@ -57,17 +53,12 @@ export default function KeyManager({
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
       }
-      if (!personaOnchainAddress) {
-        throw new Error("On-chain persona address missing.");
-      }
       if (!pubKey) {
         throw new Error("Generate or paste a public key first.");
       }
       const programId = resolveProgramId();
-      const persona = resolvePersonaPubkey(personaOnchainAddress);
-      const ix = buildRegisterKeyInstruction({
+      const ix = buildRegisterWalletKeyInstruction({
         programId,
-        persona,
         subscriber: publicKey,
         encPubKeyBase64: pubKey,
       });
@@ -85,8 +76,8 @@ export default function KeyManager({
   return (
     <div className="card">
       <div className="hud-corners" />
-      <h3>Key Manager</h3>
-      <p>Generate an encryption keypair for this Persona.</p>
+      <h3>Wallet Key Manager</h3>
+      <p>Register one encryption keypair for all subscriptions.</p>
       <button className="button primary" onClick={generate}>Generate Keypair</button>
       {status && <p className="subtext">{status}</p>}
       <div className="field">
@@ -102,13 +93,11 @@ export default function KeyManager({
       <button
         className="button ghost"
         onClick={registerOnchain}
-        disabled={!personaOnchainAddress || !publicKey}
+        disabled={!publicKey}
       >
         Register Key On-chain
       </button>
-      {(!personaOnchainAddress || !publicKey) && (
-        <p className="subtext">Connect wallet and ensure persona is on-chain.</p>
-      )}
+      {!publicKey && <p className="subtext">Connect wallet to register your key.</p>}
       {chainStatus && <p className="subtext">{chainStatus}</p>}
     </div>
   );

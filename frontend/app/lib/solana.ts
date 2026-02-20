@@ -6,6 +6,7 @@ import { Buffer } from "buffer";
 
 const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
 const REGISTER_KEY_DISCRIMINATOR = new Uint8Array([56, 8, 67, 97, 128, 122, 80, 213]);
+const REGISTER_WALLET_KEY_DISCRIMINATOR = new Uint8Array([245, 147, 210, 179, 245, 73, 184, 9]);
 
 const PRICING_TYPE_MAP: Record<string, number> = {
   subscription_limited: 0,
@@ -20,6 +21,13 @@ const EVIDENCE_LEVEL_MAP: Record<string, number> = {
 
 export function resolveProgramId(): PublicKey {
   const programId = process.env.NEXT_PUBLIC_SUBSCRIPTION_PROGRAM_ID ?? "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE";
+  return new PublicKey(programId);
+}
+
+export function resolvePersonaRegistryId(): PublicKey {
+  const programId =
+    process.env.NEXT_PUBLIC_PERSONA_REGISTRY_PROGRAM_ID ??
+    "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi";
   return new PublicKey(programId);
 }
 
@@ -117,6 +125,26 @@ export function deriveSubscriberKeyPda(programId: PublicKey, subscription: Publi
   return pda;
 }
 
+export function deriveWalletKeyPda(programId: PublicKey, subscriber: PublicKey): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("wallet_key"), subscriber.toBuffer()],
+    programId
+  );
+  return pda;
+}
+
+export function deriveTierConfigPda(
+  personaRegistryProgramId: PublicKey,
+  persona: PublicKey,
+  tierHash: Uint8Array
+): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tier"), persona.toBuffer(), Buffer.from(tierHash)],
+    personaRegistryProgramId
+  );
+  return pda;
+}
+
 export function derivePersonaState(programId: PublicKey, persona: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
     [Buffer.from("persona_state"), persona.toBuffer()],
@@ -138,11 +166,13 @@ export function buildSubscribeInstruction(params: {
   maker: PublicKey;
   treasury: PublicKey;
 }): Promise<TransactionInstruction> {
-  return encodeSubscribeData(params).then((data) => {
+  return encodeSubscribeData(params).then(async (data) => {
     const subscription = deriveSubscriptionPda(params.programId, params.persona, params.subscriber);
     const subscriptionMint = deriveSubscriptionMint(params.programId, params.persona, params.subscriber);
     const personaState = derivePersonaState(params.programId, params.persona);
     const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, params.subscriber);
+    const tierHash = await sha256Bytes(params.tierId);
+    const tierConfig = deriveTierConfigPda(resolvePersonaRegistryId(), params.persona, tierHash);
     return new TransactionInstruction({
       programId: params.programId,
       keys: [
@@ -151,6 +181,7 @@ export function buildSubscribeInstruction(params: {
         { pubkey: personaState, isSigner: false, isWritable: true },
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: params.persona, isSigner: false, isWritable: false },
+        { pubkey: tierConfig, isSigner: false, isWritable: false },
         { pubkey: params.subscriber, isSigner: true, isWritable: true },
         { pubkey: params.maker, isSigner: false, isWritable: true },
         { pubkey: params.treasury, isSigner: false, isWritable: true },
@@ -184,6 +215,30 @@ export function buildRegisterKeyInstruction(params: {
     keys: [
       { pubkey: subscription, isSigner: false, isWritable: false },
       { pubkey: subscriberKey, isSigner: false, isWritable: true },
+      { pubkey: params.subscriber, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+export function buildRegisterWalletKeyInstruction(params: {
+  programId: PublicKey;
+  subscriber: PublicKey;
+  encPubKeyBase64: string;
+}): TransactionInstruction {
+  const walletKey = deriveWalletKeyPda(params.programId, params.subscriber);
+  const keyBytes = Buffer.from(params.encPubKeyBase64, "base64");
+  if (keyBytes.length !== 32) {
+    throw new Error("Encryption public key must be 32 bytes (base64)");
+  }
+  const data = new Uint8Array(8 + 32);
+  data.set(REGISTER_WALLET_KEY_DISCRIMINATOR, 0);
+  data.set(keyBytes, 8);
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: walletKey, isSigner: false, isWritable: true },
       { pubkey: params.subscriber, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],

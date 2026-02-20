@@ -50,12 +50,9 @@ export default function SubscribeForm({
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
       }
-      if (!personaAuthority || !personaDao) {
-        throw new Error("Persona payout accounts missing.");
-      }
       const data = await postJson<{ subscriberId: string }>("/subscribe", {
         personaId,
-        encPubKeyDerBase64: pubKey,
+        ...(pubKey ? { encPubKeyDerBase64: pubKey } : {}),
         subscriberWallet: publicKey.toBase58(),
       });
       setStatus(`Subscribed. Subscriber ID: ${data.subscriberId}`);
@@ -114,14 +111,14 @@ export default function SubscribeForm({
     <div className="card">
       <div className="hud-corners" />
       <h3>Subscribe to {tierId}</h3>
-      <p>Paste your encryption public key (base64).</p>
+      <p>Paste your encryption public key (base64) or leave blank to use your wallet key.</p>
       <input
         value={pubKey}
         onChange={(e) => setPubKey(e.target.value)}
         placeholder="Base64 X25519 public key"
         className="input"
       />
-      <button className="button primary" onClick={submit} disabled={loading || !pubKey}>
+      <button className="button primary" onClick={submit} disabled={loading}>
         {loading ? "Subscribing…" : "Subscribe"}
       </button>
       {status && <p className="subtext">{status}</p>}

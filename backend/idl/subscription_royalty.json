@@ -186,6 +186,141 @@
       ]
     },
     {
+      "name": "register_key",
+      "discriminator": [
+        56,
+        8,
+        67,
+        97,
+        128,
+        122,
+        80,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "subscription",
+          "writable": true
+        },
+        {
+          "name": "subscriber_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  98,
+                  115,
+                  99,
+                  114,
+                  105,
+                  98,
+                  101,
+                  114,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscription"
+              }
+            ]
+          }
+        },
+        {
+          "name": "subscriber",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "subscription"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "enc_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "register_wallet_key",
+      "discriminator": [
+        245,
+        147,
+        210,
+        179,
+        245,
+        73,
+        184,
+        9
+      ],
+      "accounts": [
+        {
+          "name": "wallet_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  108,
+                  108,
+                  101,
+                  116,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "subscriber"
+              }
+            ]
+          }
+        },
+        {
+          "name": "subscriber",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "enc_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "renew",
       "discriminator": [
         43,
@@ -374,9 +509,20 @@
           "name": "persona"
         },
         {
+          "name": "tier_config"
+        },
+        {
           "name": "subscriber",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "maker",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
         },
         {
           "name": "system_program",
@@ -420,6 +566,10 @@
         {
           "name": "quota_remaining",
           "type": "u32"
+        },
+        {
+          "name": "price_lamports",
+          "type": "u64"
         }
       ]
     }
@@ -452,6 +602,19 @@
       ]
     },
     {
+      "name": "SubscriberKey",
+      "discriminator": [
+        66,
+        75,
+        139,
+        89,
+        37,
+        96,
+        245,
+        116
+      ]
+    },
+    {
       "name": "Subscription",
       "discriminator": [
         64,
@@ -462,6 +625,19 @@
         132,
         98,
         33
+      ]
+    },
+    {
+      "name": "WalletKey",
+      "discriminator": [
+        249,
+        169,
+        76,
+        197,
+        109,
+        179,
+        251,
+        252
       ]
     }
   ],
@@ -483,13 +659,43 @@
     },
     {
       "code": 6003,
+      "name": "InvalidTier",
+      "msg": "Tier account is invalid or not registered"
+    },
+    {
+      "code": 6004,
+      "name": "TierInactive",
+      "msg": "Tier is not active"
+    },
+    {
+      "code": 6005,
+      "name": "TierMismatch",
+      "msg": "Tier configuration does not match"
+    },
+    {
+      "code": 6006,
+      "name": "PriceMismatch",
+      "msg": "Price does not match tier"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidTreasury",
+      "msg": "Treasury account does not match persona registry"
+    },
+    {
+      "code": 6008,
       "name": "NoSubscribers",
       "msg": "No subscribers exist for this persona"
     },
     {
-      "code": 6004,
+      "code": 6009,
       "name": "InvalidSubscriberAta",
       "msg": "Subscriber ATA does not match expected address"
+    },
+    {
+      "code": 6010,
+      "name": "SubscriptionInactive",
+      "msg": "Subscription is not active"
     }
   ],
   "types": [
@@ -570,6 +776,43 @@
       }
     },
     {
+      "name": "SubscriberKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "subscription",
+            "type": "pubkey"
+          },
+          {
+            "name": "persona",
+            "type": "pubkey"
+          },
+          {
+            "name": "subscriber",
+            "type": "pubkey"
+          },
+          {
+            "name": "enc_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "Subscription",
       "type": {
         "kind": "struct",
@@ -614,6 +857,35 @@
           {
             "name": "nft_mint",
             "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WalletKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "subscriber",
+            "type": "pubkey"
+          },
+          {
+            "name": "enc_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
           },
           {
             "name": "bump",

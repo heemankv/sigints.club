@@ -7,6 +7,7 @@ import { decodeSubscriptionAccount, resolveProgramId, sha256Bytes } from "../lib
 import NetworkStatusCard from "../components/NetworkStatusCard";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import RegisterPersonaForm from "../components/RegisterPersonaForm";
+import KeyManager from "../persona/[id]/KeyManager";
 
 type UserProfile = {
   wallet: string;
@@ -223,6 +224,14 @@ export default function ProfilePage() {
         <p>Manage maker bots, listener bots, and subscriptions.</p>
       </div>
       <NetworkStatusCard />
+      <div className="section">
+        <div className="section-head">
+          <span className="kicker">Encryption</span>
+          <h2>Wallet Encryption Key</h2>
+          <p>Register a single keypair once and reuse it for all subscriptions.</p>
+        </div>
+        <KeyManager />
+      </div>
       <div className="section">
         <div className="section-head">
           <span className="kicker">On-chain</span>

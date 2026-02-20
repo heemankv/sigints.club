@@ -36,6 +36,7 @@ const PERSONA_REGISTRY_PROGRAM_ID = new PublicKey(
     process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID ??
     "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi"
 );
+const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 
 let connection: Connection;
 let server: Server;
@@ -86,6 +87,41 @@ function sha256Bytes(input: string): Buffer {
 function sha256Hex(input: Buffer | string): string {
   const buf = typeof input === "string" ? Buffer.from(input, "utf8") : input;
   return createHash("sha256").update(buf).digest("hex");
+}
+
+function writeBigInt64LE(buffer: Uint8Array, value: bigint, offset: number) {
+  let v = value;
+  for (let i = 0; i < 8; i += 1) {
+    buffer[offset + i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+}
+
+function writeUint32LE(buffer: Uint8Array, value: number, offset: number) {
+  buffer[offset] = value & 0xff;
+  buffer[offset + 1] = (value >> 8) & 0xff;
+  buffer[offset + 2] = (value >> 16) & 0xff;
+  buffer[offset + 3] = (value >> 24) & 0xff;
+}
+
+function encodeUpsertTierData(params: {
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  priceLamports: number;
+  quota: number;
+  status: number;
+}): Buffer {
+  const tierHash = sha256Bytes(params.tierId);
+  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4 + 1);
+  data.set(UPSERT_TIER_DISCRIMINATOR, 0);
+  data.set(tierHash, 8);
+  data[40] = params.pricingType;
+  data[41] = params.evidenceLevel;
+  writeBigInt64LE(data, BigInt(params.priceLamports), 42);
+  writeUint32LE(data, params.quota, 50);
+  data[54] = params.status;
+  return Buffer.from(data);
 }
 
 function loadSubscriptionCoder(): anchor.BorshAccountsCoder {
@@ -141,6 +177,45 @@ async function ensurePersonaExists(args: {
   return pda;
 }
 
+async function ensureTierExists(args: {
+  persona: PublicKey;
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  priceLamports: number;
+  quota: number;
+  authority: Keypair;
+}) {
+  const tierHash = sha256Bytes(args.tierId);
+  const [tierPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
+    PERSONA_REGISTRY_PROGRAM_ID
+  );
+  const exists = await connection.getAccountInfo(tierPda);
+  if (exists) return tierPda;
+  const data = encodeUpsertTierData({
+    tierId: args.tierId,
+    pricingType: args.pricingType,
+    evidenceLevel: args.evidenceLevel,
+    priceLamports: args.priceLamports,
+    quota: args.quota,
+    status: 1,
+  });
+  const ix = new anchor.web3.TransactionInstruction({
+    programId: PERSONA_REGISTRY_PROGRAM_ID,
+    keys: [
+      { pubkey: args.persona, isSigner: false, isWritable: true },
+      { pubkey: tierPda, isSigner: false, isWritable: true },
+      { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
+      { pubkey: anchor.web3.SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+  const tx = new Transaction().add(ix);
+  await sendAndConfirmTransaction(connection, tx, [args.authority]);
+  return tierPda;
+}
+
 async function sendSubscribeTx(args: {
   persona: PublicKey;
   subscriber: Keypair;
@@ -149,6 +224,8 @@ async function sendSubscribeTx(args: {
   tierId: string;
   pricingType: number;
   evidenceLevel: number;
+  priceLamports: number;
+  quotaRemaining: number;
 }) {
   const { buildSubscribeInstruction, defaultExpiryMs } = await import("../../frontend/app/lib/solana.ts");
   const ix = await buildSubscribeInstruction({
@@ -159,8 +236,8 @@ async function sendSubscribeTx(args: {
     pricingType: args.pricingType,
     evidenceLevel: args.evidenceLevel,
     expiresAtMs: defaultExpiryMs(),
-    quotaRemaining: 0,
-    priceLamports: 0,
+    quotaRemaining: args.quotaRemaining,
+    priceLamports: args.priceLamports,
     maker: args.maker,
     treasury: args.treasury,
   });
@@ -200,6 +277,11 @@ beforeAll(async () => {
     { id: "persona-anime", tiersSeed: "tiers:persona-anime" },
     { id: "persona-news", tiersSeed: "tiers:persona-news" },
   ];
+  const tierSpecs: Record<string, { tierId: string; pricingType: number; evidenceLevel: number; priceLamports: number; quota: number }> = {
+    "persona-eth": { tierId: "trust", pricingType: 0, evidenceLevel: 0, priceLamports: 50_000_000, quota: 0 },
+    "persona-anime": { tierId: "verifier", pricingType: 1, evidenceLevel: 1, priceLamports: 20_000_000, quota: 0 },
+    "persona-news": { tierId: "trust", pricingType: 2, evidenceLevel: 0, priceLamports: 10_000_000, quota: 0 },
+  };
   const personaMap: Record<string, string> = {};
   for (const spec of personaSpecs) {
     const pda = await ensurePersonaExists({
@@ -209,6 +291,18 @@ beforeAll(async () => {
       coder,
     });
     personaMap[spec.id] = pda.toBase58();
+    const tier = tierSpecs[spec.id];
+    if (tier) {
+      await ensureTierExists({
+        persona: pda,
+        tierId: tier.tierId,
+        pricingType: tier.pricingType,
+        evidenceLevel: tier.evidenceLevel,
+        priceLamports: tier.priceLamports,
+        quota: tier.quota,
+        authority: keypair,
+      });
+    }
   }
 
   process.env.NODE_ENV = "test";
@@ -240,9 +334,9 @@ afterAll(async () => {
 describe("E2E maker/taker flow", () => {
   it("delivers ticks to SDK and MCP listeners with strict validation", async () => {
     const personas = [
-      { id: "persona-eth", tier: "trust", pricingType: 0, evidenceLevel: 0 },
-      { id: "persona-anime", tier: "verifier", pricingType: 1, evidenceLevel: 1 },
-      { id: "persona-news", tier: "trust", pricingType: 2, evidenceLevel: 0 },
+      { id: "persona-eth", tier: "trust", pricingType: 0, evidenceLevel: 0, priceLamports: 50_000_000, quota: 0 },
+      { id: "persona-anime", tier: "verifier", pricingType: 1, evidenceLevel: 1, priceLamports: 20_000_000, quota: 0 },
+      { id: "persona-news", tier: "trust", pricingType: 2, evidenceLevel: 0, priceLamports: 10_000_000, quota: 0 },
     ];
 
     const personaMap = JSON.parse(process.env.SOLANA_PERSONA_MAP ?? "{}") as Record<string, string>;
@@ -272,6 +366,8 @@ describe("E2E maker/taker flow", () => {
         tierId: persona.tier,
         pricingType: persona.pricingType,
         evidenceLevel: persona.evidenceLevel,
+        priceLamports: persona.priceLamports,
+        quotaRemaining: persona.quota,
       });
 
       const subscriptionPda = deriveSubscriptionPda(PROGRAM_ID, personaPubkey, taker.wallet.publicKey);

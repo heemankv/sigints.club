@@ -29,6 +29,7 @@ const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, "..", "..");
 const bs58Codec = (bs58 as unknown as { default?: typeof bs58 }).default ?? bs58;
 const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
+const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 const PRICING_TYPE_MAP: Record<string, number> = {
   subscription_limited: 0,
   subscription_unlimited: 1,
@@ -45,10 +46,10 @@ const personaSeeds = [
   { id: "persona-anime", tiersSeed: "tiers:persona-anime" },
 ];
 
-const personaTiers: Record<string, { tierId: string; pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal"; evidenceLevel: "trust" | "verifier" }> = {
-  "persona-eth": { tierId: "tier-eth-trust", pricingType: "subscription_limited", evidenceLevel: "trust" },
-  "persona-amazon": { tierId: "tier-amz-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust" },
-  "persona-anime": { tierId: "tier-anime-verifier", pricingType: "per_signal", evidenceLevel: "verifier" },
+const personaTiers: Record<string, { tierId: string; pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal"; evidenceLevel: "trust" | "verifier"; priceLamports: number; quota: number }> = {
+  "persona-eth": { tierId: "tier-eth-trust", pricingType: "subscription_limited", evidenceLevel: "trust", priceLamports: 50_000_000, quota: 200 },
+  "persona-amazon": { tierId: "tier-amz-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 80_000_000, quota: 0 },
+  "persona-anime": { tierId: "tier-anime-verifier", pricingType: "per_signal", evidenceLevel: "verifier", priceLamports: 20_000_000, quota: 0 },
 };
 
 const signalTemplates: Record<string, string[]> = {
@@ -189,6 +190,50 @@ async function ensurePersonaConfig(args: {
   return pda;
 }
 
+async function ensureTierConfig(args: {
+  connection: Connection;
+  programId: PublicKey;
+  authority: Keypair;
+  persona: PublicKey;
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  priceLamports: number;
+  quota: number;
+}): Promise<PublicKey> {
+  const tierHash = sha256Bytes(args.tierId);
+  const [tierPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
+    args.programId
+  );
+  const existing = await args.connection.getAccountInfo(tierPda);
+  if (existing) return tierPda;
+
+  const data = encodeUpsertTierData({
+    tierId: args.tierId,
+    pricingType: args.pricingType,
+    evidenceLevel: args.evidenceLevel,
+    priceLamports: args.priceLamports,
+    quota: args.quota,
+    status: 1,
+  });
+
+  const ix = new TransactionInstruction({
+    programId: args.programId,
+    keys: [
+      { pubkey: args.persona, isSigner: false, isWritable: true },
+      { pubkey: tierPda, isSigner: false, isWritable: true },
+      { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  const tx = new Transaction().add(ix);
+  await sendAndConfirmTransaction(args.connection, tx, [args.authority]);
+  return tierPda;
+}
+
 function writeBigInt64LE(buffer: Uint8Array, value: bigint, offset: number) {
   let v = value;
   for (let i = 0; i < 8; i += 1) {
@@ -202,6 +247,26 @@ function writeUint32LE(buffer: Uint8Array, value: number, offset: number) {
   buffer[offset + 1] = (value >> 8) & 0xff;
   buffer[offset + 2] = (value >> 16) & 0xff;
   buffer[offset + 3] = (value >> 24) & 0xff;
+}
+
+function encodeUpsertTierData(params: {
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  priceLamports: number;
+  quota: number;
+  status: number;
+}): Uint8Array {
+  const tierHash = sha256Bytes(params.tierId);
+  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4 + 1);
+  data.set(UPSERT_TIER_DISCRIMINATOR, 0);
+  data.set(tierHash, 8);
+  data[40] = params.pricingType;
+  data[41] = params.evidenceLevel;
+  writeBigInt64LE(data, BigInt(params.priceLamports), 42);
+  writeUint32LE(data, params.quota, 50);
+  data[54] = params.status;
+  return data;
 }
 
 function defaultExpiryMs(): number {
@@ -256,6 +321,7 @@ function derivePersonaState(programId: PublicKey, persona: PublicKey): PublicKey
 async function sendSubscribeTx(args: {
   connection: Connection;
   programId: PublicKey;
+  personaRegistryProgramId: PublicKey;
   persona: PublicKey;
   subscriber: Keypair;
   maker: PublicKey;
@@ -279,6 +345,11 @@ async function sendSubscribeTx(args: {
   const subscriptionMint = deriveSubscriptionMint(args.programId, args.persona, args.subscriber.publicKey);
   const personaState = derivePersonaState(args.programId, args.persona);
   const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, args.subscriber.publicKey);
+  const tierHash = sha256Bytes(args.tierId);
+  const [tierConfig] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
+    args.personaRegistryProgramId
+  );
 
   const ix = new TransactionInstruction({
     programId: args.programId,
@@ -288,6 +359,7 @@ async function sendSubscribeTx(args: {
       { pubkey: personaState, isSigner: false, isWritable: true },
       { pubkey: subscriberAta, isSigner: false, isWritable: true },
       { pubkey: args.persona, isSigner: false, isWritable: false },
+      { pubkey: tierConfig, isSigner: false, isWritable: false },
       { pubkey: args.subscriber.publicKey, isSigner: true, isWritable: true },
       { pubkey: args.maker, isSigner: false, isWritable: true },
       { pubkey: args.treasury, isSigner: false, isWritable: true },
@@ -454,7 +526,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
           {
             tierId: personaTiers[persona.id].tierId,
             pricingType: personaTiers[persona.id].pricingType,
-            price: "$5/mo",
+            price: `${personaTiers[persona.id].priceLamports / 1_000_000_000} SOL/mo`,
             evidenceLevel: personaTiers[persona.id].evidenceLevel,
           },
         ],
@@ -548,6 +620,18 @@ export async function seedDemoData(options: SeedOptions = {}) {
             coder,
           });
           personaMap[persona.id] = pda.toBase58();
+          const tier = personaTiers[persona.id];
+          await ensureTierConfig({
+            connection,
+            programId: registryProgramId,
+            authority,
+            persona: pda,
+            tierId: tier.tierId,
+            pricingType: PRICING_TYPE_MAP[tier.pricingType],
+            evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
+            priceLamports: tier.priceLamports,
+            quota: tier.quota,
+          });
         }
 
         chainConnection = connection;
@@ -569,6 +653,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
             const signature = await sendSubscribeTx({
               connection,
               programId,
+              personaRegistryProgramId: registryProgramId,
               persona: new PublicKey(personaPda),
               subscriber: listener,
               maker: authority.publicKey,
@@ -576,7 +661,8 @@ export async function seedDemoData(options: SeedOptions = {}) {
               tierId: tier.tierId,
               pricingType: PRICING_TYPE_MAP[tier.pricingType],
               evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
-              priceLamports: 0,
+              priceLamports: tier.priceLamports,
+              quotaRemaining: tier.quota,
             });
             onchainSubscriptions.push({
               personaId: persona.id,

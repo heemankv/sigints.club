@@ -40,14 +40,14 @@ const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : n
 const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
 const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
 const subscribers = persist ? new FileSubscriberDirectory() : new InMemorySubscriberDirectory();
-const personaStore = persist ? new FilePersonaStore() : new InMemoryPersonaStore();
-const personaRegistry = solanaPersonaRegistryId
+const personaStoreInstance = persist ? new FilePersonaStore() : new InMemoryPersonaStore();
+const personaRegistryInstance = solanaPersonaRegistryId
   ? new PersonaRegistryClient({
       rpcUrl: solanaRpcUrl,
       programId: solanaPersonaRegistryId,
     })
   : undefined;
-const discovery = new DiscoveryService(personaStore, personaRegistry, tapestryProfileMap);
+const discovery = new DiscoveryService(personaStoreInstance, personaRegistryInstance, tapestryProfileMap);
 const listener = new ListenerService(storage);
 const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
 const botStore = persist ? new FileBotStore() : new InMemoryBotStore();
@@ -74,6 +74,7 @@ const onChainSubscriptions =
         keypairPath: solanaKeypairPath,
         secretKeyBase58: solanaSecretKey,
         programId: solanaProgramId,
+        personaRegistryProgramId: solanaPersonaRegistryId,
         personaMap: solanaPersonaMap,
         personaDefault: solanaPersonaDefault,
       })
@@ -91,8 +92,8 @@ export const signalService = new SignalService(storage, metadata, socialPublishe
 export const metadataStore = metadata;
 export const subscriberDirectory = subscribers;
 export const discoveryService = discovery;
-export const personaStore = personaStore;
-export const personaRegistry = personaRegistry;
+export const personaStore = personaStoreInstance;
+export const personaRegistry = personaRegistryInstance;
 export const listenerService = listener;
 export const storageProvider = storage;
 export const onChainSubscriptionClient = onChainSubscriptions;

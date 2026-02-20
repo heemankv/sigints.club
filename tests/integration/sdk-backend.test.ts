@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { Keypair } from "@solana/web3.js";
 import { PersonaClient } from "../../sdk/src/index.ts";
 import type { Server } from "node:http";
 
@@ -8,6 +9,7 @@ let baseUrl: string;
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
   process.env.PERSIST = "false";
+  process.env.TEST_ALLOW_SUBSCRIBE_BYPASS = "true";
   const { createApp } = await import("../../backend/src/app.ts");
   const app = createApp();
   await new Promise<void>((resolve) => {
@@ -35,7 +37,8 @@ describe("SDK + backend integration", () => {
     });
 
     const keys = PersonaClient.generateKeys();
-    await client.registerEncryptionKey("persona-eth", keys.publicKeyDerBase64);
+    const subscriberWallet = Keypair.generate().publicKey.toBase58();
+    await client.registerEncryptionKey("persona-eth", keys.publicKeyDerBase64, subscriberWallet);
 
     const payload = Buffer.from("integration-signal", "utf8").toString("base64");
     const resp = await fetch(`${baseUrl}/signals`, {

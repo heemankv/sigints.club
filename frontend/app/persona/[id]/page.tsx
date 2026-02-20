@@ -73,7 +73,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           <div className="hud-corners" />
           <h3>Listener Tools</h3>
           <p>Manage keys and decrypt messages you subscribe to.</p>
-          <KeyManager personaId={persona.id} personaOnchainAddress={"onchainAddress" in persona ? persona.onchainAddress : undefined} />
+          <KeyManager />
           <DecryptPanel personaId={persona.id} />
         </div>
       </div>

@@ -12,7 +12,7 @@ use anchor_spl::token::spl_token::instruction::AuthorityType;
 declare_id!("BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE");
 
 const PERSONA_REGISTRY_ID: Pubkey = pubkey!("5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi");
-const PLATFORM_FEE_BPS: u64 = 1_000;
+const PLATFORM_FEE_BPS: u64 = 100;
 
 #[program]
 pub mod subscription_royalty {
@@ -32,6 +32,24 @@ pub mod subscription_royalty {
             persona_config.status == PersonaStatus::Active as u8,
             ErrorCode::PersonaInactive
         );
+        let tier_config = validate_tier(&ctx.accounts.tier_config, &ctx.accounts.persona, &tier_id)?;
+        require!(
+            tier_config.status == TierStatus::Active as u8,
+            ErrorCode::TierInactive
+        );
+        require!(
+            tier_config.price_lamports == price_lamports,
+            ErrorCode::PriceMismatch
+        );
+        require!(
+            tier_config.pricing_type == pricing_type,
+            ErrorCode::TierMismatch
+        );
+        require!(
+            tier_config.evidence_level == evidence_level,
+            ErrorCode::TierMismatch
+        );
+        require!(tier_config.quota == quota_remaining, ErrorCode::TierMismatch);
         require_keys_eq!(
             persona_config.authority,
             ctx.accounts.maker.key(),
@@ -252,6 +270,19 @@ pub mod subscription_royalty {
         Ok(())
     }
 
+    pub fn register_wallet_key(
+        ctx: Context<RegisterWalletKey>,
+        enc_pubkey: [u8; 32],
+    ) -> Result<()> {
+        let key = &mut ctx.accounts.wallet_key;
+        key.subscriber = ctx.accounts.subscriber.key();
+        key.enc_pubkey = enc_pubkey;
+        let clock = Clock::get()?;
+        key.updated_at = clock.unix_timestamp.saturating_mul(1_000);
+        key.bump = ctx.bumps.wallet_key;
+        Ok(())
+    }
+
     pub fn record_signal(
         ctx: Context<RecordSignal>,
         signal_hash: [u8; 32],
@@ -317,6 +348,8 @@ pub struct Subscribe<'info> {
     pub subscriber_ata: AccountInfo<'info>,
     /// CHECK: persona is validated against registry in handler
     pub persona: AccountInfo<'info>,
+    /// CHECK: tier config validated against registry in handler
+    pub tier_config: AccountInfo<'info>,
     #[account(mut)]
     pub subscriber: Signer<'info>,
     #[account(mut)]
@@ -367,6 +400,22 @@ pub struct RegisterKey<'info> {
         bump
     )]
     pub subscriber_key: Account<'info, SubscriberKey>,
+    #[account(mut)]
+    pub subscriber: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RegisterWalletKey<'info> {
+    #[account(
+        init_if_needed,
+        payer = subscriber,
+        space = WalletKey::SPACE,
+        seeds = [b"wallet_key", subscriber.key().as_ref()],
+        bump
+    )]
+    pub wallet_key: Account<'info, WalletKey>,
+    #[account(mut)]
     pub subscriber: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
@@ -427,6 +476,18 @@ impl SubscriberKey {
 }
 
 #[account]
+pub struct WalletKey {
+    pub subscriber: Pubkey,
+    pub enc_pubkey: [u8; 32],
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+impl WalletKey {
+    pub const SPACE: usize = 8 + 32 + 32 + 8 + 1;
+}
+
+#[account]
 pub struct SignalRecord {
     pub persona: Pubkey,
     pub signal_hash: [u8; 32],
@@ -479,6 +540,24 @@ pub enum PersonaStatus {
     Paused = 2,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct TierConfig {
+    pub persona: Pubkey,
+    pub tier_id: [u8; 32],
+    pub pricing_type: u8,
+    pub evidence_level: u8,
+    pub price_lamports: u64,
+    pub quota: u32,
+    pub status: u8,
+    pub bump: u8,
+}
+
+pub enum TierStatus {
+    Inactive = 0,
+    Active = 1,
+    Paused = 2,
+}
+
 #[error_code]
 pub enum ErrorCode {
     #[msg("Persona account is invalid or not registered")]
@@ -487,6 +566,14 @@ pub enum ErrorCode {
     PersonaInactive,
     #[msg("Signer is not the persona authority")]
     UnauthorizedPersona,
+    #[msg("Tier account is invalid or not registered")]
+    InvalidTier,
+    #[msg("Tier is not active")]
+    TierInactive,
+    #[msg("Tier configuration does not match")]
+    TierMismatch,
+    #[msg("Price does not match tier")]
+    PriceMismatch,
     #[msg("Treasury account does not match persona registry")]
     InvalidTreasury,
     #[msg("No subscribers exist for this persona")]
@@ -517,6 +604,35 @@ fn validate_persona(account: &AccountInfo) -> Result<PersonaConfig> {
     )
     .0;
     require_keys_eq!(expected, *account.key, ErrorCode::InvalidPersona);
+    Ok(cfg)
+}
+
+fn load_tier_config(account: &AccountInfo) -> Result<TierConfig> {
+    require_keys_eq!(*account.owner, PERSONA_REGISTRY_ID, ErrorCode::InvalidTier);
+    let data = account.data.borrow();
+    if data.len() < 8 {
+        return Err(error!(ErrorCode::InvalidTier));
+    }
+    let mut data: &[u8] = &data[8..];
+    let cfg = TierConfig::deserialize(&mut data)
+        .map_err(|_| error!(ErrorCode::InvalidTier))?;
+    Ok(cfg)
+}
+
+fn validate_tier(
+    account: &AccountInfo,
+    persona: &AccountInfo,
+    tier_id: &[u8; 32],
+) -> Result<TierConfig> {
+    let cfg = load_tier_config(account)?;
+    require_keys_eq!(cfg.persona, *persona.key, ErrorCode::TierMismatch);
+    require!(cfg.tier_id == *tier_id, ErrorCode::TierMismatch);
+    let expected = Pubkey::find_program_address(
+        &[b"tier", persona.key().as_ref(), tier_id.as_ref()],
+        &PERSONA_REGISTRY_ID,
+    )
+    .0;
+    require_keys_eq!(expected, *account.key, ErrorCode::InvalidTier);
     Ok(cfg)
 }
 

@@ -20,7 +20,11 @@ const client = new PersonaClient({
 });
 
 const keys = PersonaClient.generateKeys();
-const subscriberId = await client.registerEncryptionKey("persona-eth", keys.publicKeyDerBase64);
+const subscriberId = await client.registerEncryptionKey(
+  "persona-eth",
+  keys.publicKeyDerBase64,
+  "SUBSCRIBER_WALLET_PUBKEY"
+);
 
 const stop = await client.listenForSignals({
   personaId: "persona-eth",

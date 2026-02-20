@@ -12,10 +12,53 @@ const PERSONAS = [
   { id: "persona-anime", tiersSeed: "tiers:persona-anime" },
 ];
 
+const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
+
+const PERSONA_TIERS: Record<string, { tierId: string; pricingType: number; evidenceLevel: number; priceLamports: number; quota: number }> = {
+  "persona-eth": { tierId: "tier-eth-trust", pricingType: 0, evidenceLevel: 0, priceLamports: 50_000_000, quota: 200 },
+  "persona-amazon": { tierId: "tier-amz-trust", pricingType: 1, evidenceLevel: 0, priceLamports: 80_000_000, quota: 0 },
+  "persona-anime": { tierId: "tier-anime-verifier", pricingType: 2, evidenceLevel: 1, priceLamports: 20_000_000, quota: 0 },
+};
+
 dotenv.config({ path: path.resolve(process.cwd(), "..", ".env") });
 
 function sha256Bytes(input: string): Buffer {
   return createHash("sha256").update(input).digest();
+}
+
+function writeBigInt64LE(buffer: Uint8Array, value: bigint, offset: number) {
+  let v = value;
+  for (let i = 0; i < 8; i += 1) {
+    buffer[offset + i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+}
+
+function writeUint32LE(buffer: Uint8Array, value: number, offset: number) {
+  buffer[offset] = value & 0xff;
+  buffer[offset + 1] = (value >> 8) & 0xff;
+  buffer[offset + 2] = (value >> 16) & 0xff;
+  buffer[offset + 3] = (value >> 24) & 0xff;
+}
+
+function encodeUpsertTierData(params: {
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  priceLamports: number;
+  quota: number;
+  status: number;
+}): Buffer {
+  const tierHash = sha256Bytes(params.tierId);
+  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4 + 1);
+  data.set(UPSERT_TIER_DISCRIMINATOR, 0);
+  data.set(tierHash, 8);
+  data[40] = params.pricingType;
+  data[41] = params.evidenceLevel;
+  writeBigInt64LE(data, BigInt(params.priceLamports), 42);
+  writeUint32LE(data, params.quota, 50);
+  data[54] = params.status;
+  return Buffer.from(data);
 }
 
 function expandPath(input: string): string {
@@ -91,29 +134,60 @@ async function main() {
     const exists = await connection.getAccountInfo(pda);
     if (exists) {
       console.log(`Persona exists: ${persona.id} -> ${pda.toBase58()}`);
-      continue;
+    } else {
+      const data = coder.encode("create_persona", {
+        persona_id: Array.from(personaIdBytes),
+        tiers_hash: Array.from(tiersHashBytes),
+        dao: treasury,
+      });
+
+      const ix = new anchor.web3.TransactionInstruction({
+        programId,
+        keys: [
+          { pubkey: pda, isSigner: false, isWritable: true },
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data,
+      });
+
+      const tx = new anchor.web3.Transaction().add(ix);
+      await provider.sendAndConfirm(tx);
+
+      console.log(`Created persona: ${persona.id} -> ${pda.toBase58()}`);
     }
-
-    const data = coder.encode("create_persona", {
-      persona_id: Array.from(personaIdBytes),
-      tiers_hash: Array.from(tiersHashBytes),
-      dao: treasury,
-    });
-
-    const ix = new anchor.web3.TransactionInstruction({
-      programId,
-      keys: [
-        { pubkey: pda, isSigner: false, isWritable: true },
-        { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data,
-    });
-
-    const tx = new anchor.web3.Transaction().add(ix);
-    await provider.sendAndConfirm(tx);
-
-    console.log(`Created persona: ${persona.id} -> ${pda.toBase58()}`);
+    const tier = PERSONA_TIERS[persona.id];
+    if (tier) {
+      const tierHash = sha256Bytes(tier.tierId);
+      const [tierPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("tier"), pda.toBuffer(), tierHash],
+        programId
+      );
+      const tierExists = await connection.getAccountInfo(tierPda);
+      if (!tierExists) {
+        const tierData = encodeUpsertTierData({
+          tierId: tier.tierId,
+          pricingType: tier.pricingType,
+          evidenceLevel: tier.evidenceLevel,
+          priceLamports: tier.priceLamports,
+          quota: tier.quota,
+          status: 1,
+        });
+        const tierIx = new anchor.web3.TransactionInstruction({
+          programId,
+          keys: [
+            { pubkey: pda, isSigner: false, isWritable: true },
+            { pubkey: tierPda, isSigner: false, isWritable: true },
+            { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          ],
+          data: tierData,
+        });
+        const tierTx = new anchor.web3.Transaction().add(tierIx);
+        await provider.sendAndConfirm(tierTx);
+        console.log(`Created tier: ${persona.id} -> ${tier.tierId}`);
+      }
+    }
   }
 
   await updateEnvPersonaMap(personaMap);

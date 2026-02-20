@@ -6,10 +6,12 @@ import { Transaction } from "@solana/web3.js";
 import { postJson } from "../lib/api";
 import {
   buildCreatePersonaInstruction,
+  buildUpsertTierInstruction,
   derivePersonaPda,
   resolvePersonaRegistryProgramId,
 } from "../lib/personaRegistry";
 import { TierInput } from "../lib/tiersHash";
+import { parseSolLamports } from "../lib/pricing";
 
 type PersonaPayload = {
   id: string;
@@ -89,6 +91,26 @@ export default function RegisterPersonaForm() {
         const { blockhash } = await connection.getLatestBlockhash();
         tx.recentBlockhash = blockhash;
         signature = await sendTransaction(tx, connection);
+      }
+      if (tiers.length) {
+        const tierTx = new Transaction();
+        for (const tier of tiers) {
+          const quota = tier.quota ? Number(tier.quota.match(/\d+/)?.[0] ?? 0) : 0;
+          const ix = await buildUpsertTierInstruction({
+            programId,
+            authority: publicKey,
+            persona: personaPda,
+            tier,
+            priceLamports: parseSolLamports(tier.price),
+            quota,
+            status: 1,
+          });
+          tierTx.add(ix);
+        }
+        tierTx.feePayer = publicKey;
+        const { blockhash } = await connection.getLatestBlockhash();
+        tierTx.recentBlockhash = blockhash;
+        await sendTransaction(tierTx, connection);
       }
       const payload: PersonaPayload = {
         id: personaId,

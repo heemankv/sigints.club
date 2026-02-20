@@ -72,11 +72,22 @@ export class PersonaClient {
     return generateX25519Keypair();
   }
 
-  async registerEncryptionKey(personaId: string, publicKeyDerBase64: string): Promise<string> {
+  async registerEncryptionKey(
+    personaId: string,
+    publicKeyDerBase64: string,
+    subscriberWallet?: string
+  ): Promise<string> {
+    if (!subscriberWallet) {
+      throw new Error("subscriberWallet is required to register encryption key");
+    }
     const res = await fetch(`${this.backendUrl}/subscribe`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ personaId, encPubKeyDerBase64: publicKeyDerBase64 }),
+      body: JSON.stringify({
+        personaId,
+        encPubKeyDerBase64: publicKeyDerBase64,
+        subscriberWallet,
+      }),
     });
     if (!res.ok) {
       throw new Error(`backend subscribe failed (${res.status})`);

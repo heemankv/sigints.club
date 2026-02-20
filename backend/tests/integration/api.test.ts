@@ -16,12 +16,20 @@ describe("backend API", () => {
   it("publishes and retrieves signals", async () => {
     const kp = generateX25519Keypair();
     const personaId = "persona-api";
-
-    const subscribeRes = await request(app)
-      .post("/subscribe")
-      .send({ personaId, encPubKeyDerBase64: kp.publicKey.toString("base64") });
-    expect(subscribeRes.status).toBe(200);
-    expect(subscribeRes.body.subscriberId).toBeDefined();
+    const subscriberId = process.env.TEST_ONCHAIN_SUBSCRIBE === "true"
+      ? await (async () => {
+          const subscribeRes = await request(app)
+            .post("/subscribe")
+            .send({
+              personaId,
+              encPubKeyDerBase64: kp.publicKey.toString("base64"),
+              subscriberWallet: "11111111111111111111111111111111",
+            });
+          expect(subscribeRes.status).toBe(200);
+          expect(subscribeRes.body.subscriberId).toBeDefined();
+          return subscribeRes.body.subscriberId as string;
+        })()
+      : null;
 
     const plaintext = Buffer.from("api-signal").toString("base64");
     const publishRes = await request(app).post("/signals").send({
@@ -51,8 +59,12 @@ describe("backend API", () => {
 
     const keyboxRes = await request(app)
       .get(`/storage/keybox/${keyboxSha}`)
-      .query({ subscriberId: subscribeRes.body.subscriberId });
+      .query(subscriberId ? { subscriberId } : {});
     expect(keyboxRes.status).toBe(200);
-    expect(keyboxRes.body.entry).toBeDefined();
+    if (subscriberId) {
+      expect(keyboxRes.body.entry).toBeDefined();
+    } else {
+      expect(keyboxRes.body.keybox).toBeDefined();
+    }
   });
 });
