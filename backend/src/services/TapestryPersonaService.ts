@@ -17,6 +17,7 @@ type PersonaMetaInput = {
 };
 
 export type TapestryPersonaProfile = PersonaMetaInput & {
+  id: string;
   tapestryProfileId: string;
   tiers: PersonaTier[];
 };
@@ -174,6 +175,7 @@ export class TapestryPersonaService {
       .filter((tier): tier is PersonaTier => Boolean(tier));
 
     return {
+      id: personaId,
       tapestryProfileId: profileId,
       personaId,
       name: String(meta.name ?? meta.text ?? meta.personaId ?? "Persona"),
