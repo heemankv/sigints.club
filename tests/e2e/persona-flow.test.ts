@@ -143,6 +143,7 @@ async function ensurePersonaExists(args: {
   tiersSeed: string;
   authority: Keypair;
   coder: anchor.BorshInstructionCoder;
+  dao?: PublicKey;
 }): Promise<PublicKey> {
   const personaIdBytes = sha256Bytes(args.personaId);
   const tiersHashBytes = sha256Bytes(args.tiersSeed);
@@ -159,7 +160,7 @@ async function ensurePersonaExists(args: {
   const data = args.coder.encode("create_persona", {
     persona_id: Array.from(personaIdBytes),
     tiers_hash: Array.from(tiersHashBytes),
-    dao: args.authority.publicKey,
+    dao: args.dao ?? args.authority.publicKey,
   });
 
   const ix = new anchor.web3.TransactionInstruction({
@@ -186,6 +187,19 @@ async function ensureTierExists(args: {
   quota: number;
   authority: Keypair;
 }) {
+  return ensureTierWithStatus({ ...args, status: 1 });
+}
+
+async function ensureTierWithStatus(args: {
+  persona: PublicKey;
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  priceLamports: number;
+  quota: number;
+  status: number;
+  authority: Keypair;
+}) {
   const tierHash = sha256Bytes(args.tierId);
   const [tierPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
@@ -199,7 +213,7 @@ async function ensureTierExists(args: {
     evidenceLevel: args.evidenceLevel,
     priceLamports: args.priceLamports,
     quota: args.quota,
-    status: 1,
+    status: args.status,
   });
   const ix = new anchor.web3.TransactionInstruction({
     programId: PERSONA_REGISTRY_PROGRAM_ID,
@@ -214,6 +228,30 @@ async function ensureTierExists(args: {
   const tx = new Transaction().add(ix);
   await sendAndConfirmTransaction(connection, tx, [args.authority]);
   return tierPda;
+}
+
+async function setPersonaStatus(args: {
+  persona: PublicKey;
+  tiersSeed: string;
+  status: number;
+  authority: Keypair;
+  coder: anchor.BorshInstructionCoder;
+}) {
+  const tiersHashBytes = sha256Bytes(args.tiersSeed);
+  const data = args.coder.encode("update_persona", {
+    tiers_hash: Array.from(tiersHashBytes),
+    status: args.status,
+  });
+  const ix = new anchor.web3.TransactionInstruction({
+    programId: PERSONA_REGISTRY_PROGRAM_ID,
+    keys: [
+      { pubkey: args.persona, isSigner: false, isWritable: true },
+      { pubkey: args.authority.publicKey, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+  const tx = new Transaction().add(ix);
+  await sendAndConfirmTransaction(connection, tx, [args.authority]);
 }
 
 async function sendSubscribeTx(args: {
@@ -615,5 +653,264 @@ describe("E2E maker/taker flow", () => {
     expect(mcpReceived).toBe(true);
     expect(mcpPayload?.personaId).toBe("persona-eth");
     expect(mcpPayload?.plaintext).toBe("persona-eth-tick");
+  });
+});
+
+describe("Subscription enforcement", () => {
+  async function expectSubscribeFailure(args: {
+    persona: PublicKey;
+    subscriber: Keypair;
+    maker: PublicKey;
+    treasury: PublicKey;
+    tierId: string;
+    pricingType: number;
+    evidenceLevel: number;
+    priceLamports: number;
+    quotaRemaining: number;
+  }) {
+    const subscriptionPda = deriveSubscriptionPda(
+      PROGRAM_ID,
+      args.persona,
+      args.subscriber.publicKey
+    );
+    await expect(sendSubscribeTx(args)).rejects.toThrow();
+    const account = await connection.getAccountInfo(subscriptionPda, "confirmed");
+    expect(account).toBeNull();
+  }
+
+  it("charges subscriber and splits fee/maker payouts", async () => {
+    const coder = loadPersonaRegistryCoder();
+    const treasury = Keypair.generate();
+    const personaId = `persona-payment-${treasury.publicKey.toBase58().slice(0, 6)}`;
+    const tiersSeed = `tiers:${personaId}`;
+    const persona = await ensurePersonaExists({
+      personaId,
+      tiersSeed,
+      authority: authorityKeypair,
+      coder,
+      dao: treasury.publicKey,
+    });
+    const tierId = "pro";
+    const pricingType = 0;
+    const evidenceLevel = 0;
+    const priceLamports = 1_000_000;
+    const quota = 0;
+    await ensureTierExists({
+      persona,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      priceLamports,
+      quota,
+      authority: authorityKeypair,
+    });
+
+    const subscriber = Keypair.generate();
+    await airdrop(connection, subscriber.publicKey, 2);
+
+    const makerBefore = await connection.getBalance(authorityKeypair.publicKey, "confirmed");
+    const treasuryBefore = await connection.getBalance(treasury.publicKey, "confirmed");
+
+    await sendSubscribeTx({
+      persona,
+      subscriber,
+      maker: authorityKeypair.publicKey,
+      treasury: treasury.publicKey,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      priceLamports,
+      quotaRemaining: quota,
+    });
+
+    const makerAfter = await connection.getBalance(authorityKeypair.publicKey, "confirmed");
+    const treasuryAfter = await connection.getBalance(treasury.publicKey, "confirmed");
+
+    const fee = Math.floor((priceLamports * 100) / 10_000);
+    const makerAmount = priceLamports - fee;
+
+    expect(makerAfter - makerBefore).toBe(makerAmount);
+    expect(treasuryAfter - treasuryBefore).toBe(fee);
+  });
+
+  it("rejects price and tier mismatches", async () => {
+    const coder = loadPersonaRegistryCoder();
+    const personaId = "persona-enforce";
+    const tiersSeed = "tiers:persona-enforce";
+    const persona = await ensurePersonaExists({
+      personaId,
+      tiersSeed,
+      authority: authorityKeypair,
+      coder,
+    });
+    const tierId = "gold";
+    const pricingType = 0;
+    const evidenceLevel = 0;
+    const priceLamports = 1_000_000;
+    const quota = 0;
+    await ensureTierExists({
+      persona,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      priceLamports,
+      quota,
+      authority: authorityKeypair,
+    });
+
+    const cases = [
+      { label: "price mismatch", overrides: { priceLamports: priceLamports - 1 } },
+      { label: "pricing type mismatch", overrides: { pricingType: 1 } },
+      { label: "evidence mismatch", overrides: { evidenceLevel: 1 } },
+      { label: "quota mismatch", overrides: { quotaRemaining: 5 } },
+    ];
+
+    for (const testCase of cases) {
+      const subscriber = Keypair.generate();
+      await airdrop(connection, subscriber.publicKey, 1);
+      await expectSubscribeFailure({
+        persona,
+        subscriber,
+        maker: authorityKeypair.publicKey,
+        treasury: authorityKeypair.publicKey,
+        tierId,
+        pricingType,
+        evidenceLevel,
+        priceLamports,
+        quotaRemaining: quota,
+        ...testCase.overrides,
+      });
+    }
+  });
+
+  it("rejects wrong maker/treasury", async () => {
+    const coder = loadPersonaRegistryCoder();
+    const personaId = "persona-enforce-auth";
+    const tiersSeed = "tiers:persona-enforce-auth";
+    const persona = await ensurePersonaExists({
+      personaId,
+      tiersSeed,
+      authority: authorityKeypair,
+      coder,
+    });
+    const tierId = "basic";
+    const pricingType = 0;
+    const evidenceLevel = 0;
+    const priceLamports = 2_000_000;
+    const quota = 0;
+    await ensureTierExists({
+      persona,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      priceLamports,
+      quota,
+      authority: authorityKeypair,
+    });
+
+    const subscriber = Keypair.generate();
+    await airdrop(connection, subscriber.publicKey, 1);
+
+    await expectSubscribeFailure({
+      persona,
+      subscriber,
+      maker: Keypair.generate().publicKey,
+      treasury: authorityKeypair.publicKey,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      priceLamports,
+      quotaRemaining: quota,
+    });
+
+    const subscriber2 = Keypair.generate();
+    await airdrop(connection, subscriber2.publicKey, 1);
+    await expectSubscribeFailure({
+      persona,
+      subscriber: subscriber2,
+      maker: authorityKeypair.publicKey,
+      treasury: Keypair.generate().publicKey,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      priceLamports,
+      quotaRemaining: quota,
+    });
+  });
+
+  it("rejects inactive persona and inactive tier", async () => {
+    const coder = loadPersonaRegistryCoder();
+
+    const inactivePersonaId = "persona-inactive";
+    const inactivePersonaSeed = "tiers:persona-inactive";
+    const inactivePersona = await ensurePersonaExists({
+      personaId: inactivePersonaId,
+      tiersSeed: inactivePersonaSeed,
+      authority: authorityKeypair,
+      coder,
+    });
+    await ensureTierExists({
+      persona: inactivePersona,
+      tierId: "active",
+      pricingType: 0,
+      evidenceLevel: 0,
+      priceLamports: 500_000,
+      quota: 0,
+      authority: authorityKeypair,
+    });
+    await setPersonaStatus({
+      persona: inactivePersona,
+      tiersSeed: inactivePersonaSeed,
+      status: 0,
+      authority: authorityKeypair,
+      coder,
+    });
+
+    const inactivePersonaSubscriber = Keypair.generate();
+    await airdrop(connection, inactivePersonaSubscriber.publicKey, 1);
+    await expectSubscribeFailure({
+      persona: inactivePersona,
+      subscriber: inactivePersonaSubscriber,
+      maker: authorityKeypair.publicKey,
+      treasury: authorityKeypair.publicKey,
+      tierId: "active",
+      pricingType: 0,
+      evidenceLevel: 0,
+      priceLamports: 500_000,
+      quotaRemaining: 0,
+    });
+
+    const tierInactivePersonaId = "persona-tierinactive";
+    const tierInactiveSeed = "tiers:persona-tierinactive";
+    const tierInactivePersona = await ensurePersonaExists({
+      personaId: tierInactivePersonaId,
+      tiersSeed: tierInactiveSeed,
+      authority: authorityKeypair,
+      coder,
+    });
+    await ensureTierWithStatus({
+      persona: tierInactivePersona,
+      tierId: "sleep",
+      pricingType: 0,
+      evidenceLevel: 0,
+      priceLamports: 400_000,
+      quota: 0,
+      status: 0,
+      authority: authorityKeypair,
+    });
+
+    const inactiveTierSubscriber = Keypair.generate();
+    await airdrop(connection, inactiveTierSubscriber.publicKey, 1);
+    await expectSubscribeFailure({
+      persona: tierInactivePersona,
+      subscriber: inactiveTierSubscriber,
+      maker: authorityKeypair.publicKey,
+      treasury: authorityKeypair.publicKey,
+      tierId: "sleep",
+      pricingType: 0,
+      evidenceLevel: 0,
+      priceLamports: 400_000,
+      quotaRemaining: 0,
+    });
   });
 });
