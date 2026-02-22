@@ -3,59 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { deleteJson, fetchJson, postJson } from "../../lib/api";
-
-type SocialPost = {
-  id: string;
-  type: "intent" | "slash";
-  contentId: string;
-  profileId: string;
-  authorWallet: string;
-  content: string;
-  createdAt: number;
-  customProperties?: Record<string, string>;
-};
-
-type CommentEntry = {
-  id?: string;
-  comment?: string;
-  content?: string | { text?: string };
-  text?: string;
-  profileId?: string;
-  createdAt?: number;
-};
-
-const COMMENTS_PAGE_SIZE = 10;
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatFullTimestamp(ts: number): string {
-  const d = new Date(ts);
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  return `${time} · ${date}`;
-}
-
-function resolveCommentText(entry: CommentEntry): string {
-  return (
-    entry.comment ??
-    entry.text ??
-    (typeof entry.content === "string" ? entry.content : entry.content?.text) ??
-    "Comment"
-  );
-}
-
-function shortWallet(wallet: string): string {
-  return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
-}
+import type { SocialPost, CommentEntry } from "../../lib/types";
+import {
+  fetchPost,
+  addLike,
+  removeLike,
+  fetchLikeCount,
+  fetchComments,
+  addComment,
+} from "../../lib/api/social";
+import { POST_COMMENTS_PAGE_SIZE } from "../../lib/constants";
+import { explorerTx } from "../../lib/constants";
+import { timeAgo, formatFullTimestamp, resolveCommentText, shortWallet } from "../../lib/utils";
 
 const BackArrow = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -84,9 +43,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
     let mounted = true;
     async function load() {
       try {
-        const data = await fetchJson<{ post: SocialPost; likeCount: number }>(
-          `/social/posts/${encodeURIComponent(contentId)}`
-        );
+        const data = await fetchPost(contentId);
         if (!mounted) return;
         setPost(data.post);
         setLikeCount(data.likeCount ?? 0);
@@ -104,9 +61,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
   async function loadComments(page: number) {
     setCommentLoading(true);
     try {
-      const data = await fetchJson<{ comments: CommentEntry[]; total?: number }>(
-        `/social/comments?contentId=${encodeURIComponent(contentId)}&page=${page}&pageSize=${COMMENTS_PAGE_SIZE}`
-      );
+      const data = await fetchComments(contentId, page, POST_COMMENTS_PAGE_SIZE);
       setComments((prev) => page === 1 ? (data.comments ?? []) : [...prev, ...(data.comments ?? [])]);
       setCommentTotal(data.total ?? data.comments?.length ?? 0);
       setCommentPage(page);
@@ -123,12 +78,12 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
     setLikeCount((n) => Math.max(0, n + (prev ? -1 : 1)));
     try {
       if (prev) {
-        await deleteJson("/social/likes", { wallet, contentId });
+        await removeLike(wallet, contentId);
       } else {
-        await postJson("/social/likes", { wallet, contentId });
+        await addLike(wallet, contentId);
       }
-      const data = await fetchJson<{ count: number }>(`/social/likes?contentId=${encodeURIComponent(contentId)}`);
-      setLikeCount(data.count);
+      const count = await fetchLikeCount(contentId);
+      setLikeCount(count);
     } catch (err: any) {
       setLiked(prev);
       setLikeCount((n) => Math.max(0, n + (prev ? 1 : -1)));
@@ -146,7 +101,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
     setCommentDraft("");
     if (composerRef.current) composerRef.current.style.height = "auto";
     try {
-      await postJson("/social/comments", { wallet, contentId, comment: value });
+      await addComment(wallet, contentId, value);
       await loadComments(1);
     } catch (err: any) {
       setComments((prev) => prev.filter((e) => e !== optimistic));
@@ -241,7 +196,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
           <div className="xpost-meta" style={{ marginTop: 10 }}>
             {makerWallet && <span className="subtext">Maker: {makerWallet.slice(0, 10)}…</span>}
             {challengeTx && (
-              <a className="link subtext" href={`https://explorer.solana.com/tx/${challengeTx}`} target="_blank" rel="noopener noreferrer">
+              <a className="link subtext" href={explorerTx(challengeTx)} target="_blank" rel="noopener noreferrer">
                 Tx: {challengeTx.slice(0, 10)}…
               </a>
             )}

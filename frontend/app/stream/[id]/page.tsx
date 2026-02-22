@@ -3,35 +3,14 @@ import KeyManager from "./KeyManager";
 import PublishSignal from "./PublishSignal";
 import DecryptPanel from "./DecryptPanel";
 import FollowMaker from "./FollowMaker";
-import { fetchJson } from "../../lib/api";
+import { fetchStream } from "../../lib/api/streams";
 import { getFallbackStream, StreamDetail as FallbackStreamDetail } from "../../lib/fallback";
-
-type StreamDetail = {
-  id: string;
-  name: string;
-  domain: string;
-  accuracy: string;
-  latency: string;
-  price: string;
-  evidence: string;
-  description: string;
-  onchainAddress?: string;
-  authority?: string;
-  dao?: string;
-  tapestryProfileId?: string;
-  tiers: Array<{
-    tierId: string;
-    pricingType: string;
-    price: string;
-    quota?: string;
-    evidenceLevel: string;
-  }>;
-};
+import type { StreamDetail } from "../../lib/types";
 
 export default async function StreamPage({ params }: { params: { id: string } }) {
   let stream: StreamDetail | FallbackStreamDetail | null = null;
   try {
-    const data = await fetchJson<{ stream: StreamDetail }>(`/streams/${params.id}`);
+    const data = await fetchStream(params.id);
     stream = data.stream;
   } catch {
     stream = getFallbackStream(params.id);

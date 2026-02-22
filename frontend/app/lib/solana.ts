@@ -1,32 +1,30 @@
 "use client";
 
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction } from "@solana/web3.js";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { Buffer } from "buffer";
+import {
+  SUBSCRIPTION_PROGRAM_ID,
+  STREAM_REGISTRY_PROGRAM_ID,
+  PRICING_TYPE_MAP,
+  EVIDENCE_LEVEL_MAP,
+} from "./constants";
+import { toHex } from "./utils";
 
 const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
 const REGISTER_KEY_DISCRIMINATOR = new Uint8Array([56, 8, 67, 97, 128, 122, 80, 213]);
 const REGISTER_WALLET_KEY_DISCRIMINATOR = new Uint8Array([245, 147, 210, 179, 245, 73, 184, 9]);
 
-const PRICING_TYPE_MAP: Record<string, number> = {
-  subscription_unlimited: 1,
-};
-
-const EVIDENCE_LEVEL_MAP: Record<string, number> = {
-  trust: 0,
-  verifier: 1,
-};
-
 export function resolveProgramId(): PublicKey {
-  const programId = process.env.NEXT_PUBLIC_SUBSCRIPTION_PROGRAM_ID ?? "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE";
-  return new PublicKey(programId);
+  return new PublicKey(SUBSCRIPTION_PROGRAM_ID);
 }
 
 export function resolveStreamRegistryId(): PublicKey {
-  const programId =
-    process.env.NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID ??
-    "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi";
-  return new PublicKey(programId);
+  return new PublicKey(STREAM_REGISTRY_PROGRAM_ID);
 }
 
 export function resolveStreamPubkey(input?: string): PublicKey {
@@ -168,7 +166,12 @@ export function buildSubscribeInstruction(params: {
     const subscription = deriveSubscriptionPda(params.programId, params.stream, params.subscriber);
     const subscriptionMint = deriveSubscriptionMint(params.programId, params.stream, params.subscriber);
     const streamState = deriveStreamState(params.programId, params.stream);
-    const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, params.subscriber);
+    const subscriberAta = getAssociatedTokenAddressSync(
+      subscriptionMint,
+      params.subscriber,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
     const tierHash = await sha256Bytes(params.tierId);
     const tierConfig = deriveTierConfigPda(resolveStreamRegistryId(), params.stream, tierHash);
     return new TransactionInstruction({
@@ -184,7 +187,7 @@ export function buildSubscribeInstruction(params: {
         { pubkey: params.maker, isSigner: false, isWritable: true },
         { pubkey: params.treasury, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
       ],
@@ -242,12 +245,6 @@ export function buildRegisterWalletKeyInstruction(params: {
     ],
     data: Buffer.from(data),
   });
-}
-
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 export type DecodedSubscription = {

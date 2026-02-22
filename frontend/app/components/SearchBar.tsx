@@ -1,28 +1,25 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 export default function SearchBar() {
   const pathname = usePathname();
   const router = useRouter();
   const params = useSearchParams();
-
-  if (pathname === "/") return null;
+  // Hooks must come before any conditional returns.
   const [value, setValue] = useState(params.get("q") ?? "");
 
   useEffect(() => {
     setValue(params.get("q") ?? "");
   }, [params]);
 
+  if (pathname === "/") return null;
+
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const q = value.trim();
-    if (!q) {
-      router.push("/feed");
-      return;
-    }
-    router.push(`/feed?q=${encodeURIComponent(q)}`);
+    router.push(q ? `/feed?q=${encodeURIComponent(q)}` : "/feed");
   }
 
   return (

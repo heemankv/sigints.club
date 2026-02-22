@@ -1,4 +1,5 @@
 import { getCardArtUrl } from "../lib/cardArt";
+import { explorerAddress } from "../lib/constants";
 
 type OwnedSubscriptionCardProps = {
   streamName: string;
@@ -54,7 +55,7 @@ export default function OwnedSubscriptionCard({
         </div>
         {expiresLabel && <p className="subtext">Expires {expiresLabel}</p>}
         <div className="data-card__actions">
-          <a className="button ghost" href={`https://explorer.solana.com/address/${nftMint}?cluster=devnet`} target="_blank">
+          <a className="button ghost" href={explorerAddress(nftMint)} target="_blank">
             View NFT
           </a>
         </div>

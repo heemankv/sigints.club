@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { fetchJson, postJson } from "../lib/api";
 import { decodeSubscriptionAccount, resolveProgramId, sha256Bytes } from "../lib/solana";
+import { fetchStreams } from "../lib/api/streams";
+import { toHex } from "../lib/utils";
+import type { BotProfile, StreamDetail, StreamTier } from "../lib/types";
 import NetworkStatusCard from "../components/NetworkStatusCard";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import RegisterStreamForm from "../components/RegisterStreamForm";
@@ -13,15 +16,6 @@ type UserProfile = {
   wallet: string;
   displayName?: string;
   bio?: string;
-};
-
-type BotProfile = {
-  id: string;
-  name: string;
-  domain: string;
-  description?: string;
-  role: "maker" | "listener";
-  evidence: string;
 };
 
 type SubscriptionRecord = {
@@ -37,31 +31,10 @@ type SubscriptionRecord = {
   nftMint: string;
 };
 
-type TierOption = {
-  tierId: string;
-  pricingType: string;
-  price: string;
-  quota?: string;
-  evidenceLevel: string;
-};
-
-type StreamDetail = {
-  id: string;
-  name: string;
-  onchainAddress?: string;
-  tiers: TierOption[];
-};
-
 type TierLookupEntry = {
   stream: StreamDetail;
-  tier: TierOption;
+  tier: StreamTier;
 };
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 function pricingTypeLabel(value?: number): string | undefined {
   if (value === undefined) return undefined;
@@ -140,7 +113,7 @@ export default function ProfilePage() {
       }
 
       try {
-        const data = await fetchJson<{ streams: StreamDetail[] }>("/streams?includeTiers=true");
+        const data = await fetchStreams({ includeTiers: true });
         const streamMap: Record<string, StreamDetail> = {};
         data.streams.forEach((stream) => {
           if (stream.onchainAddress) {
@@ -153,7 +126,7 @@ export default function ProfilePage() {
           data.streams.flatMap((stream) =>
             stream.tiers.map(async (tier) => {
               const hash = await sha256Bytes(tier.tierId);
-              const hex = bytesToHex(hash);
+              const hex = toHex(hash);
               return [hex, { stream, tier }] as const;
             })
           )

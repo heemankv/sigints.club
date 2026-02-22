@@ -4,15 +4,13 @@ import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.j
 import { Buffer } from "buffer";
 import { sha256Bytes } from "./solana";
 import { buildTiersSeed, TierInput } from "./tiersHash";
+import { STREAM_REGISTRY_PROGRAM_ID } from "./constants";
 
 const CREATE_STREAM_DISCRIMINATOR = new Uint8Array([71, 188, 111, 127, 108, 40, 229, 158]);
 const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 
 export function resolveStreamRegistryProgramId(): PublicKey {
-  const programId =
-    process.env.NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID ??
-    "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi";
-  return new PublicKey(programId);
+  return new PublicKey(STREAM_REGISTRY_PROGRAM_ID);
 }
 
 export async function deriveStreamIdBytes(streamId: string): Promise<Uint8Array> {

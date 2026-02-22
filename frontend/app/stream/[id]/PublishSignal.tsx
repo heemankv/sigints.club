@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { postJson } from "../../lib/api";
+import { explorerTx } from "../../lib/constants";
 
 export default function PublishSignal({ streamId, tierId }: { streamId: string; tierId: string }) {
   const [message, setMessage] = useState("ETH best price at Venue X");
@@ -19,12 +20,9 @@ export default function PublishSignal({ streamId, tierId }: { streamId: string; 
         plaintextBase64: btoa(message),
         visibility,
       });
-      const base = `Published signal ${res.metadata.signalHash.slice(0, 10)}…`;
+      setStatus(`Published signal ${res.metadata.signalHash.slice(0, 10)}…`);
       if (res.metadata.onchainTx) {
         setTxSig(res.metadata.onchainTx);
-        setStatus(base);
-      } else {
-        setStatus(base);
       }
     } catch (err: any) {
       setStatus(err.message ?? "Failed");
@@ -51,7 +49,7 @@ export default function PublishSignal({ streamId, tierId }: { streamId: string; 
       {txSig && (
         <p className="subtext">
           On-chain tx{" "}
-          <a className="link" href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`} target="_blank">
+          <a className="link" href={explorerTx(txSig)} target="_blank">
             {txSig.slice(0, 10)}…
           </a>
         </p>

@@ -1,61 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { deleteJson, fetchJson, postJson } from "../lib/api";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletReadyState } from "@solana/wallet-adapter-base";
+import { useWalletConnect } from "../hooks/useWalletConnect";
+import WalletModal from "../components/WalletModal";
 import SubscribeForm from "../stream/[id]/SubscribeForm";
-
-type SocialPost = {
-  id: string;
-  type: "intent" | "slash";
-  contentId: string;
-  profileId: string;
-  authorWallet: string;
-  content: string;
-  createdAt: number;
-  customProperties?: Record<string, string>;
-};
-
-type BotProfile = {
-  id: string;
-  name: string;
-  domain: string;
-  description?: string;
-  role: string;
-  evidence: string;
-};
-
-type StreamDetail = {
-  id: string;
-  name: string;
-  domain: string;
-  evidence: string;
-  accuracy: string;
-  latency: string;
-  onchainAddress?: string;
-  authority?: string;
-  dao?: string;
-  tiers: Array<{
-    tierId: string;
-    pricingType: string;
-    price: string;
-    quota?: string;
-    evidenceLevel: string;
-  }>;
-};
-
-type CommentEntry = {
-  id?: string;
-  comment?: string;
-  content?: string | { text?: string };
-  text?: string;
-  profileId?: string;
-  createdAt?: number;
-};
+import type { SocialPost, CommentEntry, StreamDetail, BotProfile } from "../lib/types";
+import {
+  fetchFeed,
+  fetchFollowingFeed,
+  fetchTrendingFeed,
+  createIntent,
+  createSlashReport,
+  addLike,
+  removeLike,
+  fetchLikeCount,
+  fetchComments,
+  addComment,
+  followProfile,
+  searchBots,
+} from "../lib/api/social";
+import { FEED_COMMENTS_PAGE_SIZE } from "../lib/constants";
+import { timeAgo, resolveCommentText, shortWallet } from "../lib/utils";
+import { explorerTx } from "../lib/constants";
 
 type FeedClientProps = {
   searchQuery: string;
@@ -89,18 +57,6 @@ const NAV_ITEMS = [
   },
 ];
 
-const COMMENTS_PAGE_SIZE = 3;
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return new Date(ts).toLocaleDateString();
-}
-
 function AvatarCircle({ seed }: { seed: string }) {
   const char = seed?.[0]?.toUpperCase() ?? "?";
   return <div className="xpost-avatar-circle">{char}</div>;
@@ -108,26 +64,16 @@ function AvatarCircle({ seed }: { seed: string }) {
 
 export default function FeedClient({ searchQuery }: FeedClientProps) {
   const pathname = usePathname();
-  const { wallets, wallet: walletAdapter, select, connect, connecting, publicKey } = useWallet();
-  const wallet = publicKey?.toBase58() ?? process.env.NEXT_PUBLIC_TEST_WALLET;
+  const { publicKey } = useWalletConnect();
+  const wallet = publicKey?.toBase58() ?? null;
+
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletModalReason, setWalletModalReason] = useState(false);
-  const pendingConnect = useRef(false);
 
   function openWalletModal(withReason = false) {
     setWalletModalReason(withReason);
     setWalletModalOpen(true);
   }
-
-  const detectedWallets = wallets.filter(
-    (w) => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable
-  );
-
-  useEffect(() => {
-    if (!pendingConnect.current || !walletAdapter || publicKey || connecting) return;
-    pendingConnect.current = false;
-    connect().catch(() => {});
-  }, [walletAdapter, publicKey, connecting]);
 
   const [feed, setFeed] = useState<SocialPost[]>([]);
   const [trending, setTrending] = useState<SocialPost[]>([]);
@@ -179,7 +125,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     async function loadBots() {
       if (!searchLabel) { setBots([]); return; }
       try {
-        const data = await fetchJson<{ bots: BotProfile[] }>(`/bots?search=${encodeURIComponent(searchLabel)}`);
+        const data = await searchBots(searchLabel);
         if (mounted) setBots(data.bots);
       } catch {
         if (mounted) setBots([]);
@@ -191,15 +137,14 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
 
   async function loadSidebar() {
     try {
-      const trendingData = await fetchJson<{ posts: SocialPost[]; likeCounts: Record<string, number>; commentCounts?: Record<string, number> }>(
-        "/social/feed/trending?limit=6"
-      );
+      const trendingData = await fetchTrendingFeed(6);
       setTrending(trendingData.posts ?? []);
       setLikes((prev) => ({ ...prev, ...(trendingData.likeCounts ?? {}) }));
       setCommentTotals((prev) => ({ ...prev, ...(trendingData.commentCounts ?? {}) }));
     } catch { setTrending([]); }
     try {
-      const data = await fetchJson<{ streams: StreamDetail[] }>("/streams?includeTiers=true");
+      const { fetchStreams } = await import("../lib/api/streams");
+      const data = await fetchStreams({ includeTiers: true });
       setStreams(data.streams ?? []);
     } catch { setStreams([]); }
   }
@@ -208,27 +153,23 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     setLoading(true);
     setStatus(null);
     setOpenComments({});
-    const scope = activeTab === "following" ? "following" : "all";
-    const type = activeTab === "intents" ? "intent" : activeTab === "slashing" ? "slash" : "all";
+    const type =
+      activeTab === "intents" ? "intent" as const :
+      activeTab === "slashing" ? "slash" as const :
+      undefined;
     try {
-      if (scope === "following") {
+      if (activeTab === "following") {
         if (!wallet) {
           setFeed([]);
           setStatus("Connect your wallet to view your following feed.");
           return;
         }
-        const query = type === "all" ? "" : `&type=${type}`;
-        const data = await fetchJson<{ posts: SocialPost[]; likeCounts?: Record<string, number>; commentCounts?: Record<string, number> }>(
-          `/social/feed?scope=following&wallet=${encodeURIComponent(wallet)}${query}`
-        );
+        const data = await fetchFollowingFeed(wallet, type);
         setFeed(data.posts ?? []);
         setLikes((prev) => ({ ...prev, ...(data.likeCounts ?? {}) }));
         setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
       } else {
-        const query = type === "all" ? "" : `?type=${type}`;
-        const data = await fetchJson<{ posts: SocialPost[]; likeCounts?: Record<string, number>; commentCounts?: Record<string, number> }>(
-          `/social/feed${query}`
-        );
+        const data = await fetchFeed(type);
         setFeed(data.posts ?? []);
         setLikes((prev) => ({ ...prev, ...(data.likeCounts ?? {}) }));
         setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
@@ -245,7 +186,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     if (!wallet) { openWalletModal(false); return; }
     setStatus(null);
     try {
-      await postJson("/social/intents", {
+      await createIntent({
         wallet,
         content: intentText,
         topic: intentTopic || undefined,
@@ -260,7 +201,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     if (!wallet) { openWalletModal(false); return; }
     setStatus(null);
     try {
-      await postJson("/social/slash", {
+      await createSlashReport({
         wallet,
         content: slashText,
         streamId: slashStream || undefined,
@@ -280,12 +221,12 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     setLikes((prev) => ({ ...prev, [contentId]: Math.max(0, (prev[contentId] ?? 0) + (alreadyLiked ? -1 : 1)) }));
     try {
       if (alreadyLiked) {
-        await deleteJson("/social/likes", { wallet, contentId });
+        await removeLike(wallet, contentId);
       } else {
-        await postJson("/social/likes", { wallet, contentId });
+        await addLike(wallet, contentId);
       }
-      const data = await fetchJson<{ count: number }>(`/social/likes?contentId=${encodeURIComponent(contentId)}`);
-      setLikes((prev) => ({ ...prev, [contentId]: data.count }));
+      const count = await fetchLikeCount(contentId);
+      setLikes((prev) => ({ ...prev, [contentId]: count }));
     } catch (err: any) {
       setLiked((prev) => ({ ...prev, [contentId]: alreadyLiked }));
       setLikes((prev) => ({ ...prev, [contentId]: Math.max(0, (prev[contentId] ?? 0) + (alreadyLiked ? 1 : -1)) }));
@@ -296,7 +237,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   async function followAuthor(profileId: string) {
     if (!wallet) { openWalletModal(true); return; }
     try {
-      await postJson("/social/follow", { wallet, targetProfileId: profileId });
+      await followProfile(wallet, profileId);
       setStatus("Following profile.");
     } catch (err: any) { setStatus(err.message ?? "Follow failed"); }
   }
@@ -304,9 +245,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   async function loadComments(contentId: string, page = 1) {
     try {
       setCommentLoading((prev) => ({ ...prev, [contentId]: true }));
-      const data = await fetchJson<{ comments: CommentEntry[]; total?: number; page?: number }>(
-        `/social/comments?contentId=${encodeURIComponent(contentId)}&page=${page}&pageSize=${COMMENTS_PAGE_SIZE}`
-      );
+      const data = await fetchComments(contentId, page, FEED_COMMENTS_PAGE_SIZE);
       setComments((prev) => ({ ...prev, [contentId]: data.comments ?? [] }));
       setCommentTotals((prev) => ({ ...prev, [contentId]: data.total ?? data.comments?.length ?? 0 }));
       setCommentPages((prev) => ({ ...prev, [contentId]: data.page ?? page }));
@@ -320,9 +259,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     try {
       setCommentLoading((prev) => ({ ...prev, [contentId]: true }));
       const nextPage = (commentPages[contentId] ?? 1) + 1;
-      const data = await fetchJson<{ comments: CommentEntry[]; total?: number; page?: number }>(
-        `/social/comments?contentId=${encodeURIComponent(contentId)}&page=${nextPage}&pageSize=${COMMENTS_PAGE_SIZE}`
-      );
+      const data = await fetchComments(contentId, nextPage, FEED_COMMENTS_PAGE_SIZE);
       setComments((prev) => ({ ...prev, [contentId]: [...(prev[contentId] ?? []), ...(data.comments ?? [])] }));
       setCommentTotals((prev) => ({ ...prev, [contentId]: data.total ?? prev[contentId] ?? 0 }));
       setCommentPages((prev) => ({ ...prev, [contentId]: data.page ?? nextPage }));
@@ -340,7 +277,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     setComments((prev) => ({ ...prev, [contentId]: [...(prev[contentId] ?? []), optimistic] }));
     setCommentTotals((prev) => ({ ...prev, [contentId]: (prev[contentId] ?? 0) + 1 }));
     try {
-      await postJson("/social/comments", { wallet, contentId, comment: value });
+      await addComment(wallet, contentId, value);
       setCommentDraft((prev) => ({ ...prev, [contentId]: "" }));
       setCommentPages((prev) => ({ ...prev, [contentId]: 1 }));
       await loadComments(contentId, 1);
@@ -533,7 +470,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                 <div className="xpost-body">
                   <div className="xpost-header">
                     <span className="xpost-name">
-                      {post.authorWallet.slice(0, 6)}…{post.authorWallet.slice(-4)}
+                      {shortWallet(post.authorWallet)}
                     </span>
                     <Link href={`/post/${post.contentId}`} className="xpost-time" title="View post">
                       · {timeAgo(post.createdAt)}
@@ -565,7 +502,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                       {challengeTx && (
                         <a
                           className="link subtext"
-                          href={`https://explorer.solana.com/tx/${challengeTx}?cluster=devnet`}
+                          href={explorerTx(challengeTx)}
                           target="_blank"
                         >
                           Tx: {challengeTx.slice(0, 10)}…
@@ -635,7 +572,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                       )}
                       {(comments[post.contentId] ?? []).map((entry, idx) => (
                         <div key={`${post.contentId}-${idx}`} className="x-comment-item">
-                          {entry.comment ?? entry.text ?? (typeof entry.content === "string" ? entry.content : entry.content?.text) ?? "Comment"}
+                          {resolveCommentText(entry) || "Comment"}
                         </div>
                       ))}
                       {loadedComments === 0 && !commentLoading[post.contentId] && (
@@ -723,47 +660,12 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
         )}
       </aside>
 
-      {/* Wallet connect modal */}
-      {walletModalOpen && createPortal(
-        <div className="modal-overlay" onClick={() => setWalletModalOpen(false)}>
-          <div className="modal-card wallet-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="wallet-modal-close" onClick={() => setWalletModalOpen(false)} aria-label="Close">✕</button>
-            <span className="kicker">Solana</span>
-            <h2>Connect a wallet</h2>
-            <p className="subtext">
-              {walletModalReason
-                ? "To perform any activity, please connect your wallet."
-                : "Choose an installed wallet to continue."}
-            </p>
-            <div className="wallet-list">
-              {detectedWallets.length === 0 ? (
-                <p className="subtext wallet-none">
-                  No wallets detected. Install{" "}
-                  <a href="https://backpack.app" target="_blank" rel="noopener noreferrer">Backpack</a>,{" "}
-                  <a href="https://phantom.app" target="_blank" rel="noopener noreferrer">Phantom</a>, or{" "}
-                  <a href="https://solflare.com" target="_blank" rel="noopener noreferrer">Solflare</a>.
-                </p>
-              ) : (
-                detectedWallets.map((w) => (
-                  <button
-                    key={w.adapter.name}
-                    className="wallet-option"
-                    onClick={() => {
-                      pendingConnect.current = true;
-                      select(w.adapter.name);
-                      setWalletModalOpen(false);
-                    }}
-                  >
-                    <img src={w.adapter.icon} alt="" width={36} height={36} />
-                    <span>{w.adapter.name}</span>
-                    <span className="wallet-option-badge">Detected</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* Wallet modal */}
+      {walletModalOpen && (
+        <WalletModal
+          onClose={() => setWalletModalOpen(false)}
+          reason={walletModalReason ? "To perform any activity, please connect your wallet." : undefined}
+        />
       )}
 
       {/* Subscribe modal */}

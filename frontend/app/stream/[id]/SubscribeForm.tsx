@@ -13,6 +13,8 @@ import {
   resolveProgramId,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
+import { explorerTx } from "../../lib/constants";
+import { parseQuota } from "../../lib/utils";
 
 export default function SubscribeForm({
   streamId,
@@ -61,13 +63,6 @@ export default function SubscribeForm({
     } finally {
       setLoading(false);
     }
-  }
-
-  function parseQuota(input?: string): number | undefined {
-    if (!input) return undefined;
-    const match = input.match(/\\d+/);
-    if (!match) return undefined;
-    return Number(match[0]);
   }
 
   async function submitOnchain() {
@@ -143,7 +138,7 @@ export default function SubscribeForm({
       {chainTx && (
         <p className="subtext">
           Explorer{" "}
-          <a className="link" href={`https://explorer.solana.com/tx/${chainTx}?cluster=devnet`} target="_blank">
+          <a className="link" href={explorerTx(chainTx)} target="_blank">
             {chainTx.slice(0, 10)}…
           </a>
         </p>

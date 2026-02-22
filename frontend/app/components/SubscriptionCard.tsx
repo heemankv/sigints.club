@@ -13,6 +13,8 @@ import {
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getCardArtUrl } from "../lib/cardArt";
 import { parseSolLamports } from "../lib/pricing";
+import { explorerTx } from "../lib/constants";
+import { parseQuota } from "../lib/utils";
 
 type SubscriptionCardProps = {
   streamId: string;
@@ -33,13 +35,6 @@ type SubscriptionCardProps = {
 
 function formatTierLabel(tierId: string): string {
   return tierId.replace(/^tier-/, "").replace(/-/g, " ").toUpperCase();
-}
-
-function parseQuota(input?: string): number | undefined {
-  if (!input) return undefined;
-  const match = input.match(/\d+/);
-  if (!match) return undefined;
-  return Number(match[0]);
 }
 
 export default function SubscriptionCard({
@@ -148,7 +143,7 @@ export default function SubscriptionCard({
         {tx && (
           <p className="subtext">
             Explorer{" "}
-            <a className="link" href={`https://explorer.solana.com/tx/${tx}?cluster=devnet`} target="_blank">
+            <a className="link" href={explorerTx(tx)} target="_blank">
               {tx.slice(0, 10)}…
             </a>
           </p>

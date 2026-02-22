@@ -5,40 +5,34 @@ import { usePathname } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { describeEndpoint, getWalletRpcEndpoint, isSameNetwork } from "../lib/network";
 
-type NetworkCheck = {
-  required: ReturnType<typeof describeEndpoint>;
-  current: ReturnType<typeof describeEndpoint>;
-  mismatch: boolean;
-  needsAttention: boolean;
-  currentLabel: string;
-  requiredLabel: string;
-  detail: string;
-};
-
 export default function NetworkOnboarding() {
   const pathname = usePathname();
   const { connection } = useConnection();
   const { connected } = useWallet();
 
-  if (pathname === "/") return null;
+  // All hooks must be declared before any conditional returns.
   const [status, setStatus] = useState<string | null>(null);
   const [forceCheck, setForceCheck] = useState(0);
+  const [open, setOpen] = useState(false);
 
-  const check = useMemo<NetworkCheck>(() => {
+  const check = useMemo(() => {
     const requiredEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? connection.rpcEndpoint;
     const walletEndpoint = getWalletRpcEndpoint();
     const required = describeEndpoint(requiredEndpoint);
     const current = describeEndpoint(walletEndpoint ?? connection.rpcEndpoint);
-    const mismatch = walletEndpoint ? !isSameNetwork(required, describeEndpoint(walletEndpoint)) : false;
-    const needsAttention = mismatch;
-    const currentLabel = walletEndpoint ? current.label : "Unknown (wallet hides RPC)";
-    const requiredLabel = required.label;
-    const detail = walletEndpoint ? walletEndpoint : "Wallet RPC not exposed by adapter";
-    return { required, current, mismatch, needsAttention, currentLabel, requiredLabel, detail };
+    const mismatch = walletEndpoint
+      ? !isSameNetwork(required, describeEndpoint(walletEndpoint))
+      : false;
+    return {
+      required,
+      current,
+      mismatch,
+      needsAttention: mismatch,
+      currentLabel: walletEndpoint ? current.label : "Unknown (wallet hides RPC)",
+      requiredLabel: required.label,
+      detail: walletEndpoint ?? "Wallet RPC not exposed by adapter",
+    };
   }, [connection.rpcEndpoint, forceCheck]);
-
-  const [open, setOpen] = useState(false);
-  const blocking = connected && check.needsAttention;
 
   useEffect(() => {
     if (!connected) {
@@ -46,8 +40,10 @@ export default function NetworkOnboarding() {
       setStatus(null);
       return;
     }
-    setOpen(blocking);
-  }, [connected, blocking]);
+    setOpen(connected && check.needsAttention);
+  }, [connected, check.needsAttention]);
+
+  if (pathname === "/") return null;
 
   function confirm() {
     setForceCheck((prev) => prev + 1);
@@ -95,7 +91,7 @@ export default function NetworkOnboarding() {
                     <span className="subtext">Phantom</span>
                     <ol>
                       <li>Open Phantom → Settings → Developer Settings.</li>
-                      <li>Enable “Custom RPC” and set it to <code>http://127.0.0.1:8899</code>.</li>
+                      <li>Enable "Custom RPC" and set it to <code>http://127.0.0.1:8899</code>.</li>
                       <li>Confirm and reload this page.</li>
                     </ol>
                   </div>
