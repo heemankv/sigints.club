@@ -121,21 +121,19 @@ export default function HeroTree() {
         <rect x="0" y="730" width="1440" height="170" fill="url(#ground-grad)" />
 
         {/* Root network */}
-        <g>
-          {ROOTS.map((r) => (
-            <path
-              key={r.id}
-              id={r.id}
-              d={r.d}
-              stroke="#D98F00"
-              strokeWidth={r.w}
-              fill="none"
-              strokeDasharray={r.da}
-              className="root-line"
-              opacity={r.o}
-            />
-          ))}
-        </g>
+        {ROOTS.map((r) => (
+          <path
+            key={r.id}
+            id={r.id}
+            d={r.d}
+            stroke="#D98F00"
+            strokeWidth={r.w}
+            fill="none"
+            strokeDasharray={r.da}
+            className="root-line"
+            opacity={r.o}
+          />
+        ))}
 
         {/* Background trees */}
         {BG_TREES.map((t, i) => <Tree key={`bg-${i}`} {...t} />)}

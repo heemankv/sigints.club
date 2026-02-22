@@ -127,7 +127,7 @@ export default function SignalFlowDiagram() {
           </div>
           <div className="flow-pill">
             <span className="flow-pill-dot purple" />
-            <span>One PDA per persona. Every tick overwrites it — no history bloat, subscribers always get the latest</span>
+            <span>One PDA per provider. Every tick overwrites it — no history bloat, subscribers always get the latest</span>
           </div>
           <div className="flow-pill">
             <span className="flow-pill-dot teal" />

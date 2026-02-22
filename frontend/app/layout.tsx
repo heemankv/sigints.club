@@ -16,8 +16,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <div className="ambient" />
-        <div className="scanlines" />
         <Providers>
           <header className="nav">
             <div className="container nav-inner">

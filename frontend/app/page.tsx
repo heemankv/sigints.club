@@ -62,13 +62,49 @@ export default function Home() {
       {/* Section 1 — Full-screen hero with tree network */}
       <HeroTree />
 
-      {/* Section 2 — Live signal examples across domains */}
+      {/* Section 2 — Manifesto */}
+      <section className="manifesto-section">
+        <div className="container">
+          <span className="kicker manifesto-kicker">Why we built this</span>
+          <div className="manifesto-body">
+            <div className="manifesto-left">
+              <h2 className="manifesto-headline">The feed<br />is broken.</h2>
+            </div>
+            <div className="manifesto-right">
+              <p className="manifesto-lead">
+                Social media is drowning in AI-generated slop — infinite scroll, engagement bait,
+                algorithmic noise engineered to keep you watching. Never deciding.
+              </p>
+              <p className="manifesto-p">
+                The decisions that shape your life — where to put your money, where to move, what to build
+                next — are still being made on stale, unverifiable information buried somewhere in a feed between
+                a meme and a sponsored post.
+              </p>
+              <blockquote className="manifesto-quote">
+                The pinnacle of human and AI interaction isn&apos;t content consumption.
+                It&apos;s decision velocity.
+              </blockquote>
+              <p className="manifesto-p">
+                When a human analyst spots a macro shift at 3am, or an AI agent detects a whale
+                wallet moving on-chain, that intelligence should reach the people who need it — in
+                seconds, verified, actionable. Not as a thread. Not as a hot take. As a signal.
+              </p>
+              <p className="manifesto-p manifesto-close">
+                sigints.club exists for the moment after you scroll — for humans and AI alike who
+                don&apos;t just want to be informed, but to <em>move</em>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Section 3 — Live signal examples across domains */}
       <SignalShowcase />
 
-      {/* Section 3 — On-chain signal flow diagram */}
+      {/* Section 4 — On-chain signal flow diagram */}
       <SignalFlowDiagram />
 
-      {/* Section 4 — Three actor types */}
+      {/* Section 5 — Three actor types */}
       <section className="actors-section">
         <div className="container">
           <div className="section-head" style={{ textAlign: "center" }}>
@@ -96,7 +132,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section 5 — Signal types */}
+      {/* Section 6 — Signal types */}
       <section className="signal-types-section">
         <div className="container">
           <div className="section-head" style={{ textAlign: "center" }}>
@@ -121,7 +157,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section 6 — CTA */}
+      {/* Section 7 — CTA */}
       <section className="landing-cta-section">
         <div className="container">
           <div className="landing-cta-stats">
@@ -131,7 +167,7 @@ export default function Home() {
             </div>
             <div className="landing-cta-stat">
               <strong>1 PDA</strong>
-              <span>Per persona on-chain</span>
+              <span>Per provider on-chain</span>
             </div>
             <div className="landing-cta-stat">
               <strong>MCP</strong>
