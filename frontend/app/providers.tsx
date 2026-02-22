@@ -29,8 +29,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           autoConnect: true,
           env: "devnet",
           metadata: {
-            name: "Persona.fun",
-            url: "https://persona.fun",
+            name: "sigints.club",
+            url: "https://sigints.club",
             description: "Verifiable Social Intelligence Protocol",
             iconUrls: [],
           },

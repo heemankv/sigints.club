@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { backendUrl } from "../lib/api";
 
 export default function WalletConnect() {
+  const pathname = usePathname();
+  if (pathname === "/") return null;
   const { wallets, wallet, select, connect, disconnect, connected, connecting, publicKey } =
     useWallet();
   const [open, setOpen] = useState(false);

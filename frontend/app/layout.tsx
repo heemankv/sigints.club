@@ -5,10 +5,11 @@ import Providers from "./providers";
 import WalletConnect from "./components/WalletConnect";
 import SearchBar from "./components/SearchBar";
 import NetworkOnboarding from "./components/NetworkOnboarding";
+import Footer from "./components/Footer";
 
 export const metadata = {
-  title: "Persona.fun",
-  description: "Verifiable Social Intelligence Protocol",
+  title: "sigints.club",
+  description: "Signals Intelligence Network",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,8 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="nav">
             <div className="container nav-inner">
               <div className="brand">
-                <span className="logo">Persona.fun</span>
-                <span className="tag">Social intelligence network</span>
+                <span className="logo">sigints.club</span>
+                <span className="tag">Signals intelligence network</span>
               </div>
               <nav className="nav-links">
                 <a href="/feed">Feed</a>
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NetworkBanner />
             {children}
           </main>
+          <Footer />
         </Providers>
       </body>
     </html>

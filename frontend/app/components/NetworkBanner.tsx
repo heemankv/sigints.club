@@ -1,12 +1,16 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
 
 export default function NetworkBanner() {
+  const pathname = usePathname();
   const { connection } = useConnection();
   const { connected } = useWallet();
+
+  if (pathname === "/") return null;
   const [genesis, setGenesis] = useState<string | null>(null);
   const endpoint = connection.rpcEndpoint;
   const isLocal = endpoint.includes("127.0.0.1") || endpoint.includes("localhost");

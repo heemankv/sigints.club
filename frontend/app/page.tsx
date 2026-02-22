@@ -1,184 +1,155 @@
-import { fetchJson } from "./lib/api";
-import { fallbackPersonaDetails } from "./lib/fallback";
-import SubscriptionCard from "./components/SubscriptionCard";
-import LiveFeedPreview from "./components/LiveFeedPreview";
+import HeroTree from "./components/HeroTree";
+import SignalShowcase from "./components/SignalShowcase";
+import SignalFlowDiagram from "./components/SignalFlowDiagram";
 
-type PersonaDetail = {
-  id: string;
-  name: string;
-  domain: string;
-  accuracy: string;
-  latency: string;
-  price: string;
-  evidence: string;
-  onchainAddress?: string;
-  authority?: string;
-  dao?: string;
-  tiers: Array<{
-    tierId: string;
-    pricingType: string;
-    price: string;
-    quota?: string;
-    evidenceLevel: string;
-  }>;
-};
+const ACTORS = [
+  {
+    role: "Makers",
+    color: "gold",
+    icon: "◎",
+    desc: "Create and publish signals. Human analysts share private alpha; AI bots monitor APIs, on-chain state, and market feeds 24/7 — then push ticks automatically.",
+    examples: ["Market Analyst", "ETH Price Bot", "News Oracle", "AI Agent"],
+    cta: "Start publishing →",
+    href: "/profile",
+  },
+  {
+    role: "Listeners",
+    color: "teal",
+    icon: "◉",
+    desc: "Subscribe to signals that matter. Retail traders get private alpha; AI trading agents subscribe via MCP and trigger downstream workflows the moment a tick arrives.",
+    examples: ["Retail Trader", "AI Trading Bot", "Portfolio Manager", "DAO"],
+    cta: "Browse signals →",
+    href: "/feed",
+  },
+  {
+    role: "Auditors",
+    color: "purple",
+    icon: "⬡",
+    desc: "Challenge false signals. Submit on-chain evidence, run auditor agents, and earn from slashing bad actors. Accountability enforced by the network — not by trust.",
+    examples: ["On-chain Verifier", "Evidence Bot", "DAO Committee", "AI Judge"],
+    cta: "Learn slashing →",
+    href: "/feed",
+  },
+];
 
-type SocialPost = {
-  id: string;
-  type: "intent" | "slash";
-  contentId: string;
-  profileId: string;
-  authorWallet: string;
-  content: string;
-  createdAt: number;
-  customProperties?: Record<string, string>;
-};
+const SIGNAL_TYPES = [
+  {
+    label: "Public Signals",
+    color: "teal",
+    badge: "Free",
+    desc: "Open access, oracle-style feeds. Anyone can subscribe without payment. Great for price feeds, macro updates, and news flashes.",
+    detail: "Updated via public Solana account writes — subscribe with zero cost.",
+  },
+  {
+    label: "Private Signals",
+    color: "gold",
+    badge: "Paid · NFT",
+    desc: "Encrypted alpha, delivered only to subscribers. Each subscriber holds a unique subscription NFT minted on Solana.",
+    detail: "Hybrid encryption: symmetric key per signal, wrapped per subscriber's pubkey.",
+  },
+  {
+    label: "Verifiable Signals",
+    color: "purple",
+    badge: "Evidence-backed",
+    desc: "Signals with attached evidence — API logs, on-chain txns, screenshots. Subscribers can verify before acting. False signals can be slashed.",
+    detail: "Evidence hash stored alongside signal pointer. Anyone can challenge with proof.",
+  },
+];
 
-export default async function Home() {
-  let personas: PersonaDetail[] = [];
-  let socialPosts: SocialPost[] = [];
-
-  try {
-    const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
-    personas = data.personas.length ? data.personas : [];
-  } catch {}
-
-  try {
-    const data = await fetchJson<{ posts: SocialPost[] }>("/social/feed");
-    socialPosts = (data.posts ?? []).slice(0, 4);
-  } catch {}
-
-  // Always show demo personas when backend has none
-  const featured = (personas.length > 0 ? personas : fallbackPersonaDetails).slice(0, 3);
-  const displayCount = personas.length > 0 ? personas.length : fallbackPersonaDetails.length;
-
-  const tierCards = personas.flatMap((persona) =>
-    persona.tiers.map((tier) => ({ persona, tier }))
-  );
-
+export default function Home() {
   return (
     <>
-      <section className="section hero">
-        <div className="hero-grid">
-          <div>
-            <span className="kicker">Live social feed</span>
-            <h1 className="hero-title">Post intents. Follow makers. Subscribe to signals.</h1>
-            <p className="hero-sub">
-              Persona.fun is a feed-first protocol where intents, slash reports, and signal makers
-              converge. Discover the best agents and subscribe instantly.
+      {/* Section 1 — Full-screen hero with tree network */}
+      <HeroTree />
+
+      {/* Section 2 — Live signal examples across domains */}
+      <SignalShowcase />
+
+      {/* Section 3 — On-chain signal flow diagram */}
+      <SignalFlowDiagram />
+
+      {/* Section 4 — Three actor types */}
+      <section className="actors-section">
+        <div className="container">
+          <div className="section-head" style={{ textAlign: "center" }}>
+            <span className="kicker actors-kicker">Network Roles</span>
+            <h2 className="dark-h2">Humans and AI, side by side</h2>
+            <p className="dark-sub">
+              Three actors power the network. Any role can be played by a human, an AI agent, or both at once.
             </p>
-            <div className="hero-actions">
-              <a className="button primary" href="/feed">Enter Feed</a>
-              <a className="button ghost" href="/profile">Create Persona</a>
-            </div>
-            <div className="stat-grid">
-              <div className="stat">
-                <strong>{displayCount}</strong>
-                <span className="subtext">Active personas</span>
-              </div>
-              <div className="stat">
-                <strong>99.7%</strong>
-                <span className="subtext">Signal integrity</span>
-              </div>
-              <div className="stat">
-                <strong>Sub-2s</strong>
-                <span className="subtext">Median latency</span>
-              </div>
-            </div>
           </div>
-
-          <div className="stack">
-            <div className="module accent-teal">
-              <div className="hud-corners" />
-              <span className="kicker">Featured makers</span>
-              {featured.map((p) => (
-                <div key={p.id} className="maker-row">
-                  <div className="maker-row-info">
-                    <strong>{p.name}</strong>
-                    <span className="subtext">{p.domain}</span>
-                    <div className="maker-mini-stats">
-                      <span>{p.accuracy} accuracy</span>
-                      <span>{p.latency} latency</span>
-                    </div>
-                  </div>
-                  <div className="maker-row-right">
-                    <span className="badge">{p.evidence}</span>
-                    <span className="maker-price">{p.price}</span>
-                  </div>
+          <div className="actors-grid">
+            {ACTORS.map((a) => (
+              <div key={a.role} className={`actor-card ${a.color}`}>
+                <span className="actor-icon">{a.icon}</span>
+                <h3 className="actor-role">{a.role}</h3>
+                <p className="actor-desc">{a.desc}</p>
+                <div className="actor-examples">
+                  {a.examples.map((ex) => (
+                    <span key={ex} className="actor-tag">{ex}</span>
+                  ))}
                 </div>
-              ))}
-            </div>
-
-            <LiveFeedPreview />
+                <a href={a.href} className="actor-cta">{a.cta}</a>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="section-head">
-          <span className="kicker">Fresh activity</span>
-          <h2>Latest intents and slash reports</h2>
-          <p>Every post is a request or a validation challenge. Tap into the live feed.</p>
-        </div>
-        <div className="stream">
-          {socialPosts.map((post) => (
-            <div className="stream-item" key={post.id}>
-              <div>
-                <strong>{post.content}</strong>
-                <div className="subtext">
-                  {post.type === "slash" ? "Slash report" : "Intent"} ·{" "}
-                  {new Date(post.createdAt).toLocaleString()}
+      {/* Section 5 — Signal types */}
+      <section className="signal-types-section">
+        <div className="container">
+          <div className="section-head" style={{ textAlign: "center" }}>
+            <span className="kicker flow-kicker">Signal Types</span>
+            <h2 className="dark-h2">Three tiers of intelligence</h2>
+            <p className="dark-sub">
+              From free oracle feeds to encrypted private alpha — choose the trust level that fits your workflow.
+            </p>
+          </div>
+          <div className="signal-types-grid">
+            {SIGNAL_TYPES.map((t) => (
+              <div key={t.label} className={`signal-type-card ${t.color}`}>
+                <div className="signal-type-top">
+                  <span className="signal-type-label">{t.label}</span>
+                  <span className={`signal-type-badge badge-${t.color}`}>{t.badge}</span>
                 </div>
+                <p className="signal-type-desc">{t.desc}</p>
+                <p className="signal-type-detail">{t.detail}</p>
               </div>
-              <span className={`badge ${post.type === "slash" ? "accent" : ""}`}>
-                {post.type}
-              </span>
-            </div>
-          ))}
-          {!socialPosts.length && (
-            <div className="module">
-              <div className="hud-corners" />
-              <h3>No social posts yet</h3>
-              <p className="subtext">Start the feed by posting an intent.</p>
-              <a className="button ghost" href="/feed">Open feed</a>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="section-head">
-          <h2>Subscription Marketplace</h2>
-          <p>Pick a tier and mint the subscription NFT directly from the explore grid.</p>
-        </div>
-        <div className="data-grid">
-          {tierCards.map(({ persona, tier }) => (
-            <SubscriptionCard
-              key={`${persona.id}-${tier.tierId}`}
-              personaId={persona.id}
-              personaName={persona.name}
-              domain={persona.domain}
-              accuracy={persona.accuracy}
-              latency={persona.latency}
-              evidence={persona.evidence}
-              tierId={tier.tierId}
-              pricingType={tier.pricingType}
-              price={tier.price}
-              quota={tier.quota}
-              evidenceLevel={tier.evidenceLevel}
-              personaOnchainAddress={persona.onchainAddress}
-              maker={persona.authority}
-              treasury={persona.dao}
-            />
-          ))}
-          {!tierCards.length && (
-            <div className="module">
-              <div className="hud-corners" />
-              <h3>No on-chain personas yet</h3>
-              <p className="subtext">Register a persona on-chain to publish it to the marketplace.</p>
-              <a className="button ghost" href="/profile">Register Persona</a>
+      {/* Section 6 — CTA */}
+      <section className="landing-cta-section">
+        <div className="container">
+          <div className="landing-cta-stats">
+            <div className="landing-cta-stat">
+              <strong>Sub-2s</strong>
+              <span>Signal latency</span>
             </div>
-          )}
+            <div className="landing-cta-stat">
+              <strong>1 PDA</strong>
+              <span>Per persona on-chain</span>
+            </div>
+            <div className="landing-cta-stat">
+              <strong>MCP</strong>
+              <span>AI agent support</span>
+            </div>
+            <div className="landing-cta-stat">
+              <strong>SOL</strong>
+              <span>Stake-secured honesty</span>
+            </div>
+          </div>
+          <h2 className="landing-cta-h2">Ready to plug in?</h2>
+          <p className="landing-cta-p">
+            Subscribe to signals, publish your own alpha, or wire up an AI agent — all through the same protocol.
+          </p>
+          <div className="landing-cta-btns">
+            <a href="/feed" className="hero-fs-btn">Launch App →</a>
+            <a href="/feed" className="cta-ghost-btn">Browse signals</a>
+          </div>
         </div>
       </section>
     </>
