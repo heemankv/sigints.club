@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { ConnectionProvider, WalletProvider, useWallet } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
-import { WalletAdapterNetwork, type WalletName } from "@solana/wallet-adapter-base";
+import { ConnectionProvider, useWallet } from "@solana/wallet-adapter-react";
+import { UnifiedWalletProvider } from "@jup-ag/wallet-adapter";
+import { type WalletName } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import { TestWalletAdapter } from "./lib/TestWalletAdapter";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const network = WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(
-    () => process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl(network),
+    () => process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl("devnet"),
     []
   );
   const testWallet = process.env.NEXT_PUBLIC_TEST_WALLET;
@@ -19,17 +17,29 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     if (testWallet) {
       return [new TestWalletAdapter(testWallet)];
     }
-    return [new PhantomWalletAdapter(), new SolflareWalletAdapter({ network })];
-  }, [network, testWallet]);
+    // Wallet Standard wallets (Backpack, Phantom, Solflare, etc.) are auto-detected
+    return [];
+  }, [testWallet]);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          {testWallet && <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />}
-          {children}
-        </WalletModalProvider>
-      </WalletProvider>
+      <UnifiedWalletProvider
+        wallets={wallets}
+        config={{
+          autoConnect: true,
+          env: "devnet",
+          metadata: {
+            name: "Persona.fun",
+            url: "https://persona.fun",
+            description: "Verifiable Social Intelligence Protocol",
+            iconUrls: [],
+          },
+          theme: "light",
+        }}
+      >
+        {testWallet && <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />}
+        {children}
+      </UnifiedWalletProvider>
     </ConnectionProvider>
   );
 }

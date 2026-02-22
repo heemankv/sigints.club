@@ -1,6 +1,7 @@
 import { fetchJson } from "./lib/api";
 import { fallbackPersonaDetails } from "./lib/fallback";
 import SubscriptionCard from "./components/SubscriptionCard";
+import LiveFeedPreview from "./components/LiveFeedPreview";
 
 type PersonaDetail = {
   id: string;
@@ -34,37 +35,25 @@ type SocialPost = {
 };
 
 export default async function Home() {
-  const allowFallback = process.env.NEXT_PUBLIC_ALLOW_FALLBACK === "true";
-  let personas: PersonaDetail[] = allowFallback ? fallbackPersonaDetails : [];
-  let trending: Array<{ id: string; content: string; authorWallet: string; contentId: string }> = [];
-  let likeCounts: Record<string, number> = {};
+  let personas: PersonaDetail[] = [];
   let socialPosts: SocialPost[] = [];
+
   try {
     const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
-    personas = data.personas.length ? data.personas : allowFallback ? fallbackPersonaDetails : [];
-  } catch {
-  }
-  try {
-    const data = await fetchJson<{ posts: Array<{ id: string; content: string; authorWallet: string; contentId: string }>; likeCounts: Record<string, number> }>(
-      "/social/feed/trending?limit=3"
-    );
-    trending = data.posts ?? [];
-    likeCounts = data.likeCounts ?? {};
-  } catch {
-  }
+    personas = data.personas.length ? data.personas : [];
+  } catch {}
+
   try {
     const data = await fetchJson<{ posts: SocialPost[] }>("/social/feed");
     socialPosts = (data.posts ?? []).slice(0, 4);
-  } catch {
-    socialPosts = [];
-  }
+  } catch {}
 
-  const featured = personas.slice(0, 3);
+  // Always show demo personas when backend has none
+  const featured = (personas.length > 0 ? personas : fallbackPersonaDetails).slice(0, 3);
+  const displayCount = personas.length > 0 ? personas.length : fallbackPersonaDetails.length;
+
   const tierCards = personas.flatMap((persona) =>
-    persona.tiers.map((tier) => ({
-      persona,
-      tier,
-    }))
+    persona.tiers.map((tier) => ({ persona, tier }))
   );
 
   return (
@@ -84,7 +73,7 @@ export default async function Home() {
             </div>
             <div className="stat-grid">
               <div className="stat">
-                <strong>{personas.length}</strong>
+                <strong>{displayCount}</strong>
                 <span className="subtext">Active personas</span>
               </div>
               <div className="stat">
@@ -97,42 +86,30 @@ export default async function Home() {
               </div>
             </div>
           </div>
+
           <div className="stack">
             <div className="module accent-teal">
               <div className="hud-corners" />
               <span className="kicker">Featured makers</span>
               {featured.map((p) => (
-                <div key={p.id} className="row" style={{ marginTop: 12 }}>
-                  <div>
+                <div key={p.id} className="maker-row">
+                  <div className="maker-row-info">
                     <strong>{p.name}</strong>
-                    <div className="subtext">{p.domain}</div>
+                    <span className="subtext">{p.domain}</span>
+                    <div className="maker-mini-stats">
+                      <span>{p.accuracy} accuracy</span>
+                      <span>{p.latency} latency</span>
+                    </div>
                   </div>
-                  <span className="badge">{p.evidence}</span>
+                  <div className="maker-row-right">
+                    <span className="badge">{p.evidence}</span>
+                    <span className="maker-price">{p.price}</span>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <div className="module accent-orange">
-              <div className="hud-corners" />
-              <span className="kicker">Trending social</span>
-              {trending.length === 0 && (
-                <div className="row" style={{ marginTop: 12 }}>
-                  <div>
-                    <strong>No trending posts yet</strong>
-                    <div className="subtext">Post an intent or slash report to get started.</div>
-                  </div>
-                </div>
-              )}
-              {trending.map((post) => (
-                <div key={post.id} className="row" style={{ marginTop: 12 }}>
-                  <div>
-                    <strong>{post.content.slice(0, 48)}{post.content.length > 48 ? "…" : ""}</strong>
-                    <div className="subtext">{post.authorWallet.slice(0, 10)}…</div>
-                  </div>
-                  <span className="badge">Votes {likeCounts[post.contentId] ?? 0}</span>
-                </div>
-              ))}
-            </div>
+            <LiveFeedPreview />
           </div>
         </div>
       </section>
@@ -149,7 +126,8 @@ export default async function Home() {
               <div>
                 <strong>{post.content}</strong>
                 <div className="subtext">
-                  {post.type === "slash" ? "Slash report" : "Intent"} · {new Date(post.createdAt).toLocaleString()}
+                  {post.type === "slash" ? "Slash report" : "Intent"} ·{" "}
+                  {new Date(post.createdAt).toLocaleString()}
                 </div>
               </div>
               <span className={`badge ${post.type === "slash" ? "accent" : ""}`}>

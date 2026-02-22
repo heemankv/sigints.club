@@ -11,6 +11,7 @@
     "generate:art": "node scripts/generate-card-art.js"
   },
   "dependencies": {
+    "@jup-ag/wallet-adapter": "^0.2.6",
     "@solana/spl-token": "^0.4.12",
     "@solana/wallet-adapter-react": "^0.15.38",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
@@ -23,12 +24,12 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.46.0",
+    "@testing-library/jest-dom": "^6.4.5",
+    "@testing-library/react": "^14.2.2",
     "@types/node": "^20.14.12",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@testing-library/jest-dom": "^6.4.5",
-    "@testing-library/react": "^14.2.2",
-    "@playwright/test": "^1.46.0",
     "jsdom": "^24.1.0",
     "typescript": "^5.5.4",
     "vitest": "^1.6.0"

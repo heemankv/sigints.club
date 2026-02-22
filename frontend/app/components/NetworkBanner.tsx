@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
 
 export default function NetworkBanner() {
   const { connection } = useConnection();
+  const { connected } = useWallet();
   const [genesis, setGenesis] = useState<string | null>(null);
   const endpoint = connection.rpcEndpoint;
   const isLocal = endpoint.includes("127.0.0.1") || endpoint.includes("localhost");
@@ -26,14 +27,7 @@ export default function NetworkBanner() {
     };
   }, [connection]);
 
-  if (!isLocal) {
-    return (
-      <div className="banner">
-        <span>RPC: {endpoint}</span>
-        {genesis && <span>Genesis {genesis.slice(0, 10)}…</span>}
-      </div>
-    );
-  }
+  if (!connected || !isLocal) return null;
 
   return (
     <div className="banner warning">
