@@ -19,10 +19,12 @@
     "@coral-xyz/anchor": "^0.32.1",
     "@solana/web3.js": "^1.98.0",
     "@solana/spl-token": "^0.4.12",
+    "tweetnacl": "^1.0.3",
     "bs58": "^6.0.0",
     "bn.js": "^5.2.1",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
+    "express-async-errors": "^3.1.1",
     "socialfi": "^0.1.14",
     "zod": "^3.23.8"
   },

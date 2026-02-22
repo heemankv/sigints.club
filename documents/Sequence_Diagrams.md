@@ -150,7 +150,8 @@ sequenceDiagram
   SDK->>RPC: subscribe program accounts
   RPC-->>SDK: SignalLatest update
   SDK->>API: GET /signals/by-hash
-  SDK->>API: GET /storage/ciphertext + /keybox
+  SDK->>API: GET /storage/ciphertext + /keybox (signed)
+  API->>RPC: Verify subscription NFT ownership
   SDK-->>Agent: decrypted plaintext
 
   Agent->>MCP: listen_stream_ticks

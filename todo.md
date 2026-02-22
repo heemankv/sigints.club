@@ -5,7 +5,7 @@ Open
 2. Finalize PDA account layouts and sizes for each program.
 3. Draft instruction arguments for create_stream, subscribe, open_challenge, slash.
 4. Evaluate DA layer swap for evidence storage (future).
-5. Redeploy updated subscription_royalty program (stream registry enforcement + manual mint/ATA creation).
+5. Redeploy updated subscription_royalty program (Token-2022 soulbound NFT + keybox gating).
 6. Reset localnet and redeploy programs to fix on-chain demo seeding (AccountNotSigner).
 
 Completed
@@ -27,3 +27,5 @@ Completed
 16. Add public signal path (no keybox) + on-chain allow record without subscribers for public.
 17. Remove per-signal and limited tiers from UI/backend validation.
 18. Update tests to cover public signals and monthly-only subscriptions.
+19. Enforce soulbound subscription NFTs (Token-2022 non-transferable) + keybox access gating by NFT ownership.
+20. Update SDK + MCP docs for keybox auth (wallet signature required for private signals).

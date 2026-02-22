@@ -1,6 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
+import {
+  getAccount,
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+} from "@solana/spl-token";
+import nacl from "tweetnacl";
+import fs from "fs";
+import path from "path";
 import {
   signalService,
   metadataStore,
@@ -15,13 +23,147 @@ import {
   streamRegistry,
   tapestryStreamServiceInstance,
 } from "./services/ServiceContainer";
+import { decodeSubscriptionAccount } from "./services/OnChainSubscriptionClient";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 import { hashTiersHex } from "./streams/tiersHash";
 
 const router = Router();
 
+const TEST_WALLET_ENABLED = process.env.TEST_WALLET === "true";
+let cachedTestKeypair: Keypair | null = null;
+
+function resolveTestWalletPath() {
+  return (
+    process.env.TEST_WALLET_PATH ??
+    path.resolve(process.cwd(), "..", "accounts", "taker.json")
+  );
+}
+
+function getTestWalletKeypair(): Keypair {
+  if (cachedTestKeypair) {
+    return cachedTestKeypair;
+  }
+  const keyPath = resolveTestWalletPath();
+  const raw = fs.readFileSync(keyPath, "utf8");
+  const parsed = JSON.parse(raw);
+  const secret = Uint8Array.from(parsed);
+  cachedTestKeypair = Keypair.fromSecretKey(secret);
+  return cachedTestKeypair;
+}
+
 router.get("/health", (_req, res) => {
   return res.json({ ok: true, timestamp: Date.now() });
+});
+
+router.get("/test-wallet", (_req, res) => {
+  if (!TEST_WALLET_ENABLED) {
+    return res.status(404).json({ error: "test wallet disabled" });
+  }
+  try {
+    const keypair = getTestWalletKeypair();
+    return res.json({ wallet: keypair.publicKey.toBase58() });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message ?? "failed to load test wallet" });
+  }
+});
+
+const testWalletSendSchema = z.object({
+  transactionBase64: z.string().min(1),
+  skipPreflight: z.boolean().optional(),
+});
+
+router.post("/test-wallet/send", async (req, res) => {
+  if (!TEST_WALLET_ENABLED) {
+    return res.status(404).json({ error: "test wallet disabled" });
+  }
+  const parsed = testWalletSendSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const keypair = getTestWalletKeypair();
+    const rpcUrl = process.env.SOLANA_RPC_URL ?? "http://127.0.0.1:8899";
+    const connection = new Connection(rpcUrl, "confirmed");
+    const raw = Buffer.from(parsed.data.transactionBase64, "base64");
+    let signature: string;
+    try {
+      const vtx = VersionedTransaction.deserialize(raw);
+      const { blockhash } = await connection.getLatestBlockhash("confirmed");
+      // Always refresh the blockhash for localnet to avoid stale hashes.
+      vtx.message.recentBlockhash = blockhash;
+      const accountKeys = vtx.message.getAccountKeys();
+      const programIds = vtx.message.compiledInstructions.map((ix) =>
+        accountKeys.get(ix.programIdIndex)
+      );
+      const uniquePrograms = Array.from(new Set(programIds.map((p) => p.toBase58())));
+      const missingPrograms: string[] = [];
+      for (const programId of uniquePrograms) {
+        const info = await connection.getAccountInfo(new PublicKey(programId));
+        if (!info || !info.executable) {
+          missingPrograms.push(programId);
+        }
+      }
+      if (missingPrograms.length) {
+        return res.status(400).json({
+          error: `Missing program(s): ${missingPrograms.join(", ")}`,
+        });
+      }
+      vtx.sign([keypair]);
+      signature = await connection.sendRawTransaction(vtx.serialize(), {
+        skipPreflight: parsed.data.skipPreflight ?? false,
+      });
+    } catch {
+      const tx = Transaction.from(raw);
+      if (!tx.feePayer) {
+        tx.feePayer = keypair.publicKey;
+      }
+      const { blockhash } = await connection.getLatestBlockhash("confirmed");
+      tx.recentBlockhash = blockhash;
+      const programIds = tx.instructions.map((ix) => ix.programId.toBase58());
+      const uniquePrograms = Array.from(new Set(programIds));
+      const missingPrograms: string[] = [];
+      for (const programId of uniquePrograms) {
+        const info = await connection.getAccountInfo(new PublicKey(programId));
+        if (!info || !info.executable) {
+          missingPrograms.push(programId);
+        }
+      }
+      if (missingPrograms.length) {
+        return res.status(400).json({
+          error: `Missing program(s): ${missingPrograms.join(", ")}`,
+        });
+      }
+      tx.partialSign(keypair);
+      signature = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: parsed.data.skipPreflight ?? false,
+      });
+    }
+    return res.json({ signature });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message ?? "test wallet send failed" });
+  }
+});
+
+const testWalletSignSchema = z.object({
+  messageBase64: z.string().min(1),
+});
+
+router.post("/test-wallet/sign-message", async (req, res) => {
+  if (!TEST_WALLET_ENABLED) {
+    return res.status(404).json({ error: "test wallet disabled" });
+  }
+  const parsed = testWalletSignSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  try {
+    const keypair = getTestWalletKeypair();
+    const message = Buffer.from(parsed.data.messageBase64, "base64");
+    const signature = nacl.sign.detached(message, keypair.secretKey);
+    return res.json({ signatureBase64: Buffer.from(signature).toString("base64") });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message ?? "test wallet sign failed" });
+  }
 });
 
 const storeSchema = z.object({
@@ -112,21 +254,135 @@ router.get("/storage/public/:sha", async (req, res) => {
 
 router.get("/storage/keybox/:sha", async (req, res) => {
   const sha = req.params.sha;
+  const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+  const signature = typeof req.query.signature === "string" ? req.query.signature : undefined;
+  const providedEncPubKey =
+    typeof req.query.encPubKeyDerBase64 === "string" ? req.query.encPubKeyDerBase64 : undefined;
   const subscriberId = typeof req.query.subscriberId === "string" ? req.query.subscriberId : undefined;
   try {
+    if (
+      process.env.NODE_ENV === "test" &&
+      process.env.TEST_KEYBOX_BYPASS === "true"
+    ) {
+      const pointer = { id: `backend://keybox/${sha}`, sha256: sha };
+      const bytes = await storageProvider.getKeybox(pointer);
+      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as any;
+      if (subscriberId) {
+        const entry = Array.isArray(parsed)
+          ? parsed.find((k) => k.subscriberId === subscriberId)
+          : parsed[subscriberId];
+        if (!entry) {
+          return res.status(404).json({ error: "subscriber entry not found" });
+        }
+        return res.json({ entry });
+      }
+      return res.json({ keybox: parsed });
+    }
+
+    const signals = await metadataStore.listAllSignals();
+    const meta = signals.find((signal) => signal.keyboxHash === sha);
+    if (!meta) {
+      return res.status(404).json({ error: "keybox not found" });
+    }
+    if ((meta.visibility ?? "private") === "public") {
+      return res.status(400).json({ error: "public signals do not have a keybox" });
+    }
+
+    if (!wallet || !signature) {
+      return res.status(401).json({ error: "wallet + signature required" });
+    }
+    if (!streamRegistry) {
+      return res.status(503).json({ error: "stream registry not configured" });
+    }
+    const message = buildKeyboxMessage(sha);
+    const walletPubkey = new PublicKey(wallet);
+    if (!verifySignature(walletPubkey, signature, message)) {
+      return res.status(401).json({ error: "invalid signature" });
+    }
+
+    const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+    const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+    if (!subscriptionProgramId) {
+      return res.status(503).json({ error: "subscription program not configured" });
+    }
+    const streamPda = streamRegistry.deriveStreamPda(meta.streamId);
+    const [subscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), streamPda.toBuffer(), walletPubkey.toBuffer()],
+      new PublicKey(subscriptionProgramId)
+    );
+    const connection = new Connection(rpcUrl, "confirmed");
+    const subscriptionAccount = await connection.getAccountInfo(subscriptionPda);
+    if (!subscriptionAccount) {
+      return res.status(403).json({ error: "active subscription required" });
+    }
+    const decoded = decodeSubscriptionAccount(subscriptionPda, subscriptionAccount.data);
+    if (!decoded) {
+      return res.status(400).json({ error: "invalid subscription account" });
+    }
+    if (decoded.status !== 0) {
+      return res.status(403).json({ error: "subscription not active" });
+    }
+    if (decoded.expiresAt && decoded.expiresAt <= Date.now()) {
+      return res.status(403).json({ error: "subscription expired" });
+    }
+
+    const nftMint = new PublicKey(decoded.nftMint);
+    const ata = getAssociatedTokenAddressSync(nftMint, walletPubkey, false, TOKEN_2022_PROGRAM_ID);
+    try {
+      const tokenAccount = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
+      if (tokenAccount.amount !== 1n) {
+        return res.status(403).json({ error: "subscription NFT not held" });
+      }
+    } catch {
+      return res.status(403).json({ error: "subscription NFT not held" });
+    }
+
+    const subscriptionKeyPda = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscriber_key"), subscriptionPda.toBuffer()],
+      new PublicKey(subscriptionProgramId)
+    )[0];
+    const walletKeyPda = PublicKey.findProgramAddressSync(
+      [Buffer.from("wallet_key"), walletPubkey.toBuffer()],
+      new PublicKey(subscriptionProgramId)
+    )[0];
+    let onchainEncPub: Uint8Array | null = null;
+    const subscriptionKeyAccount = await connection.getAccountInfo(subscriptionKeyPda);
+    if (subscriptionKeyAccount) {
+      const decodedKey = decodeSubscriberKey(subscriptionKeyAccount.data);
+      if (decodedKey) {
+        onchainEncPub = decodedKey.encPubkey;
+      }
+    }
+    if (!onchainEncPub) {
+      const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
+      if (walletKeyAccount) {
+        const decodedKey = decodeWalletKey(walletKeyAccount.data);
+        if (decodedKey) {
+          onchainEncPub = decodedKey.encPubkey;
+        }
+      }
+    }
+    if (!onchainEncPub) {
+      return res.status(403).json({ error: "encryption key not registered" });
+    }
+    if (providedEncPubKey) {
+      const provided = Buffer.from(providedEncPubKey, "base64");
+      if (provided.length !== 32 || !Buffer.from(onchainEncPub).equals(provided)) {
+        return res.status(403).json({ error: "encryption key mismatch" });
+      }
+    }
+    const subscriberIdFinal = subscriberIdFromPubkey(Buffer.from(onchainEncPub));
+
     const pointer = { id: `backend://keybox/${sha}`, sha256: sha };
     const bytes = await storageProvider.getKeybox(pointer);
     const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as any;
-    if (subscriberId) {
-      const entry = Array.isArray(parsed)
-        ? parsed.find((k) => k.subscriberId === subscriberId)
-        : parsed[subscriberId];
-      if (!entry) {
-        return res.status(404).json({ error: "subscriber entry not found" });
-      }
-      return res.json({ entry });
+    const entry = Array.isArray(parsed)
+      ? parsed.find((k) => k.subscriberId === subscriberIdFinal)
+      : parsed[subscriberIdFinal];
+    if (!entry) {
+      return res.status(404).json({ error: "subscriber entry not found" });
     }
-    return res.json({ keybox: parsed });
+    return res.json({ entry });
   } catch (error: any) {
     return res.status(404).json({ error: error.message ?? "keybox not found" });
   }
@@ -452,8 +708,12 @@ router.get("/social/feed", async (req, res) => {
       return res.status(500).json({ error: error.message ?? "following feed failed" });
     }
   }
-  const result = await socialServiceInstance.listPostsWithCounts(type as any, pageSize ?? 50);
-  return res.json(result);
+  try {
+    const result = await socialServiceInstance.listPostsWithCounts(type as any, pageSize ?? 50);
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(503).json({ error: error.message ?? "social feed unavailable" });
+  }
 });
 
 const likeSchema = z.object({
@@ -580,17 +840,35 @@ router.post("/social/follow", async (req, res) => {
   }
 });
 
+router.get("/social/posts/:id", async (req, res) => {
+  const contentId = req.params.id;
+  try {
+    const post = await socialServiceInstance.getPost(contentId);
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+    const likes = await socialServiceInstance.getLikes(contentId);
+    return res.json({ post, likeCount: likes });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "Failed to fetch post" });
+  }
+});
+
 router.get("/social/feed/trending", async (req, res) => {
   const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
-  const { posts, likeCounts, commentCounts } = await socialServiceInstance.listPostsWithCounts(undefined, limit ?? 50);
-  const sorted = [...posts].sort((a, b) => {
-    const aLikes = likeCounts[a.contentId] ?? 0;
-    const bLikes = likeCounts[b.contentId] ?? 0;
-    if (bLikes !== aLikes) return bLikes - aLikes;
-    return b.createdAt - a.createdAt;
-  });
-  const trimmed = limit ? sorted.slice(0, Math.max(limit, 0)) : sorted;
-  return res.json({ posts: trimmed, likeCounts, commentCounts });
+  try {
+    const { posts, likeCounts, commentCounts } = await socialServiceInstance.listPostsWithCounts(undefined, limit ?? 50);
+    const sorted = [...posts].sort((a, b) => {
+      const aLikes = likeCounts[a.contentId] ?? 0;
+      const bLikes = likeCounts[b.contentId] ?? 0;
+      if (bLikes !== aLikes) return bLikes - aLikes;
+      return b.createdAt - a.createdAt;
+    });
+    const trimmed = limit ? sorted.slice(0, Math.max(limit, 0)) : sorted;
+    return res.json({ posts: trimmed, likeCounts, commentCounts });
+  } catch (error: any) {
+    return res.status(503).json({ error: error.message ?? "trending feed unavailable" });
+  }
 });
 
 function extractList(raw: any, fallbackKey: "likes" | "comments") {
@@ -610,6 +888,32 @@ function decodeWalletKey(data: Buffer): { encPubkey: Uint8Array } | null {
   offset += 32; // subscriber
   const encPubkey = data.subarray(offset, offset + 32);
   return { encPubkey };
+}
+
+function decodeSubscriberKey(data: Buffer): { encPubkey: Uint8Array } | null {
+  if (data.length < 145) {
+    return null;
+  }
+  let offset = 8;
+  offset += 32; // subscription
+  offset += 32; // stream
+  offset += 32; // subscriber
+  const encPubkey = data.subarray(offset, offset + 32);
+  return { encPubkey };
+}
+
+function buildKeyboxMessage(sha: string): string {
+  return `sigints:keybox:${sha}`;
+}
+
+function verifySignature(wallet: PublicKey, signatureBase64: string, message: string): boolean {
+  try {
+    const sig = Buffer.from(signatureBase64, "base64");
+    const msg = Buffer.from(message, "utf8");
+    return nacl.sign.detached.verify(msg, sig, wallet.toBytes());
+  } catch {
+    return false;
+  }
 }
 
 const subscribeSchema = z.object({

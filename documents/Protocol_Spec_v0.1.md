@@ -62,6 +62,7 @@ Rationale: minimum set for full lifecycle.
 - expires_at
 - quota_remaining (optional)
 - subscription_nft_mint (1-of-1 SPL token mint for this subscription)
+ - NFT is Token-2022 Non-Transferable (soulbound)
 
 3. SignalLatest PDA (latest-only)
 - stream_id (implicit via PDA seed)

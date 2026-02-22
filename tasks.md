@@ -2,7 +2,7 @@
 Date: 2026-02-22
 
 Current Task
-- Align codebase with sigints.club protocol (public/private signals, monthly-only pricing, Tapestry-first intents).
+- Validate soulbound NFT + keybox gating end-to-end (localnet deploy + tests).
 
 Progress
 - Protocol spec v0.1 created with hackathon decisions.
@@ -59,7 +59,10 @@ Progress
 - Public signal flow added (no keybox, `/storage/public`, SDK + MCP support).
 - Monthly-only pricing enforced across backend + UI + on-chain subscribe.
 - Removed backend fallback for Tapestry; discovery + social now require Tapestry.
+- Subscription NFTs switched to Token-2022 Non-Transferable (soulbound).
+- Keybox access gated by wallet signature + NFT ownership (backend + SDK/MCP + tests + UI decrypt panel).
 
 Next Actions
-1. Update remaining docs to reflect sigints.club protocol changes.
-2. Run unit/integration/E2E tests after the refactor.
+1. Redeploy updated programs to localnet/devnet as needed.
+2. Run unit/integration/E2E tests to confirm keybox gating + soulbound NFTs.
+3. Verify UI decrypt panel + SDK/MCP flows against live backend.

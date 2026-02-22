@@ -1,5 +1,5 @@
 {
-  "address": "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi",
+  "address": "HCm2Bk65hCaevrs4N3oYegMBZBTPpzjoMB44JgTrTVSA",
   "metadata": {
     "name": "stream_registry",
     "version": "0.1.0",
@@ -247,14 +247,14 @@
     {
       "name": "StreamConfig",
       "discriminator": [
-        149,
         130,
-        132,
-        39,
-        58,
-        221,
-        99,
-        165
+        127,
+        218,
+        245,
+        133,
+        158,
+        70,
+        198
       ]
     },
     {
@@ -269,6 +269,13 @@
         208,
         58
       ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "UnsupportedPricingType",
+      "msg": "Only monthly subscriptions are supported for now"
     }
   ],
   "types": [

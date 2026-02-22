@@ -2,6 +2,13 @@ import { SocialPost, SocialPostType } from "../social/SocialPostStore";
 import { UserStore } from "../social/UserStore";
 import { TapestryClient } from "../tapestry/TapestryClient";
 import { randomUUID } from "node:crypto";
+import { tapestryCache } from "./TapestryCache";
+
+// Cache TTLs
+const TTL_FEED    = 20_000;   // 20 s  — kept warm by background poller
+const TTL_LIKES   = 15_000;   // 15 s
+const TTL_COMMENTS = 60_000;  // 60 s
+const TTL_POST    = 300_000;  // 5 min — content is immutable
 
 export type CreateIntentInput = {
   wallet: string;
@@ -70,6 +77,7 @@ export class SocialService {
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
     }
+    tapestryCache.invalidatePrefix("feed:");
     return {
       id: resolvedId,
       type: "intent",
@@ -106,6 +114,7 @@ export class SocialService {
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
     }
+    tapestryCache.invalidatePrefix("feed:");
     return {
       id: resolvedId,
       type: "slash",
@@ -184,6 +193,12 @@ export class SocialService {
   }
 
   async listPostsWithCounts(type?: SocialPostType, limit = 50) {
+    const key = `feed:${type ?? "all"}:${limit}`;
+    return tapestryCache.wrap(key, TTL_FEED, () => this._rawFetchPostsWithCounts(type, limit));
+  }
+
+  /** Raw Tapestry fetch — used by cache layer and background poller. */
+  private async _rawFetchPostsWithCounts(type?: SocialPostType, limit = 50) {
     const entries = await this.fetchTapestryContents(type, limit);
     const posts: SocialPost[] = [];
     const likeCounts: Record<string, number> = {};
@@ -206,18 +221,26 @@ export class SocialService {
       throw new Error("Unable to create Tapestry profile");
     }
     try {
-      return await this.client.createComment({ profileId, contentId, text: comment });
+      const result = await this.client.createComment({ profileId, contentId, text: comment });
+      tapestryCache.invalidate(`comments:${contentId}`);
+      return result;
     } catch (err: any) {
       if (err?.message?.includes("404") || err?.status === 404) {
         await new Promise((r) => setTimeout(r, 1200));
-        return this.client.createComment({ profileId, contentId, text: comment });
+        const result = await this.client.createComment({ profileId, contentId, text: comment });
+        tapestryCache.invalidate(`comments:${contentId}`);
+        return result;
       }
       throw err;
     }
   }
 
   getComments(contentId: string) {
-    return this.client.getCommentsByContent(contentId);
+    return tapestryCache.wrap(
+      `comments:${contentId}`,
+      TTL_COMMENTS,
+      () => this.client.getCommentsByContent(contentId)
+    );
   }
 
   async like(wallet: string, contentId: string, displayName?: string) {
@@ -226,12 +249,16 @@ export class SocialService {
       throw new Error("Unable to create Tapestry profile");
     }
     try {
-      return await this.client.createLike({ profileId, contentId });
+      const result = await this.client.createLike({ profileId, contentId });
+      tapestryCache.invalidate(`likes:${contentId}`);
+      return result;
     } catch (err: any) {
       // Profile may not be propagated yet (FAST_UNCONFIRMED timing) — retry once
       if (err?.message?.includes("404") || err?.status === 404) {
         await new Promise((r) => setTimeout(r, 1200));
-        return this.client.createLike({ profileId, contentId });
+        const result = await this.client.createLike({ profileId, contentId });
+        tapestryCache.invalidate(`likes:${contentId}`);
+        return result;
       }
       throw err;
     }
@@ -261,18 +288,50 @@ export class SocialService {
     if (!profileId) {
       throw new Error("Unable to create Tapestry profile");
     }
-    return this.client.deleteLike({ profileId, contentId });
+    const result = await this.client.deleteLike({ profileId, contentId });
+    tapestryCache.invalidate(`likes:${contentId}`);
+    return result;
   }
 
   async getPost(contentId: string): Promise<SocialPost | null> {
-    const details = await this.client.getContentDetails(contentId);
-    if (!details) return null;
-    return mapTapestryEntryToPost(details);
+    return tapestryCache.wrap(`post:${contentId}`, TTL_POST, async () => {
+      const details = await this.client.getContentDetails(contentId);
+      if (!details) return null;
+      return mapTapestryEntryToPost(details);
+    });
   }
 
   async getLikes(contentId: string): Promise<number> {
-    const details = await this.client.getContentDetails(contentId);
-    return details?.socialCounts?.likeCount ?? 0;
+    return tapestryCache.wrap(`likes:${contentId}`, TTL_LIKES, async () => {
+      const details = await this.client.getContentDetails(contentId);
+      return details?.socialCounts?.likeCount ?? 0;
+    });
+  }
+
+  /**
+   * Start background polling. Call once on server startup.
+   * @param intervalMs How often to poll Tapestry for the main feed (default 15 s).
+   */
+  startBackgroundRefresh(intervalMs = 15_000): void {
+    const ttl = intervalMs + 5_000; // TTL slightly longer than interval to cover slow polls
+
+    // Main feed (all types, 50 posts) — serves both /social/feed and /social/feed/trending
+    tapestryCache.startPoller(
+      "feed:all:50",
+      intervalMs,
+      ttl,
+      () => this._rawFetchPostsWithCounts(undefined, 50)
+    );
+
+    // eslint-disable-next-line no-console
+    console.log(`[TapestryCache] Background refresh started (interval: ${intervalMs}ms)`);
+  }
+
+  /** Stop all background pollers and clear the cache. Call on server shutdown. */
+  stopBackgroundRefresh(): void {
+    tapestryCache.stopAll();
+    // eslint-disable-next-line no-console
+    console.log("[TapestryCache] Background refresh stopped");
   }
 
   private async listTapestryPosts(type?: SocialPostType, limit = 50) {

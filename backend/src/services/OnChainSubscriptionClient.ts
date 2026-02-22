@@ -2,7 +2,11 @@ import * as anchor from "@coral-xyz/anchor";
 import BN from "bn.js";
 import bs58 from "bs58";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -128,7 +132,12 @@ export class OnChainSubscriptionClient {
       this.programId
     );
 
-    const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, subscriberPubkey);
+    const subscriberAta = getAssociatedTokenAddressSync(
+      subscriptionMint,
+      subscriberPubkey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
 
     const ix = new TransactionInstruction({
       programId: this.programId,
@@ -139,11 +148,12 @@ export class OnChainSubscriptionClient {
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: streamPubkey, isSigner: false, isWritable: false },
         { pubkey: tierConfig, isSigner: false, isWritable: false },
+        { pubkey: this.streamRegistryId, isSigner: false, isWritable: false },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: true },
         { pubkey: makerPubkey, isSigner: false, isWritable: true },
         { pubkey: treasuryPubkey, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: anchor.web3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
       ],
@@ -370,7 +380,7 @@ function defaultExpiry(): number {
   return Date.now() + days * 24 * 60 * 60 * 1000;
 }
 
-function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): OnChainSubscription | null {
+export function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): OnChainSubscription | null {
   if (data.length < 152) {
     return null;
   }

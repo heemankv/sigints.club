@@ -63,6 +63,7 @@ const onChainRecorder =
         idlPath: solanaIdlPath,
         streamMap: solanaStreamMap,
         streamDefault: solanaStreamDefault,
+        streamRegistryProgramId: solanaStreamRegistryId,
       })
     : new OnChainStub();
 
@@ -86,6 +87,7 @@ const socialPublisher = new TapestryPublisher(
   tapestryStreamService
 );
 const socialService = new SocialService(client, userStore);
+socialService.startBackgroundRefresh(15_000); // poll Tapestry every 15 s
 
 const discovery = new DiscoveryService(streamRegistryInstance, tapestryStreamService);
 

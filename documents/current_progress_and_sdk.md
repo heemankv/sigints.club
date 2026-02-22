@@ -12,7 +12,7 @@ Below is a **current, concrete summary** of what works right now, plus the **SDK
    - Shimmer loading states
 3. **Tapestry social integration** (profiles, posts, likes, comments, follows).  
 4. **On-chain stream + tier registry** (stream_registry program).  
-5. **On-chain subscription NFT** minted to subscriber wallet, with **price + tier enforcement**.  
+5. **On-chain subscription NFT** minted to subscriber wallet, with **price + tier enforcement** (Token-2022 soulbound).  
 6. **On-chain fee split** (1% platform fee + maker payout).  
 7. **Hybrid encryption delivery** (ciphertext + keybox off-chain).  
 8. **Public signals** supported (plaintext stored off-chain, no keybox).  
@@ -36,7 +36,7 @@ There are three viable paths:
 1. **On-chain account changes (best integrity)**  
    - Listen to `subscription_royalty` for `signal_latest` account changes.  
    - Fetch `SignalLatest` to get `createdAt` and hashes.  
-   - Resolve ciphertext/keybox pointers via backend storage.  
+   - Resolve ciphertext/keybox pointers via backend storage (**keybox requires wallet signature + NFT ownership**).  
 
 2. **Backend signals feed (simplest)**  
    - `GET /signals/latest?streamId=...`  
@@ -63,11 +63,19 @@ Package: `@sigints/sdk`
 **Example (agent)**
 ```ts
 import { SigintsClient } from "@sigints/sdk";
+import nacl from "tweetnacl";
+import { Keypair } from "@solana/web3.js";
+
+const wallet = Keypair.generate();
 
 const client = new SigintsClient({
   rpcUrl: "http://127.0.0.1:8899",
   backendUrl: "http://localhost:3001",
   programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
+  keyboxAuth: {
+    walletPubkey: wallet.publicKey.toBase58(),
+    signMessage: (message) => nacl.sign.detached(message, wallet.secretKey),
+  },
 });
 
 const keys = SigintsClient.generateKeys();

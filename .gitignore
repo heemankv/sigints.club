@@ -1,6 +1,12 @@
 .DS_Store
 .codex/
 .env
+.env.local
+.env.backup.*
+.env.localnet
+.logs/
+.agents/
+skills-lock.json
 
 **/node_modules/
 **/.next/
@@ -17,6 +23,7 @@
 **/.output/
 **/.nuxt/
 **/.serverless/
+**/*.tsbuildinfo
 
 target/
 .keys/
@@ -35,6 +42,7 @@ backend/data/streams.json
 tests/storage/
 .solana-test-ledger/
 validator.log
+backend/idl/persona_registry.json
 
 .localnet-ledger*
 accounts

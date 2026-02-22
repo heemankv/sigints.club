@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchJson } from "../../lib/api";
 import { decryptAesGcm, deriveSharedKey, fromBase64, importX25519PrivateKey, importX25519PublicKey, subscriberIdFromPubkey } from "../../lib/crypto";
 
@@ -11,6 +12,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
   const [privKey, setPrivKey] = useState("");
   const [plaintext, setPlaintext] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const { publicKey, signMessage } = useWallet();
 
   useEffect(() => {
     const raw = localStorage.getItem(storageKey(streamId));
@@ -53,6 +55,14 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
         setStatus("Keys required for private signals");
         return;
       }
+      if (!publicKey) {
+        setStatus("Connect wallet to decrypt private signals");
+        return;
+      }
+      if (!signMessage) {
+        setStatus("Wallet does not support message signing");
+        return;
+      }
 
       const keyboxSha = latest.keyboxPointer?.split("/").pop();
       const signalSha = latest.signalPointer.split("/").pop();
@@ -61,9 +71,16 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
         return;
       }
 
+      const message = new TextEncoder().encode(`sigints:keybox:${keyboxSha}`);
+      const signature = await signMessage(message);
+      const signatureBase64 = Buffer.from(signature).toString("base64");
       const subId = await subscriberIdFromPubkey(pubKey);
       const keyboxRes = await fetchJson<{ entry: { subscriberId: string; epk: string; encKey: string; iv: string; tag: string } }>(
-        `/storage/keybox/${keyboxSha}?subscriberId=${encodeURIComponent(subId)}`
+        `/storage/keybox/${keyboxSha}` +
+          `?wallet=${encodeURIComponent(publicKey.toBase58())}` +
+          `&signature=${encodeURIComponent(signatureBase64)}` +
+          `&encPubKeyDerBase64=${encodeURIComponent(pubKey)}` +
+          `&subscriberId=${encodeURIComponent(subId)}`
       );
       const entry = keyboxRes.entry;
 

@@ -10,10 +10,9 @@ export default function NetworkOnboarding() {
   const { connection } = useConnection();
   const { connected } = useWallet();
 
-  // All hooks must be declared before any conditional returns.
   const [status, setStatus] = useState<string | null>(null);
   const [forceCheck, setForceCheck] = useState(0);
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const check = useMemo(() => {
     const requiredEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? connection.rpcEndpoint;
@@ -28,96 +27,51 @@ export default function NetworkOnboarding() {
       current,
       mismatch,
       needsAttention: mismatch,
-      currentLabel: walletEndpoint ? current.label : "Unknown (wallet hides RPC)",
+      currentLabel: walletEndpoint ? current.label : "Unknown",
       requiredLabel: required.label,
-      detail: walletEndpoint ?? "Wallet RPC not exposed by adapter",
     };
   }, [connection.rpcEndpoint, forceCheck]);
 
+  // Reset dismissed when the mismatch state changes
   useEffect(() => {
-    if (!connected) {
-      setOpen(false);
-      setStatus(null);
-      return;
-    }
-    setOpen(connected && check.needsAttention);
-  }, [connected, check.needsAttention]);
+    if (!check.needsAttention) setDismissed(false);
+  }, [check.needsAttention]);
 
-  if (pathname === "/") return null;
+  if (pathname === "/" || !connected || !check.needsAttention || dismissed) return null;
 
   function confirm() {
     setForceCheck((prev) => prev + 1);
     if (!check.needsAttention) {
       setStatus(null);
-      setOpen(false);
+      setDismissed(true);
     } else {
-      setStatus("Still on the wrong network. Try again.");
+      setStatus("Still on the wrong network.");
     }
   }
 
-  const tooltip = `Wrong network. Required: ${check.requiredLabel}. Current: ${check.currentLabel}`;
-
   return (
-    <>
-      {connected && check.needsAttention && (
-        <div className="network-indicator" title={tooltip} aria-label={tooltip}>
-          ✕
+    <div className="net-toast danger">
+      <div className="net-toast-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      </div>
+      <div className="net-toast-body">
+        <div className="net-toast-title">Wrong network</div>
+        <div className="net-toast-msg">
+          Need <strong>{check.requiredLabel}</strong> — on {check.currentLabel}
         </div>
-      )}
-      {open && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <span className="kicker">Network check</span>
-            <h2>Switch your wallet network</h2>
-            <p>
-              Your wallet appears to be on <strong>{check.currentLabel}</strong>. This app is
-              configured for <strong>{check.requiredLabel}</strong>.
-            </p>
-            <div className="modal-meta">
-              <div>
-                <span className="subtext">Required RPC</span>
-                <div className="mono">{check.required.endpoint || "—"}</div>
-              </div>
-              <div>
-                <span className="subtext">Detected RPC</span>
-                <div className="mono">{check.detail}</div>
-              </div>
-            </div>
-            {check.required.id === "localnet" && (
-              <div className="modal-tip">
-                <strong>Localnet setup:</strong>
-                <div className="modal-steps">
-                  <div>
-                    <span className="subtext">Phantom</span>
-                    <ol>
-                      <li>Open Phantom → Settings → Developer Settings.</li>
-                      <li>Enable "Custom RPC" and set it to <code>http://127.0.0.1:8899</code>.</li>
-                      <li>Confirm and reload this page.</li>
-                    </ol>
-                  </div>
-                  <div>
-                    <span className="subtext">Solflare</span>
-                    <ol>
-                      <li>Open Solflare → Settings → Network.</li>
-                      <li>Add a custom RPC: <code>http://127.0.0.1:8899</code>.</li>
-                      <li>Select it, then reload this page.</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="modal-actions">
-              <button className="button primary" onClick={confirm}>
-                I switched, check again
-              </button>
-            </div>
-            {status && <p className="subtext">{status}</p>}
-            <p className="subtext">
-              This modal blocks access until your wallet is on the required network.
-            </p>
-          </div>
-        </div>
-      )}
-    </>
+        <button className="net-toast-action" onClick={confirm}>
+          I switched, check again
+        </button>
+        {status && <div className="net-toast-status">{status}</div>}
+      </div>
+      <button className="net-toast-close" onClick={() => setDismissed(true)} aria-label="Dismiss">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
   );
 }

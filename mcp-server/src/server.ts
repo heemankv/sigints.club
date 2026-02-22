@@ -1,4 +1,4 @@
-import { SigintsClient, subscriberIdFromPubkey } from "@sigints/sdk";
+import { SigintsClient, subscriberIdFromPubkey, KeyboxAuth } from "@sigints/sdk";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -7,12 +7,16 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
+import nacl from "tweetnacl";
 
 export type TickArgs = {
   streamId: string;
   streamPubkey: string;
   subscriberPublicKeyBase64?: string;
   subscriberPrivateKeyBase64?: string;
+  walletSecretKeyBase58?: string;
   backendUrl: string;
   rpcUrl: string;
   programId: string;
@@ -22,7 +26,21 @@ export type TickArgs = {
 
 export type ListenArgs = TickArgs;
 
-type ClientFactory = (cfg: { rpcUrl: string; backendUrl: string; programId: string }) => SigintsClient;
+type ClientFactory = (cfg: {
+  rpcUrl: string;
+  backendUrl: string;
+  programId: string;
+  keyboxAuth?: KeyboxAuth;
+}) => SigintsClient;
+
+function buildKeyboxAuth(secretKeyBase58?: string): KeyboxAuth | undefined {
+  if (!secretKeyBase58) return undefined;
+  const kp = Keypair.fromSecretKey(bs58.decode(secretKeyBase58));
+  return {
+    walletPubkey: kp.publicKey.toBase58(),
+    signMessage: (message) => nacl.sign.detached(message, kp.secretKey),
+  };
+}
 
 export function createServer(clientFactory: ClientFactory = (cfg) => new SigintsClient(cfg)) {
   const lastSeen = new Map<string, string>();
@@ -55,6 +73,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
               streamPubkey: { type: "string" },
               subscriberPublicKeyBase64: { type: "string" },
               subscriberPrivateKeyBase64: { type: "string" },
+              walletSecretKeyBase58: { type: "string" },
               backendUrl: { type: "string" },
               rpcUrl: { type: "string" },
               programId: { type: "string" },
@@ -81,6 +100,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
               streamPubkey: { type: "string" },
               subscriberPublicKeyBase64: { type: "string" },
               subscriberPrivateKeyBase64: { type: "string" },
+              walletSecretKeyBase58: { type: "string" },
               backendUrl: { type: "string" },
               rpcUrl: { type: "string" },
               programId: { type: "string" },
@@ -125,6 +145,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
           rpcUrl: input.rpcUrl,
           backendUrl: input.backendUrl,
           programId: input.programId,
+          keyboxAuth: buildKeyboxAuth(input.walletSecretKeyBase58),
         });
         const subscriberKeys =
           input.subscriberPublicKeyBase64 && input.subscriberPrivateKeyBase64
@@ -190,6 +211,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
       rpcUrl: input.rpcUrl,
       backendUrl: input.backendUrl,
       programId: input.programId,
+      keyboxAuth: buildKeyboxAuth(input.walletSecretKeyBase58),
     });
 
     const meta = await client.fetchLatestSignal(input.streamId);

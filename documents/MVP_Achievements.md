@@ -16,7 +16,7 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
    - Validates stream status, tier status, price, pricing type, evidence level, and quota.
    - Validates maker authority and treasury (DAO) from the registry.
    - Splits fee: 1% platform fee + 99% maker payout.
-   - Mints a 1-of-1 NFT (SPL mint, supply=1) to the subscriber’s wallet.
+   - Mints a **Token-2022 Non-Transferable** subscription NFT (soulbound, supply=1).
    - Tracks `stream_state.subscription_count`.
 4. `record_signal` uses Solana Clock for `created_at` (time anchor).
 5. Signal anchoring is **latest-only** (one on-chain account per stream).
@@ -26,6 +26,7 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
 1. Hybrid encryption delivery is implemented:
    - ciphertext + keybox stored off-chain
    - signal metadata recorded on-chain
+   - keybox access gated by wallet signature + NFT ownership (private signals only)
 2. Pluggable storage interface, MVP uses file-based storage.
 3. Tapestry-first social layer:
    - Intents, slash reports, likes, comments, follows.

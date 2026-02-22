@@ -8,7 +8,9 @@ import {
   type TransactionOrVersionedTransaction,
 } from "@solana/wallet-adapter-base";
 import type { Connection, TransactionSignature, TransactionVersion } from "@solana/web3.js";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { Buffer } from "buffer";
+import { backendUrl } from "./api";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName<"TestWallet">;
 const TEST_ICON =
@@ -20,14 +22,14 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   icon = TEST_ICON;
   readyState = WalletReadyState.Installed;
   supportedTransactionVersions: ReadonlySet<TransactionVersion> | null = null;
-  publicKey: PublicKey | null;
+  publicKey: PublicKey | null = null;
   connecting = false;
   private readonly basePublicKey: PublicKey;
 
   constructor(publicKeyBase58: string) {
     super();
     this.basePublicKey = new PublicKey(publicKeyBase58);
-    this.publicKey = this.basePublicKey;
+    this.publicKey = null;
   }
 
   async connect(): Promise<void> {
@@ -49,6 +51,58 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
     _connection: Connection,
     _options?: SendTransactionOptions
   ): Promise<TransactionSignature> {
-    throw new Error("TestWalletAdapter cannot send transactions");
+    if (!this.publicKey) {
+      throw new Error("Test wallet not connected");
+    }
+    const transaction = _transaction as Transaction | VersionedTransaction;
+    const connection = _connection;
+    const options = _options;
+    const isVersioned = "version" in transaction;
+    if (!isVersioned) {
+      if (!transaction.feePayer) {
+        transaction.feePayer = this.publicKey;
+      }
+      if (!transaction.recentBlockhash) {
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+      }
+    }
+    const serialized = isVersioned
+      ? transaction.serialize()
+      : transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
+    const res = await fetch(`${backendUrl()}/test-wallet/send`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        transactionBase64: Buffer.from(serialized).toString("base64"),
+        skipPreflight: options?.skipPreflight ?? false,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Test wallet send failed (${res.status}): ${text}`);
+    }
+    const data = (await res.json()) as { signature?: string };
+    if (!data.signature) {
+      throw new Error("Test wallet returned no signature");
+    }
+    return data.signature;
+  }
+
+  async signMessage(message: Uint8Array): Promise<Uint8Array> {
+    const res = await fetch(`${backendUrl()}/test-wallet/sign-message`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messageBase64: Buffer.from(message).toString("base64") }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Test wallet sign failed (${res.status}): ${text}`);
+    }
+    const data = (await res.json()) as { signatureBase64?: string };
+    if (!data.signatureBase64) {
+      throw new Error("Test wallet returned no signature");
+    }
+    return Buffer.from(data.signatureBase64, "base64");
   }
 }

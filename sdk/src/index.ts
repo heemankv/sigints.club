@@ -11,6 +11,12 @@ export type StreamSdkConfig = {
   rpcUrl: string;
   backendUrl: string;
   programId: string;
+  keyboxAuth?: KeyboxAuth;
+};
+
+export type KeyboxAuth = {
+  walletPubkey: string;
+  signMessage: (message: Uint8Array) => Promise<Uint8Array> | Uint8Array;
 };
 
 export type SubscriberKeys = {
@@ -65,12 +71,14 @@ export class SigintsClient {
   private connection: Connection;
   private programId: PublicKey;
   private backendUrl: string;
+  private keyboxAuth?: KeyboxAuth;
   private seenSignals = new Set<string>();
 
   constructor(cfg: StreamSdkConfig) {
     this.connection = new Connection(cfg.rpcUrl, "confirmed");
     this.programId = new PublicKey(cfg.programId);
     this.backendUrl = cfg.backendUrl.replace(/\/$/, "");
+    this.keyboxAuth = cfg.keyboxAuth;
   }
 
   static generateKeys() {
@@ -148,13 +156,22 @@ export class SigintsClient {
     return data.payload;
   }
 
-  async fetchKeyboxEntry(pointer: string, subscriberId: string): Promise<WrappedKey> {
+  async fetchKeyboxEntry(pointer: string, encPubKeyDerBase64: string): Promise<WrappedKey> {
     const sha = pointer.split("/").pop();
     if (!sha) {
       throw new Error("invalid keybox pointer");
     }
+    if (!this.keyboxAuth) {
+      throw new Error("keybox auth not configured");
+    }
+    const message = Buffer.from(`sigints:keybox:${sha}`, "utf8");
+    const signatureBytes = await Promise.resolve(this.keyboxAuth.signMessage(message));
+    const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
     const res = await fetch(
-      `${this.backendUrl}/storage/keybox/${sha}?subscriberId=${encodeURIComponent(subscriberId)}`
+      `${this.backendUrl}/storage/keybox/${sha}` +
+        `?wallet=${encodeURIComponent(this.keyboxAuth.walletPubkey)}` +
+        `&signature=${encodeURIComponent(signatureBase64)}` +
+        `&encPubKeyDerBase64=${encodeURIComponent(encPubKeyDerBase64)}`
     );
     if (!res.ok) {
       throw new Error(`keybox fetch failed (${res.status})`);
@@ -175,8 +192,7 @@ export class SigintsClient {
     if (!meta.keyboxPointer) {
       throw new Error("keybox pointer missing for private signal");
     }
-    const subscriberId = subscriberIdFromPubkey(keys.publicKeyDerBase64);
-    const wrapped = await this.fetchKeyboxEntry(meta.keyboxPointer, subscriberId);
+    const wrapped = await this.fetchKeyboxEntry(meta.keyboxPointer, keys.publicKeyDerBase64);
     const symKey = unwrapKeyForSubscriber(keys.privateKeyDerBase64, wrapped);
     const payload = await this.fetchCiphertext(meta.signalPointer);
     const plaintext = decryptSignal(payload.ciphertext, symKey, payload.iv, payload.tag);

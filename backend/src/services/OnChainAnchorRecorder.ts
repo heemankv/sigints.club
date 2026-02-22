@@ -16,6 +16,7 @@ type AnchorRecorderConfig = {
   commitment?: anchor.web3.Commitment;
   streamMap?: Record<string, string>;
   streamDefault?: string;
+  streamRegistryProgramId?: string;
 };
 
 export class OnChainAnchorRecorder implements OnChainRecorder {
@@ -48,6 +49,10 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
       [Buffer.from("stream_state"), streamPubkey.toBuffer()],
       this.programId
     );
+    if (!this.config.streamRegistryProgramId) {
+      throw new Error("streamRegistryProgramId is required for record_signal");
+    }
+    const streamRegistryProgramId = new PublicKey(this.config.streamRegistryProgramId);
 
     const data = coder.encode("record_signal", {
       signal_hash: Array.from(signalHashBytes),
@@ -61,6 +66,7 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
       keys: [
         { pubkey: signalPda, isSigner: false, isWritable: true },
         { pubkey: streamPubkey, isSigner: false, isWritable: false },
+        { pubkey: streamRegistryProgramId, isSigner: false, isWritable: false },
         { pubkey: streamState, isSigner: false, isWritable: true },
         { pubkey: walletPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },

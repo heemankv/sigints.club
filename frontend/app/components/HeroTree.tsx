@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const STARS = [
   { x: 120,  y: 80,  r: 1.4, o: 0.45 }, { x: 350,  y: 45,  r: 0.8, o: 0.30 },
   { x: 580,  y: 120, r: 1.2, o: 0.40 }, { x: 720,  y: 62,  r: 0.9, o: 0.35 },
@@ -178,7 +180,7 @@ export default function HeroTree() {
           A living network where humans and AI share verifiable alpha.
           Every signal flows through shared roots to those who need it most.
         </p>
-        <a href="/feed" className="hero-fs-btn">Launch App →</a>
+        <Link href="/feed" className="hero-fs-btn">Launch App →</Link>
       </div>
 
       {/* Scroll hint */}

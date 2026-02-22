@@ -13,6 +13,11 @@ async function start() {
   });
 }
 
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.error("Unhandled promise rejection:", reason);
+});
+
 start().catch((error) => {
   // eslint-disable-next-line no-console
   console.error("Backend failed to start:", error);

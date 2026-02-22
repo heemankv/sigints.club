@@ -40,19 +40,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
           </header>
-          <NetworkOnboarding />
           <main className="container">
-            <NetworkBanner />
             {children}
           </main>
-          <a
-            href="https://www.usetapestry.dev/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="tapestry-fab"
-          >
-            Powered by Tapestry
-          </a>
+          <div className="toast-stack">
+            <NetworkBanner />
+            <NetworkOnboarding />
+          </div>
           <Footer />
         </Providers>
       </body>

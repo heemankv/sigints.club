@@ -33,9 +33,9 @@ type FeedTab = "foryou" | "following" | "intents" | "slashing";
 
 const FEED_TABS: Array<{ id: FeedTab; label: string }> = [
   { id: "foryou", label: "For you" },
-  { id: "following", label: "Following" },
+  { id: "following", label: "Explore Signals" },
   { id: "intents", label: "Intents" },
-  { id: "slashing", label: "Slashing" },
+  { id: "slashing", label: "Ongoing Slashing" },
 ];
 
 const NAV_ITEMS = [
@@ -54,6 +54,10 @@ const NAV_ITEMS = [
   {
     href: "/profile", label: "Profile",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
+  },
+  {
+    href: "/register-stream", label: "Register",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>,
   },
 ];
 
@@ -322,6 +326,20 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
             </Link>
           ))}
         </nav>
+        <a
+          href="https://www.usetapestry.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="x-sidebar-tapestry"
+        >
+          <span className="x-sidebar-tapestry-label">Powered by</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://cdn.prod.website-files.com/67814d9fc76ba46748750247/678fe574dc9c8c78bc2af16f_logo_full.svg"
+            alt="Tapestry"
+            className="x-sidebar-tapestry-logo"
+          />
+        </a>
       </aside>
 
       {/* ─── Center: tabs + composer + feed ─── */}

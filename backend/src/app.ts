@@ -1,3 +1,4 @@
+import "express-async-errors";
 import express from "express";
 import router from "./routes";
 
@@ -15,5 +16,11 @@ export function createApp() {
   });
   app.use(express.json({ limit: "2mb" }));
   app.use(router);
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    // eslint-disable-next-line no-console
+    console.error("Unhandled backend error:", err);
+    const message = err?.message ?? "internal server error";
+    res.status(500).json({ error: message });
+  });
   return app;
 }

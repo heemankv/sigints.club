@@ -89,16 +89,19 @@
                   103,
                   110,
                   97,
-                  108
+                  108,
+                  95,
+                  108,
+                  97,
+                  116,
+                  101,
+                  115,
+                  116
                 ]
               },
               {
                 "kind": "account",
                 "path": "stream"
-              },
-              {
-                "kind": "arg",
-                "path": "signal_hash"
               }
             ]
           }
@@ -107,7 +110,11 @@
           "name": "stream"
         },
         {
+          "name": "stream_registry_program"
+        },
+        {
           "name": "stream_state",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -508,6 +515,9 @@
           "name": "tier_config"
         },
         {
+          "name": "stream_registry_program"
+        },
+        {
           "name": "subscriber",
           "writable": true,
           "signer": true
@@ -525,8 +535,8 @@
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          "name": "token_2022_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
           "name": "associated_token_program",
@@ -572,19 +582,6 @@
   ],
   "accounts": [
     {
-      "name": "StreamState",
-      "discriminator": [
-        55,
-        103,
-        48,
-        67,
-        188,
-        107,
-        28,
-        181
-      ]
-    },
-    {
       "name": "SignalRecord",
       "discriminator": [
         32,
@@ -595,6 +592,19 @@
         184,
         220,
         121
+      ]
+    },
+    {
+      "name": "StreamState",
+      "discriminator": [
+        7,
+        127,
+        34,
+        194,
+        119,
+        142,
+        214,
+        87
       ]
     },
     {
@@ -696,26 +706,6 @@
   ],
   "types": [
     {
-      "name": "StreamState",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "stream",
-            "type": "pubkey"
-          },
-          {
-            "name": "subscription_count",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "SignalRecord",
       "type": {
         "kind": "struct",
@@ -763,6 +753,26 @@
           {
             "name": "created_at",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StreamState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "stream",
+            "type": "pubkey"
+          },
+          {
+            "name": "subscription_count",
+            "type": "u64"
           },
           {
             "name": "bump",

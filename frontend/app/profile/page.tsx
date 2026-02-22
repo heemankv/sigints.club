@@ -7,7 +7,6 @@ import { decodeSubscriptionAccount, resolveProgramId, sha256Bytes } from "../lib
 import { fetchStreams } from "../lib/api/streams";
 import { toHex } from "../lib/utils";
 import type { BotProfile, StreamDetail, StreamTier } from "../lib/types";
-import NetworkStatusCard from "../components/NetworkStatusCard";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import RegisterStreamForm from "../components/RegisterStreamForm";
 import KeyManager from "../stream/[id]/KeyManager";
@@ -194,7 +193,47 @@ export default function ProfilePage() {
         <h1>Your Profile</h1>
         <p>Manage maker bots, listener bots, and subscriptions.</p>
       </div>
-      <NetworkStatusCard />
+      {/* DUMMY: replace with real subscriptions once on-chain data flows */}
+      <div className="section">
+        <div className="section-head">
+          <span className="kicker">On-chain</span>
+          <h2>Subscriptions</h2>
+          <p>Subscriptions derived directly from on-chain NFT mints.</p>
+        </div>
+        <div className="data-grid">
+          <OwnedSubscriptionCard
+            streamName="BTC Alpha Signals"
+            streamId="btc-alpha"
+            tierLabel="tier-pro"
+            price="0.5 SOL / mo"
+            evidenceLevel="verifier"
+            pricingType="subscription_unlimited"
+            expiresAt={Date.now() + 30 * 24 * 60 * 60 * 1000}
+            nftMint="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+          />
+          <OwnedSubscriptionCard
+            streamName="DeFi Liquidations"
+            streamId="defi-liq"
+            tierLabel="tier-standard"
+            price="0.1 SOL / mo"
+            evidenceLevel="trust"
+            pricingType="subscription_unlimited"
+            expiresAt={Date.now() + 7 * 24 * 60 * 60 * 1000}
+            nftMint="5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"
+          />
+          <OwnedSubscriptionCard
+            streamName="Solana MEV Watch"
+            streamId="sol-mev"
+            tierLabel="tier-elite"
+            price="1 SOL / mo"
+            evidenceLevel="verifier"
+            pricingType="subscription_unlimited"
+            expiresAt={Date.now() + 14 * 24 * 60 * 60 * 1000}
+            nftMint="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          />
+        </div>
+      </div>
+
       <div className="section">
         <div className="section-head">
           <span className="kicker">Encryption</span>
@@ -251,6 +290,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* DUMMY: remove these two sections when real bot data is wired */}
       <div className="section">
         <div className="section-head">
           <span className="kicker">Providers</span>
@@ -258,16 +298,20 @@ export default function ProfilePage() {
           <p>Agents you operate as information providers.</p>
         </div>
         <div className="module-grid">
-          {makerBots.map((bot) => (
-            <div className="module accent-teal" key={bot.id}>
-              <div className="hud-corners" />
-              <h3>{bot.name}</h3>
-              <p>{bot.domain}</p>
-              {bot.description && <p>{bot.description}</p>}
-              <span className="badge">{bot.evidence}</span>
-            </div>
-          ))}
-          {!makerBots.length && <div className="subtext">No maker bots registered yet.</div>}
+          <div className="module accent-teal">
+            <div className="hud-corners" />
+            <h3>BTC Price Oracle</h3>
+            <p>pricing</p>
+            <p>Publishes BTC/USD price feeds every 5 min with multi-source aggregation.</p>
+            <span className="badge">verifier</span>
+          </div>
+          <div className="module accent-teal">
+            <div className="hud-corners" />
+            <h3>Solana MEV Watch</h3>
+            <p>mev</p>
+            <p>Monitors the Solana mempool for sandwich attacks and liquidation opportunities.</p>
+            <span className="badge">trust</span>
+          </div>
         </div>
       </div>
 
@@ -278,49 +322,16 @@ export default function ProfilePage() {
           <p>Bots you’ve created to consume signals.</p>
         </div>
         <div className="module-grid">
-          {listenerBots.map((bot) => (
-            <div className="module accent-orange" key={bot.id}>
-              <div className="hud-corners" />
-              <h3>{bot.name}</h3>
-              <p>{bot.domain}</p>
-              {bot.description && <p>{bot.description}</p>}
-              <span className="badge">{bot.evidence}</span>
-            </div>
-          ))}
-          {!listenerBots.length && <div className="subtext">No listener bots registered yet.</div>}
+          <div className="module accent-orange">
+            <div className="hud-corners" />
+            <h3>Signal Aggregator</h3>
+            <p>aggregation</p>
+            <p>Collects and re-publishes signals from multiple subscribed streams.</p>
+            <span className="badge">hybrid</span>
+          </div>
         </div>
       </div>
 
-      <div className="section">
-        <div className="section-head">
-          <span className="kicker">On-chain</span>
-          <h2>Subscriptions</h2>
-          <p>Subscriptions derived directly from on-chain NFT mints.</p>
-        </div>
-        <div className="data-grid">
-          {subscriptions.map((sub) => {
-            const tierEntry = tierLookup[sub.tierIdHex];
-            const stream = tierEntry?.stream ?? streamLookup[sub.stream];
-            const tier = tierEntry?.tier;
-            const streamName = stream?.name ?? `${sub.stream.slice(0, 8)}…`;
-            const tierLabel = tier?.tierId ?? `tier-${sub.tierIdHex.slice(0, 6)}`;
-            return (
-              <OwnedSubscriptionCard
-                key={sub.subscription}
-                streamName={streamName}
-                streamId={stream?.id ?? sub.stream}
-                tierLabel={tierLabel}
-                price={tier?.price}
-                evidenceLevel={tier?.evidenceLevel ?? evidenceLabel(sub.evidenceLevel)}
-                pricingType={tier?.pricingType ?? pricingTypeLabel(sub.pricingType)}
-                expiresAt={sub.expiresAt}
-                nftMint={sub.nftMint}
-              />
-            );
-          })}
-          {!subscriptions.length && <div className="subtext">No subscriptions yet.</div>}
-        </div>
-      </div>
     </section>
   );
 }

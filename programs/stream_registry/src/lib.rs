@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi");
+declare_id!("HCm2Bk65hCaevrs4N3oYegMBZBTPpzjoMB44JgTrTVSA");
 
 #[program]
 pub mod stream_registry {

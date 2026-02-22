@@ -183,6 +183,7 @@ export function buildSubscribeInstruction(params: {
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
         { pubkey: params.stream, isSigner: false, isWritable: false },
         { pubkey: tierConfig, isSigner: false, isWritable: false },
+        { pubkey: resolveStreamRegistryId(), isSigner: false, isWritable: false },
         { pubkey: params.subscriber, isSigner: true, isWritable: true },
         { pubkey: params.maker, isSigner: false, isWritable: true },
         { pubkey: params.treasury, isSigner: false, isWritable: true },

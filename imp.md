@@ -23,7 +23,7 @@ Date: 2026-02-15
 20. Tapestry integration is implemented via SocialFi client and optional signal posting.
 21. Subscriptions now mint an on-chain 1-of-1 NFT (decimals 0) per subscription; UI reads subscriptions from chain (no DB storage).
 22. One wallet holds at most one subscription per stream (no multi-tier subscriptions for the same stream).
-23. Subscription NFT transferability is undecided; revisit later (possible Token-2022 non-transferable).
+23. Subscription NFTs are now **soulbound** using Token-2022 Non-Transferable mint (breaking compatibility with old NFTs).
 24. Next protocol version should require Tapestry as a first-class dependency: all discovery must be social, requests must be Tapestry posts, and all profiles must be on Tapestry.
 25. On-chain subscribe is now wallet-signed in the UI; profile reads subscriptions directly from chain (no backend storage).
 26. Keybox stored as a map (subscriber_id -> wrapped_key) so listeners decrypt only their own entry.
@@ -49,3 +49,4 @@ Date: 2026-02-15
 46. Trust vs Verifiable are evidence modes for **private** signals; public signals are open.
 47. Public signals skip keyboxes; payloads live in `/storage/public` and on-chain keybox hashes are zeroed.
 48. Tapestry is mandatory for discovery and social; backend no longer falls back to local stores for stream lists or feeds.
+49. Private keybox access is now gated by **wallet signature + Token-2022 NFT ownership**; backend only returns the caller’s keybox entry.

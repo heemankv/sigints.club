@@ -3,13 +3,10 @@
 
 // ─── Solana program IDs ───────────────────────────────────────────────────────
 
-export const SUBSCRIPTION_PROGRAM_ID =
-  process.env.NEXT_PUBLIC_SUBSCRIPTION_PROGRAM_ID ??
-  "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE";
+export const SUBSCRIPTION_PROGRAM_ID = process.env.NEXT_PUBLIC_SUBSCRIPTION_PROGRAM_ID ?? "";
 
 export const STREAM_REGISTRY_PROGRAM_ID =
-  process.env.NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID ??
-  "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi";
+  process.env.NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID ?? "";
 
 // ─── Solana cluster ───────────────────────────────────────────────────────────
 

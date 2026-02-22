@@ -2,6 +2,8 @@ import "../env";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import { spawnSync } from "node:child_process";
+import os from "node:os";
 import { createHash } from "node:crypto";
 import * as anchor from "@coral-xyz/anchor";
 import {
@@ -13,7 +15,11 @@ import {
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import bs58 from "bs58";
 import { BackendStorage } from "../storage/providers/BackendStorage";
 import { FileMetadata } from "../metadata/providers/FileMetadata";
@@ -26,6 +32,7 @@ import { SignalService } from "../services/SignalService";
 import { getTapestryClient } from "../tapestry";
 import { SocialService } from "../services/SocialService";
 import { TapestryStreamService } from "../services/TapestryStreamService";
+import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,6 +118,7 @@ type SeedOptions = {
   force?: boolean;
   seedOnchain?: boolean;
   seedSocial?: boolean;
+  deployPrograms?: boolean;
 };
 
 type DemoSummary = {
@@ -128,6 +136,17 @@ function envTrue(name: string, defaultValue = false): boolean {
   const raw = process.env[name];
   if (raw === undefined) return defaultValue;
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
+}
+
+function parseJsonMap(value?: string): Record<string, string> | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as Record<string, string>;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("Invalid JSON map, ignoring.", error);
+    return undefined;
+  }
 }
 
 function sha256Bytes(input: string): Buffer {
@@ -182,6 +201,57 @@ function expandPath(input: string): string {
 
 function isLocalnet(rpcUrl: string): boolean {
   return rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost");
+}
+
+async function resolveAnchorWalletPath(): Promise<string> {
+  if (process.env.SOLANA_KEYPAIR) {
+    return expandPath(process.env.SOLANA_KEYPAIR);
+  }
+  if (process.env.SOLANA_PRIVATE_KEY) {
+    const keypair = Keypair.fromSecretKey(bs58Codec.decode(process.env.SOLANA_PRIVATE_KEY));
+    const tempPath = path.join(
+      os.tmpdir(),
+      `sigints-anchor-${Date.now()}-${Math.floor(Math.random() * 1000)}.json`
+    );
+    await fs.writeFile(tempPath, JSON.stringify(Array.from(keypair.secretKey)));
+    return tempPath;
+  }
+  throw new Error("SOLANA_KEYPAIR or SOLANA_PRIVATE_KEY must be set for anchor deploy");
+}
+
+async function syncIdlArtifacts(repoRoot: string) {
+  const sourceDir = path.resolve(repoRoot, "target", "idl");
+  const destDir = path.resolve(backendRoot, "idl");
+  try {
+    await fs.mkdir(destDir, { recursive: true });
+    const entries = await fs.readdir(sourceDir);
+    for (const entry of entries) {
+      if (!entry.endsWith(".json")) continue;
+      await fs.copyFile(path.join(sourceDir, entry), path.join(destDir, entry));
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("Failed to sync IDL artifacts from target/idl", error);
+  }
+}
+
+async function deployAnchorPrograms() {
+  const repoRoot = path.resolve(backendRoot, "..");
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "http://127.0.0.1:8899";
+  const walletPath = await resolveAnchorWalletPath();
+  const result = spawnSync("anchor", ["deploy"], {
+    cwd: repoRoot,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      ANCHOR_PROVIDER_URL: rpcUrl,
+      ANCHOR_WALLET: walletPath,
+    },
+  });
+  if (result.status !== 0) {
+    throw new Error("anchor deploy failed");
+  }
+  await syncIdlArtifacts(repoRoot);
 }
 
 async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol = 1) {
@@ -384,7 +454,12 @@ async function sendSubscribeTx(args: {
   const subscription = deriveSubscriptionPda(args.programId, args.stream, args.subscriber.publicKey);
   const subscriptionMint = deriveSubscriptionMint(args.programId, args.stream, args.subscriber.publicKey);
   const streamState = deriveStreamState(args.programId, args.stream);
-  const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, args.subscriber.publicKey);
+  const subscriberAta = getAssociatedTokenAddressSync(
+    subscriptionMint,
+    args.subscriber.publicKey,
+    false,
+    TOKEN_2022_PROGRAM_ID
+  );
   const tierHash = sha256Bytes(args.tierId);
   const [tierConfig] = PublicKey.findProgramAddressSync(
     [Buffer.from("tier"), args.stream.toBuffer(), tierHash],
@@ -400,11 +475,12 @@ async function sendSubscribeTx(args: {
       { pubkey: subscriberAta, isSigner: false, isWritable: true },
       { pubkey: args.stream, isSigner: false, isWritable: false },
       { pubkey: tierConfig, isSigner: false, isWritable: false },
+      { pubkey: args.streamRegistryProgramId, isSigner: false, isWritable: false },
       { pubkey: args.subscriber.publicKey, isSigner: true, isWritable: true },
       { pubkey: args.maker, isSigner: false, isWritable: true },
       { pubkey: args.treasury, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: anchor.web3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
     ],
@@ -448,6 +524,7 @@ function toBytes32(hex: string, label: string): Buffer {
 async function recordSignalOnchain(args: {
   connection: Connection;
   programId: PublicKey;
+  streamRegistryProgramId: PublicKey;
   stream: PublicKey;
   authority: Keypair;
   coder: anchor.BorshInstructionCoder;
@@ -486,7 +563,8 @@ async function recordSignalOnchain(args: {
     keys: [
       { pubkey: signalPda, isSigner: false, isWritable: true },
       { pubkey: args.stream, isSigner: false, isWritable: false },
-      { pubkey: streamState, isSigner: false, isWritable: false },
+      { pubkey: args.streamRegistryProgramId, isSigner: false, isWritable: false },
+      { pubkey: streamState, isSigner: false, isWritable: true },
       { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
@@ -536,6 +614,11 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   const seedOnchain = options.seedOnchain ?? true;
   const seedSocial = options.seedSocial ?? false;
+  const deployPrograms = options.deployPrograms ?? false;
+
+  if (deployPrograms) {
+    await deployAnchorPrograms();
+  }
 
   const makerWallets = Array.from({ length: 3 }).map(() => Keypair.generate());
   const listenerWallets = Array.from({ length: 10 }).map(() => Keypair.generate());
@@ -644,6 +727,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
   let chainProgramId: PublicKey | undefined;
   let chainAuthority: Keypair | undefined;
   let chainCoder: anchor.BorshInstructionCoder | undefined;
+  let chainRegistryProgramId: PublicKey | undefined;
 
   if (seedOnchain) {
     const rpcUrl = process.env.SOLANA_RPC_URL ?? "http://127.0.0.1:8899";
@@ -663,85 +747,105 @@ export async function seedDemoData(options: SeedOptions = {}) {
         // eslint-disable-next-line no-console
         console.warn("On-chain programs not deployed on target RPC. Skipping on-chain seeding.");
       } else {
+        let onchainReady = false;
         const authority = await loadAuthorityKeypair();
-        if (isLocalnet(rpcUrl)) {
-          await ensureBalance(connection, authority.publicKey, 3);
-        }
-        const coder = await loadStreamRegistryCoder();
-        streamMap = {};
-        for (const stream of streamProfiles) {
-          const pda = await ensureStreamConfig({
-            connection,
-            programId: registryProgramId,
-            authority,
-            streamId: stream.id,
-            tiers: stream.tiers,
-            coder,
-          });
-          streamMap[stream.id] = pda.toBase58();
-          const tier = streamTiers[stream.id];
-          await ensureTierConfig({
-            connection,
-            programId: registryProgramId,
-            authority,
-            stream: pda,
-            tierId: tier.tierId,
-            pricingType: PRICING_TYPE_MAP[tier.pricingType],
-            evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
-            priceLamports: tier.priceLamports,
-            quota: tier.quota,
-          });
-        }
-
-        chainConnection = connection;
-        chainProgramId = programId;
-        chainAuthority = authority;
-        chainCoder = await loadSubscriptionCoder();
-
-        for (const [idx, listener] of listenerWallets.entries()) {
+        try {
           if (isLocalnet(rpcUrl)) {
-            await ensureBalance(connection, listener.publicKey, 2);
+            await ensureBalance(connection, authority.publicKey, 3);
           }
-          const stream = streamProfiles[idx % streamProfiles.length];
-          const tier = streamTiers[stream.id];
-          try {
-            const streamPda = streamMap?.[stream.id];
-            if (!streamPda) {
-              throw new Error(`Missing stream PDA for ${stream.id}`);
-            }
-            const signature = await sendSubscribeTx({
+          const coder = await loadStreamRegistryCoder();
+          streamMap = {};
+          for (const stream of streamProfiles) {
+            const pda = await ensureStreamConfig({
               connection,
-              programId,
-              streamRegistryProgramId: registryProgramId,
-              stream: new PublicKey(streamPda),
-              subscriber: listener,
-              maker: authority.publicKey,
-              treasury: authority.publicKey,
+              programId: registryProgramId,
+              authority,
+              streamId: stream.id,
+              tiers: stream.tiers,
+              coder,
+            });
+            streamMap[stream.id] = pda.toBase58();
+            const tier = streamTiers[stream.id];
+            await ensureTierConfig({
+              connection,
+              programId: registryProgramId,
+              authority,
+              stream: pda,
               tierId: tier.tierId,
               pricingType: PRICING_TYPE_MAP[tier.pricingType],
               evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
               priceLamports: tier.priceLamports,
-              quotaRemaining: tier.quota,
+              quota: tier.quota,
             });
-            onchainSubscriptions.push({
-              streamId: stream.id,
-              subscriber: listener.publicKey.toBase58(),
-              signature,
-            });
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.warn("On-chain subscribe failed", error);
-            onchainSubscriptions.push({
-              streamId: stream.id,
-              subscriber: listener.publicKey.toBase58(),
-            });
+          }
+          onchainReady = true;
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn("On-chain stream/tier seed failed; skipping on-chain demo.", error);
+        }
+
+        if (onchainReady && streamMap) {
+          chainConnection = connection;
+          chainProgramId = programId;
+          chainAuthority = authority;
+          chainCoder = await loadSubscriptionCoder();
+          chainRegistryProgramId = registryProgramId;
+
+          for (const [idx, listener] of listenerWallets.entries()) {
+            if (isLocalnet(rpcUrl)) {
+              await ensureBalance(connection, listener.publicKey, 2);
+            }
+            const stream = streamProfiles[idx % streamProfiles.length];
+            const tier = streamTiers[stream.id];
+            try {
+              const streamPda = streamMap?.[stream.id];
+              if (!streamPda) {
+                throw new Error(`Missing stream PDA for ${stream.id}`);
+              }
+              const signature = await sendSubscribeTx({
+                connection,
+                programId,
+                streamRegistryProgramId: registryProgramId,
+                stream: new PublicKey(streamPda),
+                subscriber: listener,
+                maker: authority.publicKey,
+                treasury: authority.publicKey,
+                tierId: tier.tierId,
+                pricingType: PRICING_TYPE_MAP[tier.pricingType],
+                evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
+                priceLamports: tier.priceLamports,
+                quotaRemaining: tier.quota,
+              });
+              onchainSubscriptions.push({
+                streamId: stream.id,
+                subscriber: listener.publicKey.toBase58(),
+                signature,
+              });
+            } catch (error) {
+              // eslint-disable-next-line no-console
+              console.warn("On-chain subscribe failed", error);
+              onchainSubscriptions.push({
+                streamId: stream.id,
+                subscriber: listener.publicKey.toBase58(),
+              });
+            }
           }
         }
       }
     }
   }
 
-  const signalService = new SignalService(storage, metadata);
+  const tapestryEnabled = Boolean(process.env.TAPESTRY_API_KEY);
+  const tapestryProfileMap = parseJsonMap(process.env.TAPESTRY_PROFILE_MAP);
+  const tapestryClient = tapestryEnabled ? getTapestryClient() : undefined;
+  const tapestryStreams = tapestryEnabled
+    ? new TapestryStreamService(tapestryClient!, process.env.TAPESTRY_REGISTRY_PROFILE_ID)
+    : undefined;
+  const tapestryPublisher = tapestryEnabled
+    ? new TapestryPublisher(tapestryClient!, process.env.TAPESTRY_PROFILE_ID, tapestryProfileMap, tapestryStreams)
+    : undefined;
+
+  const signalService = new SignalService(storage, metadata, tapestryPublisher);
   const signals: DemoSummary["signals"] = [];
   for (const stream of streamProfiles) {
     const tier = streamTiers[stream.id];
@@ -756,11 +860,20 @@ export async function seedDemoData(options: SeedOptions = {}) {
         streamVisibility[stream.id] ?? "private"
       );
       let onchainTx: string | undefined;
-      if (seedOnchain && chainConnection && chainProgramId && chainAuthority && chainCoder && streamMap?.[stream.id]) {
+      if (
+        seedOnchain &&
+        chainConnection &&
+        chainProgramId &&
+        chainAuthority &&
+        chainCoder &&
+        chainRegistryProgramId &&
+        streamMap?.[stream.id]
+      ) {
         try {
           onchainTx = await recordSignalOnchain({
             connection: chainConnection,
             programId: chainProgramId,
+            streamRegistryProgramId: chainRegistryProgramId,
             stream: new PublicKey(streamMap[stream.id]),
             authority: chainAuthority,
             coder: chainCoder,
@@ -782,65 +895,62 @@ export async function seedDemoData(options: SeedOptions = {}) {
     }
   }
 
-  if (!process.env.TAPESTRY_API_KEY) {
-    throw new Error("TAPESTRY_API_KEY is required to seed streams");
-  }
-  const client = getTapestryClient();
-  const tapestryStreams = new TapestryStreamService(
-    client,
-    process.env.TAPESTRY_REGISTRY_PROFILE_ID
-  );
-  for (const stream of streamProfiles) {
-    const onchainAddress = streamMap?.[stream.id];
-    const authority = chainAuthority?.publicKey.toBase58();
-    const dao = chainAuthority?.publicKey.toBase58();
-    try {
-      await tapestryStreams.upsertStream(
-        {
-          streamId: stream.id,
-          name: stream.name,
-          domain: stream.domain,
-          description: stream.description,
-          accuracy: stream.accuracy,
-          latency: stream.latency,
-          price: stream.price,
-          evidence: stream.evidence,
-          ownerWallet: stream.ownerWallet,
-          authority,
-          dao,
-          onchainAddress,
-        },
-        stream.tiers
-      );
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn(`Tapestry stream seed failed for ${stream.id}`, error);
-    }
-  }
-  if (seedSocial) {
-    try {
-      const social = new SocialService(client, userStore);
-      for (const stream of streamProfiles) {
-        const makerWallet = makerWallets[0]?.publicKey.toBase58();
-        await social.createIntent({
-          wallet: makerWallet,
-          content: `Looking for ${stream.id} live alerts`,
-          streamId: stream.id,
-          tags: ["seed", "intent"],
-          displayName: "Seed Maker",
-        });
+  if (tapestryEnabled && tapestryStreams && tapestryClient) {
+    for (const stream of streamProfiles) {
+      const onchainAddress = streamMap?.[stream.id];
+      const authority = chainAuthority?.publicKey.toBase58();
+      const dao = chainAuthority?.publicKey.toBase58();
+      try {
+        await tapestryStreams.upsertStream(
+          {
+            streamId: stream.id,
+            name: stream.name,
+            domain: stream.domain,
+            description: stream.description,
+            accuracy: stream.accuracy,
+            latency: stream.latency,
+            price: stream.price,
+            evidence: stream.evidence,
+            ownerWallet: stream.ownerWallet,
+            authority,
+            dao,
+            onchainAddress,
+          },
+          stream.tiers
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`Tapestry stream seed failed for ${stream.id}`, error);
       }
-      await social.createSlashReport({
-        wallet: makerWallets[0]?.publicKey.toBase58(),
-        content: "Seeded slash report for demo review.",
-        streamId: "stream-eth",
-        severity: "low",
-        displayName: "Seed Validator",
-      });
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn("Social seeding failed", error);
     }
+    if (seedSocial) {
+      try {
+        const social = new SocialService(tapestryClient, userStore);
+        for (const stream of streamProfiles) {
+          const makerWallet = makerWallets[0]?.publicKey.toBase58();
+          await social.createIntent({
+            wallet: makerWallet,
+            content: `Looking for ${stream.id} live alerts`,
+            streamId: stream.id,
+            tags: ["seed", "intent"],
+            displayName: "Seed Maker",
+          });
+        }
+        await social.createSlashReport({
+          wallet: makerWallets[0]?.publicKey.toBase58(),
+          content: "Seeded slash report for demo review.",
+          streamId: "stream-eth",
+          severity: "low",
+          displayName: "Seed Validator",
+        });
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("Social seeding failed", error);
+      }
+    }
+  } else if (seedSocial) {
+    // eslint-disable-next-line no-console
+    console.warn("TAPESTRY_API_KEY missing; skipping social seeding.");
   }
 
   const summary: DemoSummary = {
@@ -873,6 +983,7 @@ export async function maybeSeedDemoData() {
       Boolean(process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID && (process.env.SOLANA_KEYPAIR || process.env.SOLANA_PRIVATE_KEY))
     ),
     seedSocial: envTrue("SEED_DEMO_SOCIAL", Boolean(process.env.TAPESTRY_API_KEY)),
+    deployPrograms: envTrue("SEED_DEPLOY_PROGRAMS", false),
   });
 }
 
@@ -881,6 +992,7 @@ if (process.argv[1] === __filename) {
     force: process.argv.includes("--force"),
     seedOnchain: envTrue("SEED_DEMO_ONCHAIN", true),
     seedSocial: envTrue("SEED_DEMO_SOCIAL", Boolean(process.env.TAPESTRY_API_KEY)),
+    deployPrograms: process.argv.includes("--deploy") || envTrue("SEED_DEPLOY_PROGRAMS", false),
   }).catch((error) => {
     // eslint-disable-next-line no-console
     console.error(error);

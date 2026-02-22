@@ -1,17 +1,15 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::invoke_signed;
-use anchor_lang::solana_program::program_pack::Pack;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::solana_program::system_instruction;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::associated_token::get_associated_token_address;
-use anchor_spl::token::{self, MintTo, SetAuthority, Token};
-use anchor_spl::token::spl_token::state::Mint as SplMint;
-use anchor_spl::token::spl_token::instruction::AuthorityType;
+use anchor_spl::token_2022::{self, MintTo, SetAuthority, Token2022};
+use spl_associated_token_account::get_associated_token_address_with_program_id;
+use spl_token_2022::extension::ExtensionType;
+use spl_token_2022::instruction::AuthorityType;
+use spl_token_2022::state::Mint as Mint2022;
 
 declare_id!("BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE");
-
-const STREAM_REGISTRY_ID: Pubkey = pubkey!("5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi");
 const PLATFORM_FEE_BPS: u64 = 100;
 
 #[program]
@@ -27,12 +25,17 @@ pub mod subscription_royalty {
         quota_remaining: u32,
         price_lamports: u64,
     ) -> Result<()> {
-        let stream_config = validate_stream(&ctx.accounts.stream)?;
+        let stream_config = validate_stream(&ctx.accounts.stream, &ctx.accounts.stream_registry_program)?;
         require!(
             stream_config.status == StreamStatus::Active as u8,
             ErrorCode::StreamInactive
         );
-        let tier_config = validate_tier(&ctx.accounts.tier_config, &ctx.accounts.stream, &tier_id)?;
+        let tier_config = validate_tier(
+            &ctx.accounts.tier_config,
+            &ctx.accounts.stream,
+            &tier_id,
+            &ctx.accounts.stream_registry_program,
+        )?;
         require!(
             tier_config.status == TierStatus::Active as u8,
             ErrorCode::TierInactive
@@ -122,8 +125,11 @@ pub mod subscription_royalty {
 
         let stream_key = ctx.accounts.stream.key();
         let subscriber_key = ctx.accounts.subscriber.key();
-        let expected_ata =
-            get_associated_token_address(&subscriber_key, &ctx.accounts.subscription_mint.key());
+        let expected_ata = get_associated_token_address_with_program_id(
+            &subscriber_key,
+            &ctx.accounts.subscription_mint.key(),
+            &ctx.accounts.token_2022_program.key(),
+        );
         require_keys_eq!(
             expected_ata,
             ctx.accounts.subscriber_ata.key(),
@@ -132,13 +138,16 @@ pub mod subscription_royalty {
 
         if ctx.accounts.subscription_mint.data_is_empty() {
             let rent = Rent::get()?;
-            let mint_lamports = rent.minimum_balance(SplMint::LEN);
+            let mint_len = ExtensionType::try_calculate_account_len::<Mint2022>(&[
+                ExtensionType::NonTransferable,
+            ])?;
+            let mint_lamports = rent.minimum_balance(mint_len);
             let create_ix = system_instruction::create_account(
                 &ctx.accounts.subscriber.key(),
                 &ctx.accounts.subscription_mint.key(),
                 mint_lamports,
-                SplMint::LEN as u64,
-                &ctx.accounts.token_program.key(),
+                mint_len as u64,
+                &ctx.accounts.token_2022_program.key(),
             );
             let mint_seeds: &[&[u8]] = &[
                 b"subscription_mint",
@@ -156,10 +165,20 @@ pub mod subscription_royalty {
                 &[mint_seeds],
             )?;
 
-            token::initialize_mint(
+            let init_nt_ix = spl_token_2022::instruction::initialize_non_transferable_mint(
+                &ctx.accounts.token_2022_program.key(),
+                &ctx.accounts.subscription_mint.key(),
+            )?;
+            invoke_signed(
+                &init_nt_ix,
+                &[ctx.accounts.subscription_mint.to_account_info()],
+                &[mint_seeds],
+            )?;
+
+            token_2022::initialize_mint(
                 CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    token::InitializeMint {
+                    ctx.accounts.token_2022_program.to_account_info(),
+                    token_2022::InitializeMint {
                         mint: ctx.accounts.subscription_mint.to_account_info(),
                         rent: ctx.accounts.rent.to_account_info(),
                     },
@@ -179,7 +198,7 @@ pub mod subscription_royalty {
                     authority: ctx.accounts.subscriber.to_account_info(),
                     mint: ctx.accounts.subscription_mint.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
-                    token_program: ctx.accounts.token_program.to_account_info(),
+                    token_program: ctx.accounts.token_2022_program.to_account_info(),
                 },
             );
             anchor_spl::associated_token::create(cpi_ctx)?;
@@ -192,9 +211,9 @@ pub mod subscription_royalty {
             &[ctx.bumps.subscription],
         ];
 
-        token::mint_to(
+        token_2022::mint_to(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.token_2022_program.to_account_info(),
                 MintTo {
                     mint: ctx.accounts.subscription_mint.to_account_info(),
                     to: ctx.accounts.subscriber_ata.to_account_info(),
@@ -205,9 +224,9 @@ pub mod subscription_royalty {
             1,
         )?;
 
-        token::set_authority(
+        token_2022::set_authority(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.token_2022_program.to_account_info(),
                 SetAuthority {
                     current_authority: ctx.accounts.subscription.to_account_info(),
                     account_or_mint: ctx.accounts.subscription_mint.to_account_info(),
@@ -218,9 +237,9 @@ pub mod subscription_royalty {
             None,
         )?;
 
-        token::set_authority(
+        token_2022::set_authority(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.token_2022_program.to_account_info(),
                 SetAuthority {
                     current_authority: ctx.accounts.subscription.to_account_info(),
                     account_or_mint: ctx.accounts.subscription_mint.to_account_info(),
@@ -294,7 +313,7 @@ pub mod subscription_royalty {
         keybox_hash: [u8; 32],
         keybox_pointer_hash: [u8; 32],
     ) -> Result<()> {
-        let stream_config = validate_stream(&ctx.accounts.stream)?;
+        let stream_config = validate_stream(&ctx.accounts.stream, &ctx.accounts.stream_registry_program)?;
         require!(
             stream_config.status == StreamStatus::Active as u8,
             ErrorCode::StreamInactive
@@ -356,6 +375,9 @@ pub struct Subscribe<'info> {
     pub stream: AccountInfo<'info>,
     /// CHECK: tier config validated against registry in handler
     pub tier_config: AccountInfo<'info>,
+    /// CHECK: executable stream registry program (validated in handler)
+    #[account(executable)]
+    pub stream_registry_program: AccountInfo<'info>,
     #[account(mut)]
     pub subscriber: Signer<'info>,
     #[account(mut)]
@@ -363,7 +385,7 @@ pub struct Subscribe<'info> {
     #[account(mut)]
     pub treasury: SystemAccount<'info>,
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_2022_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub rent: Sysvar<'info, Rent>,
 }
@@ -429,7 +451,6 @@ pub struct RegisterWalletKey<'info> {
 #[derive(Accounts)]
 pub struct RecordSignal<'info> {
     #[account(
-        mut,
         init_if_needed,
         payer = authority,
         space = SignalRecord::SPACE,
@@ -439,8 +460,10 @@ pub struct RecordSignal<'info> {
     pub signal: Account<'info, SignalRecord>,
     /// CHECK: validated in handler against stream registry
     pub stream: AccountInfo<'info>,
+    /// CHECK: executable stream registry program (validated in handler)
+    #[account(executable)]
+    pub stream_registry_program: AccountInfo<'info>,
     #[account(
-        mut,
         init_if_needed,
         payer = authority,
         space = StreamState::SPACE,
@@ -594,8 +617,12 @@ pub enum ErrorCode {
     SubscriptionInactive,
 }
 
-fn load_stream_config(account: &AccountInfo) -> Result<StreamConfig> {
-    require_keys_eq!(*account.owner, STREAM_REGISTRY_ID, ErrorCode::InvalidStream);
+fn load_stream_config(account: &AccountInfo, registry_program: &AccountInfo) -> Result<StreamConfig> {
+    require_keys_eq!(
+        *account.owner,
+        *registry_program.key,
+        ErrorCode::InvalidStream
+    );
     let data = account.data.borrow();
     if data.len() < 8 {
         return Err(error!(ErrorCode::InvalidStream));
@@ -606,19 +633,23 @@ fn load_stream_config(account: &AccountInfo) -> Result<StreamConfig> {
     Ok(cfg)
 }
 
-fn validate_stream(account: &AccountInfo) -> Result<StreamConfig> {
-    let cfg = load_stream_config(account)?;
+fn validate_stream(account: &AccountInfo, registry_program: &AccountInfo) -> Result<StreamConfig> {
+    let cfg = load_stream_config(account, registry_program)?;
     let expected = Pubkey::find_program_address(
         &[b"stream", cfg.stream_id.as_ref()],
-        &STREAM_REGISTRY_ID,
+        registry_program.key,
     )
     .0;
     require_keys_eq!(expected, *account.key, ErrorCode::InvalidStream);
     Ok(cfg)
 }
 
-fn load_tier_config(account: &AccountInfo) -> Result<TierConfig> {
-    require_keys_eq!(*account.owner, STREAM_REGISTRY_ID, ErrorCode::InvalidTier);
+fn load_tier_config(account: &AccountInfo, registry_program: &AccountInfo) -> Result<TierConfig> {
+    require_keys_eq!(
+        *account.owner,
+        *registry_program.key,
+        ErrorCode::InvalidTier
+    );
     let data = account.data.borrow();
     if data.len() < 8 {
         return Err(error!(ErrorCode::InvalidTier));
@@ -633,13 +664,14 @@ fn validate_tier(
     account: &AccountInfo,
     stream: &AccountInfo,
     tier_id: &[u8; 32],
+    registry_program: &AccountInfo,
 ) -> Result<TierConfig> {
-    let cfg = load_tier_config(account)?;
+    let cfg = load_tier_config(account, registry_program)?;
     require_keys_eq!(cfg.stream, *stream.key, ErrorCode::TierMismatch);
     require!(cfg.tier_id == *tier_id, ErrorCode::TierMismatch);
     let expected = Pubkey::find_program_address(
         &[b"tier", stream.key().as_ref(), tier_id.as_ref()],
-        &STREAM_REGISTRY_ID,
+        registry_program.key,
     )
     .0;
     require_keys_eq!(expected, *account.key, ErrorCode::InvalidTier);

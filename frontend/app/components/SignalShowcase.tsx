@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 type Signal = {
   domain: string;
@@ -145,7 +146,7 @@ export default function SignalShowcase() {
             <p className="showcase-action">{sig.action}</p>
 
             <div className="showcase-footer">
-              <a href="/feed" className="showcase-cta-btn">Subscribe to signal →</a>
+              <Link href="/feed" className="showcase-cta-btn">Subscribe to signal →</Link>
               <span className="showcase-meta">Tick updates in real-time · Solana-verified</span>
             </div>
           </div>

@@ -10,6 +10,7 @@ beforeAll(async () => {
   process.env.NODE_ENV = "test";
   process.env.PERSIST = "false";
   process.env.TEST_ALLOW_SUBSCRIBE_BYPASS = "true";
+  process.env.TEST_KEYBOX_BYPASS = "true";
   const { createApp } = await import("../../backend/src/app.ts");
   const app = createApp();
   await new Promise<void>((resolve) => {

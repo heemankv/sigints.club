@@ -36,7 +36,7 @@ Note: This is intentionally minimal for hackathon speed. A DB can be plugged in 
    - Enforces tier config (price, monthly pricing, evidence level).
    - Enforces maker authority + treasury (DAO) from registry.
    - Splits fee: 1% platform fee + 99% maker payout.
-   - Mints a 1-of-1 NFT to subscriber wallet.
+   - Mints a **Token-2022 Non-Transferable (soulbound) NFT** to subscriber wallet.
    - `register_key` + `register_wallet_key` for encryption keys.
    - `record_signal` anchored with Solana Clock `created_at` (latest-only account).
 
@@ -83,6 +83,7 @@ Note: This is intentionally minimal for hackathon speed. A DB can be plugged in 
 - Store ciphertext + keybox off-chain.
 - Public signals skip keybox and store plaintext payloads in `/storage/public`.
 - On-chain stores hashes + pointer hashes only.
+- Keybox access is gated by wallet signature + soulbound NFT ownership (backend returns only the caller’s entry).
 
 ## MVP Data Flow
 1. User posts intent/slash (Tapestry content).

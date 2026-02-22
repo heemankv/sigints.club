@@ -1,7 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair, Connection, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
-import { getAccount, getAssociatedTokenAddressSync, getMint } from "@solana/spl-token";
+import {
+  getAccount,
+  getAssociatedTokenAddressSync,
+  getMint,
+  TOKEN_2022_PROGRAM_ID,
+} from "@solana/spl-token";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { LoggingMessageNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -323,6 +330,23 @@ async function sendSubscribeTx(args: {
   await sendAndConfirmTransaction(connection, tx, [args.subscriber]);
 }
 
+async function sendRegisterWalletKeyTx(args: {
+  subscriber: Keypair;
+  encPubKeyBase64: string;
+}) {
+  const { buildRegisterWalletKeyInstruction } = await import("../../frontend/app/lib/solana.ts");
+  const ix = buildRegisterWalletKeyInstruction({
+    programId: PROGRAM_ID,
+    subscriber: args.subscriber.publicKey,
+    encPubKeyBase64: args.encPubKeyBase64,
+  });
+  const tx = new Transaction().add(ix);
+  tx.feePayer = args.subscriber.publicKey;
+  const { blockhash } = await connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  await sendAndConfirmTransaction(connection, tx, [args.subscriber]);
+}
+
 beforeAll(async () => {
   await ensureLocalnet();
 
@@ -371,6 +395,7 @@ beforeAll(async () => {
   process.env.SOLANA_RPC_URL = RPC_URL;
   process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID = PROGRAM_ID.toBase58();
   process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID = STREAM_REGISTRY_PROGRAM_ID.toBase58();
+  process.env.NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID = STREAM_REGISTRY_PROGRAM_ID.toBase58();
   process.env.SOLANA_KEYPAIR = tempKeypairPath;
   process.env.SOLANA_IDL_PATH = path.resolve(process.cwd(), "../backend/idl/subscription_royalty.json");
   process.env.SOLANA_STREAM_MAP = JSON.stringify(streamMap);
@@ -451,15 +476,25 @@ describe("E2E maker/taker flow", () => {
       const expectedTierHash = sha256Hex(Buffer.from(stream.tier, "utf8"));
       expect(decoded!.tierIdHex).toBe(expectedTierHash);
 
-      const mint = await getMint(connection, subscriptionMint);
+      const mint = await getMint(connection, subscriptionMint, "confirmed", TOKEN_2022_PROGRAM_ID);
       expect(mint.decimals).toBe(0);
       expect(mint.supply).toBe(1n);
       expect(mint.mintAuthority).toBeNull();
       expect(mint.freezeAuthority).toBeNull();
 
-      const ata = getAssociatedTokenAddressSync(subscriptionMint, taker.wallet.publicKey);
-      const tokenAccount = await getAccount(connection, ata);
+      const ata = getAssociatedTokenAddressSync(
+        subscriptionMint,
+        taker.wallet.publicKey,
+        false,
+        TOKEN_2022_PROGRAM_ID
+      );
+      const tokenAccount = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
       expect(tokenAccount.amount).toBe(1n);
+
+      await sendRegisterWalletKeyTx({
+        subscriber: taker.wallet,
+        encPubKeyBase64: taker.keys.publicKeyDerBase64,
+      });
     }
 
     for (const [idx, taker] of takers.entries()) {
@@ -511,6 +546,10 @@ describe("E2E maker/taker flow", () => {
         rpcUrl: RPC_URL,
         backendUrl: baseUrl,
         programId: PROGRAM_ID.toBase58(),
+        keyboxAuth: {
+          walletPubkey: taker.wallet.publicKey.toBase58(),
+          signMessage: (message) => nacl.sign.detached(message, taker.wallet.secretKey),
+        },
       });
 
       const stop = await client.listenForSignals({
@@ -576,6 +615,7 @@ describe("E2E maker/taker flow", () => {
         streamPubkey: streamMap[streams[0].id],
         subscriberPublicKeyBase64: takers[0].keys.publicKeyDerBase64,
         subscriberPrivateKeyBase64: takers[0].keys.privateKeyDerBase64,
+        walletSecretKeyBase58: bs58.encode(takers[0].wallet.secretKey),
         backendUrl: baseUrl,
         rpcUrl: RPC_URL,
         programId: PROGRAM_ID.toBase58(),
@@ -619,17 +659,15 @@ describe("E2E maker/taker flow", () => {
       const cipherHash = sha256Hex(Buffer.from(JSON.stringify(cipherBody.payload)));
       expect(cipherHash).toBe(meta.signalHash);
 
-      const keyboxRes = await fetch(`${baseUrl}/storage/keybox/${meta.keyboxHash}`);
-      expect(keyboxRes.ok).toBe(true);
-      const keyboxBody = (await keyboxRes.json()) as { keybox: Record<string, any> };
-      const keyboxHash = sha256Hex(Buffer.from(JSON.stringify(keyboxBody.keybox)));
-      expect(keyboxHash).toBe(meta.keyboxHash);
-
       const matchingTakers = takers.filter((_, idx) => streams[idx % streams.length].id === item.streamId);
       for (const taker of matchingTakers) {
-        const subscriberId = subscriberIdFromPubkey(taker.keys.publicKeyDerBase64);
+        const message = Buffer.from(`sigints:keybox:${meta.keyboxHash}`, "utf8");
+        const signature = Buffer.from(nacl.sign.detached(message, taker.wallet.secretKey)).toString("base64");
         const entryRes = await fetch(
-          `${baseUrl}/storage/keybox/${meta.keyboxHash}?subscriberId=${encodeURIComponent(subscriberId)}`
+          `${baseUrl}/storage/keybox/${meta.keyboxHash}` +
+            `?wallet=${encodeURIComponent(taker.wallet.publicKey.toBase58())}` +
+            `&signature=${encodeURIComponent(signature)}` +
+            `&encPubKeyDerBase64=${encodeURIComponent(taker.keys.publicKeyDerBase64)}`
         );
         expect(entryRes.ok).toBe(true);
       }
@@ -660,6 +698,7 @@ describe("E2E maker/taker flow", () => {
         streamPubkey: streamMap[streams[0].id],
         subscriberPublicKeyBase64: takers[0].keys.publicKeyDerBase64,
         subscriberPrivateKeyBase64: takers[0].keys.privateKeyDerBase64,
+        walletSecretKeyBase58: bs58.encode(takers[0].wallet.secretKey),
         backendUrl: baseUrl,
         rpcUrl: RPC_URL,
         programId: PROGRAM_ID.toBase58(),

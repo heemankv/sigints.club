@@ -8,6 +8,7 @@ let app: Express;
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
   process.env.PERSIST = "false";
+  process.env.TEST_KEYBOX_BYPASS = "true";
   const mod = await import("../../src/app");
   app = mod.createApp();
 });

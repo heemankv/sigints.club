@@ -24,6 +24,13 @@ Public signals skip the keybox entirely. The plaintext payload is stored in `/st
 - Used to encrypt and decrypt the symmetric key.
 - Each subscriber creates and stores this keypair.
 
+## Access Control (Soulbound Subscription NFT)
+Private keyboxes are gated by **Token-2022 Non-Transferable subscription NFTs**:
+- The subscriber signs a keybox request.
+- Backend verifies wallet signature + NFT ownership (balance == 1).
+- Backend returns **only the caller’s keybox entry**.
+This makes the NFT a real access gate without exposing the full keybox.
+
 ## Data Objects
 1. Signal ciphertext C
 - The encrypted signal payload.
@@ -75,7 +82,7 @@ Use a subscriber id derived from the encryption public key (hash of pubkey) so s
    - hash(keybox)
    - pointer PB
    - metadata (timestamp, domain, tier)
-10. Subscriber reads on-chain entry, fetches keybox PB, finds their entry, decrypts EncKey_i to get K, fetches C via P, verifies hash H, decrypts C -> signal.
+10. Subscriber reads on-chain entry, signs a keybox request, backend verifies NFT ownership, returns their keybox entry, decrypts EncKey_i to get K, fetches C via P, verifies hash H, decrypts C -> signal.
 
 ## Sequence Diagram (Message Delivery)
 ```mermaid
