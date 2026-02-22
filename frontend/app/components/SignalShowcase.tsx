@@ -96,7 +96,7 @@ export default function SignalShowcase() {
   const sig = SIGNALS[active];
 
   return (
-    <section className="showcase-section">
+    <section className="showcase-section" id="signals">
       <div className="container">
         <div className="section-head">
           <span className="kicker showcase-kicker">Live signal examples</span>

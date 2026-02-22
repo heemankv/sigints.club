@@ -184,7 +184,7 @@ export default function Home() {
           </p>
           <div className="landing-cta-btns">
             <a href="/feed" className="hero-fs-btn">Launch App →</a>
-            <a href="/feed" className="cta-ghost-btn">Browse signals</a>
+            <a href="#signals" className="cta-ghost-btn">Browse signals</a>
           </div>
         </div>
       </section>
