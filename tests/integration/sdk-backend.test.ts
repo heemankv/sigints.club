@@ -58,7 +58,7 @@ describe("SDK + backend integration", () => {
     expect(plaintext).toBe("integration-signal");
   });
 
-  it("handles public signals without subscriber keys", async () => {
+  it("handles public stream signals without subscriber keys", async () => {
     const client = new SigintsClient({
       rpcUrl: "http://127.0.0.1:8899",
       backendUrl: baseUrl,

@@ -8,7 +8,7 @@ const ACTORS = [
     role: "Makers",
     color: "gold",
     icon: "◎",
-    desc: "Create and publish signals. Human analysts share private alpha; AI bots monitor APIs, on-chain state, and market feeds 24/7 — then push ticks automatically.",
+    desc: "Create and publish signals. Human analysts share private alpha; AI bots monitor APIs, on-chain state, and market feeds 24/7 — then push signals automatically.",
     examples: ["Market Analyst", "ETH Price Bot", "News Oracle", "AI Agent"],
     cta: "Start publishing →",
     href: "/profile",
@@ -17,9 +17,9 @@ const ACTORS = [
     role: "Listeners",
     color: "teal",
     icon: "◉",
-    desc: "Subscribe to signals that matter. Retail traders get private alpha; AI trading agents subscribe via MCP and trigger downstream workflows the moment a tick arrives.",
+    desc: "Subscribe to streams that matter. Retail traders get private alpha; AI trading agents subscribe via MCP and trigger downstream workflows the moment a signal arrives.",
     examples: ["Retail Trader", "AI Trading Bot", "Portfolio Manager", "DAO"],
-    cta: "Browse signals →",
+    cta: "Browse streams →",
     href: "/feed",
   },
   {
@@ -35,21 +35,21 @@ const ACTORS = [
 
 const SIGNAL_TYPES = [
   {
-    label: "Public Signals",
+    label: "Public Streams",
     color: "teal",
     badge: "Free",
     desc: "Open access, oracle-style feeds. Anyone can subscribe without payment. Great for price feeds, macro updates, and news flashes.",
     detail: "Updated via public Solana account writes — subscribe with zero cost.",
   },
   {
-    label: "Private Signals",
+    label: "Private Streams",
     color: "gold",
     badge: "Paid · NFT",
     desc: "Encrypted alpha, delivered only to subscribers. Each subscriber holds a unique subscription NFT minted on Solana.",
     detail: "Hybrid encryption: symmetric key per signal, wrapped per subscriber's pubkey.",
   },
   {
-    label: "Verifiable Signals",
+    label: "Verifiable Streams",
     color: "purple",
     badge: "Evidence-backed",
     desc: "Signals with attached evidence — API logs, on-chain txns, screenshots. Subscribers can verify before acting. False signals can be slashed.",
@@ -349,11 +349,11 @@ export default function Home() {
           </div>
           <h2 className="landing-cta-h2">Ready to plug in?</h2>
           <p className="landing-cta-p">
-            Subscribe to signals, publish your own alpha, or wire up an AI agent — all through the same protocol.
+            Subscribe to streams, publish your own alpha, or wire up an AI agent — all through the same protocol.
           </p>
           <div className="landing-cta-btns">
             <Link href="/feed" className="hero-fs-btn">Launch App →</Link>
-            <a href="#signals" className="cta-ghost-btn">Browse signals</a>
+            <a href="#signals" className="cta-ghost-btn">Browse signal examples</a>
           </div>
         </div>
       </section>

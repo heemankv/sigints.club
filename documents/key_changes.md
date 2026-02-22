@@ -25,32 +25,32 @@ Where to live: (Smart cities with "Pax Silica" connections).
 What to expect for your wallet: (Higher tariffs mean your next laptop will be more expensive).
 What market segments to trade in.
 
-Users can create signals or even subscribe to public / private signals to take appropriate actions.
-Public Signals perform similar to oracles, data within an account is updated with latest information.
-Private Signals create an encryption layer on top of public signals, ensuring only the subscribers can act on the signals.
+Users can create streams or even subscribe to public / private streams to take appropriate actions.
+Public streams perform similar to oracles: the latest signal is stored on-chain and updated as new information arrives.
+Private streams create an encryption layer on top of signals, ensuring only the subscribers can act on the signals.
 
-Public Signals are open-for-all and free to subscribe to.
-Private Signals are paid-subscriptions based.
+Public streams are open-for-all and free to subscribe to.
+Private streams are paid-subscriptions based.
 
-Each Private event is of two types based on verifiability. 
-- Trustable Signals. 
+Each private stream (or tier) is of two types based on verifiability.
+- Trustable streams. 
   - Subscribers have to trust the data provided by the signals blindly.
-- Verifiable Signals
+- Verifiable streams
   - Subscribers are provided with access to information that helps in verifying the signal.
 
-Private Signals are subscriptions on a monthly basis for now, no other way.
+Private streams are subscriptions on a monthly basis for now, no other way.
 
-A user can request for Signals that others could fulfill. 
-For examples a person wants signals on Indian-Women-Cricket team, 
+A user can request for streams that others could fulfill. 
+For examples a person wants a stream on Indian-Women-Cricket team, 
 they will create a request-post on our platform (Discovery and Posts still comes from Tapestry) 
 and other users can view the request post and see the likes and comments on the post and then if they feel it could profit them,
-they can create a signal and share it's link on the post as well.
+they can create a stream and share its link on the post as well.
 
-Similarly a user can also directly create a signal as well and post about it like any other social media,
-they can provide it's usage and price for subscriptions and users can subscribe from there by doing the payment.
+Similarly a user can also directly create a stream and post about it like any other social media,
+they can provide its usage and price for subscriptions and users can subscribe from there by doing the payment.
 and then these subscriptions will show up the subscriber's profile. (NFT)
 
-These subscriptions have a way to listen to them: using solana's getAccountChanged event listener and all the things are already provided by solana for this over which we'll write an abstraction where in the subscriber just provides enough details and we abstract the solana listening logic.
+These subscriptions have a way to listen to signals: using Solana's getAccountChanged event listener and all the things are already provided by Solana for this over which we'll write an abstraction where in the subscriber just provides enough details and we abstract the Solana listening logic.
 
 I like to imagine two thoughts when talking about this social platform. 
 I read somewhere that a in a forest when a single tree cannot fulfill it's requirements for a particular nutrient,
@@ -58,8 +58,10 @@ It signals that to all the trees of the forest via it's roots' connection, and i
 the requesting tree is provided with the nutrients and that's how all the trees in a forest communicate and fulfill each other.
 
 
-A tick is a new update to a signal.
-A Intent is a user posting about requirement of a Signal.
+Nomenclature:
+- Stream = the topic/channel (ex: "Amazon iPhone exchange availability").
+- Signal = a single update for a stream (ex: "Exchange open for iPhone 13 at 09:17").
+- Intent = a user posting about requirement of a Stream.
 
 
 MCP : Everything possible from the website will be provided via an MCP as well so that AI bots run by people can also take decisions, later.

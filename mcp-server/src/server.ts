@@ -11,7 +11,7 @@ import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import nacl from "tweetnacl";
 
-export type TickArgs = {
+export type SignalArgs = {
   streamId: string;
   streamPubkey: string;
   subscriberPublicKeyBase64?: string;
@@ -24,7 +24,7 @@ export type TickArgs = {
   maxAgeMs?: number;
 };
 
-export type ListenArgs = TickArgs;
+export type ListenArgs = SignalArgs;
 
 type ClientFactory = (cfg: {
   rpcUrl: string;
@@ -48,7 +48,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
 
   const server = new Server(
     {
-      name: "sigints-tick-server",
+      name: "sigints-signal-server",
       version: "0.1.0",
     },
     {
@@ -63,9 +63,9 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
     return {
       tools: [
         {
-          name: "check_stream_tick",
+          name: "check_stream_signal",
           description:
-            "Check for the latest signal tick for a stream. Decrypts private signals for a subscriber; public signals require no keys.",
+            "Check for the latest signal for a stream. Decrypts private stream signals for a subscriber; public stream signals require no keys.",
           inputSchema: {
             type: "object",
             properties: {
@@ -90,9 +90,9 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
           },
         },
         {
-          name: "listen_stream_ticks",
+          name: "listen_stream_signals",
           description:
-            "Start a long-running tick stream. Private signals require subscriber keys; public signals do not.",
+            "Start a long-running signal stream. Private stream signals require subscriber keys; public stream signals do not.",
           inputSchema: {
             type: "object",
             properties: {
@@ -116,8 +116,8 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
           },
         },
         {
-          name: "stop_stream_ticks",
-          description: "Stop a previously started tick stream by streamId.",
+          name: "stop_stream_signals",
+          description: "Stop a previously started signal stream by streamId.",
           inputSchema: {
             type: "object",
             properties: {
@@ -132,8 +132,8 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    if (name !== "check_stream_tick") {
-      if (name === "listen_stream_ticks") {
+    if (name !== "check_stream_signal") {
+      if (name === "listen_stream_signals") {
         const input = args as ListenArgs;
         const listenId = input.streamId ?? randomUUID();
         if (activeStreams.has(listenId)) {
@@ -160,29 +160,29 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
           subscriberKeys,
           maxAgeMs: input.maxAgeMs,
           includeBlockTime: true,
-          onSignal: async (tick) => {
+          onSignal: async (signal) => {
             await server.sendLoggingMessage({
               level: "info",
-              logger: "stream-ticks",
+              logger: "stream-signals",
               data: {
                 listenId,
-                signalHash: tick.signalHash,
-                streamId: tick.metadata.streamId,
-                tierId: tick.metadata.tierId,
-                visibility: tick.metadata.visibility ?? "private",
-                createdAt: tick.createdAt,
-                receivedAt: tick.receivedAt,
-                ageMs: tick.ageMs,
-                slot: tick.slot,
-                blockTime: tick.blockTime,
-                plaintext: tick.plaintext,
+                signalHash: signal.signalHash,
+                streamId: signal.metadata.streamId,
+                tierId: signal.metadata.tierId,
+                visibility: signal.metadata.visibility ?? "private",
+                createdAt: signal.createdAt,
+                receivedAt: signal.receivedAt,
+                ageMs: signal.ageMs,
+                slot: signal.slot,
+                blockTime: signal.blockTime,
+                plaintext: signal.plaintext,
               },
             });
           },
           onError: async (err) => {
             await server.sendLoggingMessage({
               level: "error",
-              logger: "stream-ticks",
+              logger: "stream-signals",
               data: { listenId, error: err.message },
             });
           },
@@ -193,7 +193,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
         };
       }
 
-      if (name === "stop_stream_ticks") {
+      if (name === "stop_stream_signals") {
         const input = args as { streamId: string };
         const stop = activeStreams.get(input.streamId);
         if (stop) {
@@ -206,7 +206,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
 
       throw new Error(`Unknown tool: ${name}`);
     }
-    const input = args as TickArgs;
+    const input = args as SignalArgs;
     const client = clientFactory({
       rpcUrl: input.rpcUrl,
       backendUrl: input.backendUrl,
@@ -233,7 +233,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
       | undefined = undefined;
     if (visibility === "private") {
       if (!input.subscriberPublicKeyBase64 || !input.subscriberPrivateKeyBase64) {
-        throw new Error("subscriber keys required for private signals");
+        throw new Error("subscriber keys required for private stream signals");
       }
       const subscriberId = subscriberIdFromPubkey(input.subscriberPublicKeyBase64);
       key = `${input.streamId}:${subscriberId}`;
@@ -247,7 +247,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
         content: [
           {
             type: "text",
-            text: "No new tick.",
+            text: "No new signal.",
           },
         ],
       };
@@ -266,7 +266,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Sigints
         content: [
           {
             type: "text",
-            text: "Latest tick is stale.",
+            text: "Latest signal is stale.",
           },
         ],
       };

@@ -127,7 +127,7 @@ function TestWalletAutoConnect({ walletName }: { walletName: WalletName }) {
     let cancelled = false;
     let attempts = 0;
     let timer: ReturnType<typeof setInterval> | null = null;
-    const tick = () => {
+    const poll = () => {
       if (cancelled) return;
       attempts += 1;
       if (wallet?.adapter.name !== walletName) {
@@ -143,8 +143,8 @@ function TestWalletAutoConnect({ walletName }: { walletName: WalletName }) {
         }
       }
     };
-    tick();
-    timer = setInterval(tick, 500);
+    poll();
+    timer = setInterval(poll, 500);
     return () => {
       cancelled = true;
       if (timer) {

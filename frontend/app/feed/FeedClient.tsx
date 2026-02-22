@@ -33,7 +33,7 @@ type FeedTab = "foryou" | "following" | "intents" | "slashing";
 
 const FEED_TABS: Array<{ id: FeedTab; label: string }> = [
   { id: "foryou", label: "For you" },
-  { id: "following", label: "Explore Signals" },
+  { id: "following", label: "Explore Streams" },
   { id: "intents", label: "Intents" },
   { id: "slashing", label: "Ongoing Slashing" },
 ];

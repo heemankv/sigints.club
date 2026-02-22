@@ -419,7 +419,7 @@ afterAll(async () => {
 });
 
 describe("E2E maker/taker flow", () => {
-  it("delivers ticks to SDK and MCP listeners with strict validation", async () => {
+  it("delivers signals to SDK and MCP listeners with strict validation", async () => {
     const streams = TEST_STREAMS.map((stream) => ({
       id: stream.id,
       tier: stream.tierId,
@@ -537,7 +537,7 @@ describe("E2E maker/taker flow", () => {
     const receivedByTaker = new Map<string, { streamId: string; plaintext: string }>();
     const listenerErrors: string[] = [];
     const duplicateSignals: string[] = [];
-    const tickStats: Array<{ createdAt: number; receivedAt: number }> = [];
+    const signalStats: Array<{ createdAt: number; receivedAt: number }> = [];
     const listeners: Array<() => void> = [];
 
     for (const [idx, taker] of takers.entries()) {
@@ -561,28 +561,28 @@ describe("E2E maker/taker flow", () => {
         },
         maxAgeMs: 60_000,
         includeBlockTime: true,
-        onSignal: (tick) => {
+        onSignal: (signal) => {
           const takerId = taker.wallet.publicKey.toBase58();
-          const expectedPlaintext = `${stream.id}-tick`;
+          const expectedPlaintext = `${stream.id}-signal`;
           if (receivedByTaker.has(takerId)) {
-            duplicateSignals.push(tick.signalHash);
+            duplicateSignals.push(signal.signalHash);
             return;
           }
-          if (tick.metadata.streamId !== stream.id) {
+          if (signal.metadata.streamId !== stream.id) {
             listenerErrors.push(`stream mismatch for ${takerId}`);
           }
-          if (tick.plaintext !== expectedPlaintext) {
+          if (signal.plaintext !== expectedPlaintext) {
             listenerErrors.push(`plaintext mismatch for ${takerId}`);
           }
-          if (tick.ageMs < 0 || tick.ageMs > 60_000) {
+          if (signal.ageMs < 0 || signal.ageMs > 60_000) {
             listenerErrors.push(`age out of range for ${takerId}`);
           }
-          if (tick.receivedAt < tick.createdAt) {
+          if (signal.receivedAt < signal.createdAt) {
             listenerErrors.push(`receivedAt before createdAt for ${takerId}`);
           }
-          actions.push(`sdk:${takerId}:${tick.plaintext}`);
-          receivedByTaker.set(takerId, { streamId: tick.metadata.streamId, plaintext: tick.plaintext });
-          tickStats.push({ createdAt: tick.createdAt, receivedAt: tick.receivedAt });
+          actions.push(`sdk:${takerId}:${signal.plaintext}`);
+          receivedByTaker.set(takerId, { streamId: signal.metadata.streamId, plaintext: signal.plaintext });
+          signalStats.push({ createdAt: signal.createdAt, receivedAt: signal.receivedAt });
         },
       });
       listeners.push(stop);
@@ -609,7 +609,7 @@ describe("E2E maker/taker flow", () => {
     });
 
     await mcpClient.callTool({
-      name: "listen_stream_ticks",
+      name: "listen_stream_signals",
       arguments: {
         streamId: streams[0].id,
         streamPubkey: streamMap[streams[0].id],
@@ -626,7 +626,7 @@ describe("E2E maker/taker flow", () => {
     // Makers publish signals
     const published: Array<{ streamId: string; metadata: any }> = [];
     for (const stream of streams) {
-      const payload = Buffer.from(`${stream.id}-tick`, "utf8").toString("base64");
+      const payload = Buffer.from(`${stream.id}-signal`, "utf8").toString("base64");
       const res = await fetch(`${baseUrl}/signals`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -692,7 +692,7 @@ describe("E2E maker/taker flow", () => {
     }
 
     const mcpResult = await mcpClient.callTool({
-      name: "check_stream_tick",
+      name: "check_stream_signal",
       arguments: {
         streamId: streams[0].id,
         streamPubkey: streamMap[streams[0].id],
@@ -708,7 +708,7 @@ describe("E2E maker/taker flow", () => {
     const contentText = mcpResult.content?.[0]?.type === "text" ? mcpResult.content[0].text : "";
     const parsed = contentText.startsWith("{") ? JSON.parse(contentText) : null;
     expect(parsed?.streamId).toBe(streams[0].id);
-    expect(parsed?.plaintext).toBe(`${streams[0].id}-tick`);
+    expect(parsed?.plaintext).toBe(`${streams[0].id}-signal`);
 
     listeners.forEach((stop) => stop());
 
@@ -716,10 +716,10 @@ describe("E2E maker/taker flow", () => {
     expect(receivedByTaker.size).toBe(takers.length);
     expect(listenerErrors).toEqual([]);
     expect(duplicateSignals).toEqual([]);
-    expect(tickStats.some((t) => t.receivedAt - t.createdAt < 60_000)).toBe(true);
+    expect(signalStats.some((t) => t.receivedAt - t.createdAt < 60_000)).toBe(true);
     expect(mcpReceived).toBe(true);
     expect(mcpPayload?.streamId).toBe(streams[0].id);
-    expect(mcpPayload?.plaintext).toBe(`${streams[0].id}-tick`);
+    expect(mcpPayload?.plaintext).toBe(`${streams[0].id}-signal`);
   });
 });
 

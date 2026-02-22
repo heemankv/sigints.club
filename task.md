@@ -38,11 +38,11 @@ Progress
 - Subscription mint now issues 1-of-1 NFT per subscription; profile reads on-chain subscriptions.
 - Localnet deployment tested with solana-test-validator; all three programs deployed locally.
 - On-chain subscribe now uses wallet-signed txs from the frontend (no backend signer).
-- SDK package and MCP server added for agent tick listening.
+- SDK package and MCP server added for agent signal listening.
 - Testing architecture documented for unit/integration/E2E suites.
 - Backend API/unit tests added (crypto, hash, API flow).
 - SDK unit tests added (crypto + parsing helpers).
-- MCP server tests added (tool list, tick checks, streaming notifications).
+- MCP server tests added (tool list, signal checks, streaming notifications).
 - Frontend component tests added (NetworkBanner).
 - Cross-component integration tests added (SDK + backend).
 - E2E flow test added (3 makers, 10 takers, SDK + MCP, localnet).

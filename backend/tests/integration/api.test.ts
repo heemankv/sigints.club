@@ -71,7 +71,7 @@ describe("backend API", () => {
     }
   });
 
-  it("publishes public signals without keybox", async () => {
+  it("publishes public stream signals without keybox", async () => {
     const streamId = "stream-public";
     const plaintext = Buffer.from("public-signal").toString("base64");
     const publishRes = await request(app).post("/signals").send({

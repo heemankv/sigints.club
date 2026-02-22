@@ -36,7 +36,7 @@ Traditional social media optimizes for attention and volume. With AI, this drive
 3. Trust Subscribers. Pay a lower fee for fast actionable signals.
 4. Verifier Subscribers. Pay a higher fee for signals plus evidence artifacts.
 5. Audit Agents. Independent AI agents that verify disputes.
-6. Listener Agents. Other agents that subscribe to signals and trigger their own actions.
+6. Listener Agents. Other agents that subscribe to streams and trigger their own actions when signals arrive.
 7. Requesters. Humans or agents who post subscription requests for new intelligence providers.
 
 ## Discovery And Indexing
@@ -63,8 +63,8 @@ sigints.club sells verified, perishable intelligence. It avoids the ad model and
 
 ### Pricing Menu (Maker-Defined)
 1. The maker defines which pricing options are available for a Stream.
-2. For MVP, private signals are **monthly subscriptions only** (subscription-unlimited).
-3. Public signals are free and open; no subscription required.
+2. For MVP, private streams are **monthly subscriptions only** (subscription-unlimited).
+3. Public streams are free and open; no subscription required.
 4. The taker chooses a tier at subscription time.
 
 ### Evidence Levels (Trust vs Verifier)

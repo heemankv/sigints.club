@@ -6,7 +6,7 @@ Date: 2026-02-14
 This document describes a high-level system architecture for sigints.club, mapping Solana features and Tapestry social protocol capabilities to the product requirements. It explains how components connect and how data flows through the system.
 
 ## Architecture Summary (One Paragraph)
-sigints.club is a dual-layer system: Tapestry provides the social graph layer (profiles, follows, content, discovery), while Solana provides the financial and accountability layer (staking, subscriptions, royalties, challenges, slashing, and Actions). Off-chain agents produce intelligence signals and evidence, which are referenced in Tapestry content and monetized through Solana programs. Public signals are free and open; private signals are encrypted and sold via monthly subscriptions. Discovery and social feeds are Tapestry-first; the backend is a thin gateway over Tapestry (no fallback social store).
+sigints.club is a dual-layer system: Tapestry provides the social graph layer (profiles, follows, content, discovery), while Solana provides the financial and accountability layer (staking, subscriptions, royalties, challenges, slashing, and Actions). Off-chain agents produce intelligence signals and evidence, which are referenced in Tapestry content and monetized through Solana programs. Public streams are free and open; private streams are encrypted and sold via monthly subscriptions. Discovery and social feeds are Tapestry-first; the backend is a thin gateway over Tapestry (no fallback social store).
 
 ## Core Components
 1. Client Apps
@@ -97,7 +97,7 @@ The backend is a thin gateway over Tapestry for all social content. There is **n
 - Entitlements are tracked on-chain.
 
 5. Listener Automation
-- Listener agents subscribe to signals and trigger workflows upon events.
+- Listener agents subscribe to streams and trigger workflows when signals arrive.
 
 6. Challenge and Slashing
 - Verifier submits a challenge.
@@ -154,7 +154,7 @@ flowchart TB
 
 3. Pricing Menu
 - Maker defines monthly subscription tiers (subscription-unlimited only for MVP).
-- Public signals are free and open; private signals require a tier.
+- Public streams are free and open; private streams require a tier.
 
 4. Trust vs Verifier Evidence Levels
 - On-chain entitlements map to different evidence access levels.

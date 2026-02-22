@@ -87,9 +87,10 @@ const socialPublisher = new TapestryPublisher(
   tapestryStreamService
 );
 const socialService = new SocialService(client, userStore);
-socialService.startBackgroundRefresh(15_000); // poll Tapestry every 15 s
+socialService.startBackgroundRefresh(15_000); // poll Tapestry feed every 15 s
 
 const discovery = new DiscoveryService(streamRegistryInstance, tapestryStreamService);
+discovery.startBackgroundRefresh(20_000); // poll Tapestry streams every 20 s
 
 export const signalService = new SignalService(storage, metadata, socialPublisher, onChainRecorder);
 export const metadataStore = metadata;

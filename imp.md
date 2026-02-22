@@ -27,10 +27,10 @@ Date: 2026-02-15
 24. Next protocol version should require Tapestry as a first-class dependency: all discovery must be social, requests must be Tapestry posts, and all profiles must be on Tapestry.
 25. On-chain subscribe is now wallet-signed in the UI; profile reads subscriptions directly from chain (no backend storage).
 26. Keybox stored as a map (subscriber_id -> wrapped_key) so listeners decrypt only their own entry.
-27. SDK and MCP server added for agent tick listening (Solana + backend pointers).
+27. SDK and MCP server added for agent signal listening (Solana + backend pointers).
 28. Signal `created_at` is now anchored on-chain via Solana Clock sysvar (stored in ms) to prevent maker backdating.
-29. Stream registry is enforced on-chain for subscribe and record_signal; only active registered streams can emit ticks.
-30. Makers can only emit ticks when there is at least one active subscription (subscription count tracked on-chain; cancel decrements, renew reactivates).
+29. Stream registry is enforced on-chain for subscribe and record_signal; only active registered streams can emit signals.
+30. Makers can only emit signals when there is at least one active subscription (subscription count tracked on-chain; cancel decrements, renew reactivates).
 31. Social layer is Tapestry-first: intents and slash reports are Tapestry posts, votes are likes, and comments are Tapestry comments; backend only indexes the feed.
 32. Social feed now supports follows and trending (sorted by Tapestry like counts); slash posts can link to challenge tx.
 33. Stream pages expose a Follow button (uses Tapestry profileId from stream map) and homepage shows Trending leaderboard.
@@ -40,13 +40,13 @@ Date: 2026-02-15
 37. On-chain subscriber key registration is supported via `register_key` (SubscriberKey PDA) to bind X25519 pubkeys on-chain.
 38. Default model is one-time wallet key registration (WalletKey PDA); subscriptions can reuse this key without per-subscription keypair generation.
 39. Tier prices are now stored on-chain via stream_registry `TierConfig` PDAs and enforced during subscribe; price must match exactly.
-40. Signal recording is latest-only: one `signal_latest` PDA per stream; each tick overwrites the same account (history kept off-chain).
+40. Signal recording is latest-only: one `signal_latest` PDA per stream; each signal update overwrites the same account (history kept off-chain).
 41. Product name is now **sigints.club** (Signals Intelligence), not Stream.club.
-42. Protocol focus: perishable alpha + strategic foresight signals; signals are streams, ticks are updates, intents are request posts.
+42. Protocol focus: perishable alpha + strategic foresight signals; streams are topics, signals are updates, intents are request posts.
 43. Discovery and social posting remain Tapestry-first (intents and signal posts are Tapestry content).
-44. Public signals are free and oracle-like (latest-only account). Private signals are encrypted and subscription-based.
-45. Private signals are **monthly subscriptions only** (no per-signal or limited tiers for MVP).
-46. Trust vs Verifiable are evidence modes for **private** signals; public signals are open.
-47. Public signals skip keyboxes; payloads live in `/storage/public` and on-chain keybox hashes are zeroed.
+44. Public streams are free and oracle-like (latest-only account). Private streams are encrypted and subscription-based.
+45. Private streams are **monthly subscriptions only** (no per-signal or limited tiers for MVP).
+46. Trust vs Verifiable are evidence modes for **private** streams; public streams are open.
+47. Public stream signals skip keyboxes; payloads live in `/storage/public` and on-chain keybox hashes are zeroed.
 48. Tapestry is mandatory for discovery and social; backend no longer falls back to local stores for stream lists or feeds.
 49. Private keybox access is now gated by **wallet signature + Token-2022 NFT ownership**; backend only returns the caller’s keybox entry.

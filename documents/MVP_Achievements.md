@@ -26,7 +26,7 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
 1. Hybrid encryption delivery is implemented:
    - ciphertext + keybox stored off-chain
    - signal metadata recorded on-chain
-   - keybox access gated by wallet signature + NFT ownership (private signals only)
+   - keybox access gated by wallet signature + NFT ownership (private stream signals only)
 2. Pluggable storage interface, MVP uses file-based storage.
 3. Tapestry-first social layer:
    - Intents, slash reports, likes, comments, follows.
@@ -39,7 +39,7 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
    - `GET /signals/by-hash/:hash`
    - `GET /storage/ciphertext/:sha`
    - `GET /storage/keybox/:sha?subscriberId=`
-   - `GET /storage/public/:sha` (public signals)
+   - `GET /storage/public/:sha` (public stream signals)
 5. Social endpoints:
    - `POST /social/intents`
    - `POST /social/slash`
@@ -72,9 +72,9 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
    - on-chain `createdAt` via SignalRecord
    - maxAge filtering
 2. MCP server:
-   - `check_stream_tick`
-   - `listen_stream_ticks` (stream)
-   - `stop_stream_ticks`
+   - `check_stream_signal`
+   - `listen_stream_signals` (stream)
+   - `stop_stream_signals`
 
 ## Tests
 1. Backend unit + integration tests pass.

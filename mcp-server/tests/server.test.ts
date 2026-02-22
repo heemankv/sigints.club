@@ -53,10 +53,10 @@ describe("MCP server", () => {
 
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
-    expect(names).toEqual(["check_stream_tick", "listen_stream_ticks", "stop_stream_ticks"].sort());
+    expect(names).toEqual(["check_stream_signal", "listen_stream_signals", "stop_stream_signals"].sort());
   });
 
-  it("returns tick payload on check_stream_tick", async () => {
+  it("returns signal payload on check_stream_signal", async () => {
     const server = createServer(() => createFakeClient());
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test-client", version: "0.1.0" }, { capabilities: {} });
@@ -64,7 +64,7 @@ describe("MCP server", () => {
     await client.connect(clientTransport);
 
     const result = await client.callTool({
-      name: "check_stream_tick",
+      name: "check_stream_signal",
       arguments: {
         streamId: "stream-eth",
         streamPubkey: "11111111111111111111111111111111",
@@ -82,7 +82,7 @@ describe("MCP server", () => {
     expect(payload.plaintext).toBe("price:2000");
   });
 
-  it("streams ticks via notifications/message", async () => {
+  it("streams signals via notifications/message", async () => {
     const server = createServer(() => createFakeClient());
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test-client", version: "0.1.0" }, { capabilities: { logging: {} } });
@@ -97,7 +97,7 @@ describe("MCP server", () => {
     });
 
     await client.callTool({
-      name: "listen_stream_ticks",
+      name: "listen_stream_signals",
       arguments: {
         streamId: "stream-eth",
         streamPubkey: "11111111111111111111111111111111",

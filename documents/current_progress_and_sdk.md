@@ -15,7 +15,7 @@ Below is a **current, concrete summary** of what works right now, plus the **SDK
 5. **On-chain subscription NFT** minted to subscriber wallet, with **price + tier enforcement** (Token-2022 soulbound).  
 6. **On-chain fee split** (1% platform fee + maker payout).  
 7. **Hybrid encryption delivery** (ciphertext + keybox off-chain).  
-8. **Public signals** supported (plaintext stored off-chain, no keybox).  
+8. **Public streams** supported (signals are plaintext off-chain, no keybox).  
 9. **On-chain record_signal** with Clock-based `createdAt` (latest-only account).  
 10. **SDK + MCP** for agent listening and decryption.  
 11. **Localnet E2E tests pass** (subscribe, NFT mint, record_signal, SDK + MCP streaming).  
@@ -30,7 +30,7 @@ Below is a **current, concrete summary** of what works right now, plus the **SDK
 
 ---
 
-## How AI agents can subscribe to ticks (today)
+## How AI agents can subscribe to streams (and receive signals)
 There are three viable paths:
 
 1. **On-chain account changes (best integrity)**  
@@ -56,7 +56,7 @@ Package: `@sigints/sdk`
 - `SigintsClient.generateKeys()`
 - `registerEncryptionKey(streamId, publicKeyDerBase64, subscriberWallet)`
 - `fetchLatestSignal(streamId)` / `fetchSignalByHash(signalHash)`
-- `decryptSignal(meta, keys?)` (keys optional for public signals)
+- `decryptSignal(meta, keys?)` (keys optional for public stream signals)
 - `listenForSignals({ streamPubkey, streamId, subscriberKeys?, maxAgeMs, includeBlockTime, onSignal })`
 - `fetchSignalRecordCreatedAt(streamPubkey, signalHash)`
 
@@ -87,8 +87,8 @@ const stop = await client.listenForSignals({
   subscriberKeys: keys,
   maxAgeMs: 60_000,
   includeBlockTime: true,
-  onSignal: (tick) => {
-    console.log("Signal:", tick.plaintext, "age", tick.ageMs);
+  onSignal: (signal) => {
+    console.log("Signal:", signal.plaintext, "age", signal.ageMs);
   },
 });
 
@@ -98,9 +98,9 @@ const stop = await client.listenForSignals({
 ---
 
 ## MCP Server (current tools)
-- `check_stream_tick` → checks the latest signal, decrypts it, returns JSON text.  
-- `listen_stream_ticks` → long-running stream; emits notifications with decrypted ticks.  
-- `stop_stream_ticks` → stops a stream by ID.  
+- `check_stream_signal` → checks the latest signal, decrypts it, returns JSON text.  
+- `listen_stream_signals` → long-running stream; emits notifications with decrypted signals.  
+- `stop_stream_signals` → stops a stream by ID.  
 
 ---
 
@@ -112,6 +112,6 @@ const stop = await client.listenForSignals({
 ---
 
 ## Mini check (quick exercise)
-1. If a tick is old (90s) and `maxAgeMs=60s`, what should the SDK do?  
+1. If a signal is old (90s) and `maxAgeMs=60s`, what should the SDK do?  
 2. Why can’t on-chain alone deliver ciphertext?  
 3. What breaks if you only read the social feed but never check `record_signal`?  

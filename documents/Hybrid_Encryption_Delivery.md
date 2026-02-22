@@ -7,8 +7,8 @@ Define the secure delivery mechanism for signals using hybrid encryption and off
 ## Core Idea (One Line)
 Encrypt the signal once with a symmetric key, store the ciphertext off-chain, and encrypt that symmetric key separately for each subscriber.
 
-## Public Signals (No Encryption)
-Public signals skip the keybox entirely. The plaintext payload is stored in `/storage/public`, and on-chain keybox hashes are zeroed. Listeners can fetch and consume without subscriber keys.
+## Public Streams (Signals Are Plaintext)
+Public stream signals skip the keybox entirely. The plaintext payload is stored in `/storage/public`, and on-chain keybox hashes are zeroed. Listeners can fetch and consume without subscriber keys.
 
 ## Why This Design
 1. On-chain storage is too small and expensive for full ciphertext.

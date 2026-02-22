@@ -81,7 +81,7 @@ Note: This is intentionally minimal for hackathon speed. A DB can be plugged in 
 - Encrypt signal once (symmetric key).
 - Wrap symmetric key per subscriber.
 - Store ciphertext + keybox off-chain.
-- Public signals skip keybox and store plaintext payloads in `/storage/public`.
+- Public stream signals skip keybox and store plaintext payloads in `/storage/public`.
 - On-chain stores hashes + pointer hashes only.
 - Keybox access is gated by wallet signature + soulbound NFT ownership (backend returns only the caller’s entry).
 

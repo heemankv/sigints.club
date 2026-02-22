@@ -7,12 +7,12 @@ Status: Implemented in codebase (2026-02-22).
 - Product name: **sigints.club** (Signals Intelligence), not Stream.club.
 - Purpose: Social platform where humans + AI share **verifiable & perishable alpha** (high-frequency, time-sensitive signals).
 - Signals range from basic (ETH price) to niche (trade alerts, strategic foresight).
-- **Signal model**:
-  - A *Signal* is a stream/topic (e.g., ETH price, “AI Displacement” play).
-  - A *Tick* is a new update on the signal.
-  - A *Intent* is a user post requesting a signal.
-- **Public signals**: open/free, oracle-like (latest-only account state).
-- **Private signals**: encrypted, paid, **monthly subscription only**.
+- **Stream/Signal model**:
+  - A *Stream* is a topic/channel (e.g., ETH price, “AI Displacement” play).
+  - A *Signal* is a new update on the stream.
+  - A *Intent* is a user post requesting a stream.
+- **Public streams**: open/free, oracle-like (latest-only account state; signals are plaintext).
+- **Private streams**: encrypted, paid, **monthly subscription only**.
   - Two evidence modes: **Trustable** vs **Verifiable**.
 - **Discovery & posts**: Tapestry-based; request posts visible in feed with likes/comments.
 - **Subscription listening**: Solana account change subscriptions + SDK abstraction.
@@ -32,16 +32,16 @@ Status: Implemented in codebase (2026-02-22).
 ### A) Branding
 - Frontend and docs still reference sigints.club/Stream.club in places.
 
-### B) Public vs Private signals
-- The code treats all signals as encrypted/private. There is no explicit **public signal** path.
+### B) Public vs Private streams
+- The code treats all signals as encrypted/private. There is no explicit **public stream** path.
 
 ### C) Pricing model
 - Current code supports **per-signal pricing** and **limited subscriptions**. Spec now requires:
-  - **Monthly subscription only** for private signals.
-  - Public signals are free.
+  - **Monthly subscription only** for private streams.
+  - Public streams are free.
 
 ### D) Evidence model
-- Trust vs Verifiable exists but should be **explicitly tied to private signals**, not public.
+- Trust vs Verifiable exists but should be **explicitly tied to private streams**, not public.
 
 ### E) Signal model
 - We already moved to **latest-only** (oracle-style). Need to ensure all code/docs are consistent.
@@ -61,15 +61,15 @@ Status: Implemented in codebase (2026-02-22).
 - Enforce **monthly subscription only**:
   - Remove/disable `per_signal` and `subscription_limited` in TierConfig validation.
   - Update error messages and tests accordingly.
-- Allow **public signals** to be recorded without active subscribers:
+- Allow **public stream signals** to be recorded without active subscribers:
   - Currently `record_signal` requires `subscription_count > 0`.
-  - For public signals, this should be **optional**.
+  - For public stream signals, this should be **optional**.
   - Proposed approach: add `is_public` flag on stream/tier config, and skip `NoSubscribers` check when public.
 
 ### 4.2 Backend
 - Add **public signal path**:
   - If a signal is public: skip keybox generation and encryption (store plaintext or store ciphertext but no keybox).
-  - Return metadata with `keyboxHash/keyboxPointer = null` for public signals.
+  - Return metadata with `keyboxHash/keyboxPointer = null` for public stream signals.
 - Update signal publish API to include `signalType` or `visibility: public|private`.
 - Enforce **monthly-only tiers** in creation and validation.
 - Update feed logic to treat **Intents** as primary posts; allow linking to signal pages.
@@ -100,7 +100,7 @@ Status: Implemented in codebase (2026-02-22).
 ### 4.6 Docs
 - Update docs to reflect:
   - **Latest-only** signal account.
-  - **Public vs private signals** and encryption differences.
+  - **Public vs private streams** and encryption differences.
   - **Monthly-only** pricing.
   - **sigints.club** branding.
 

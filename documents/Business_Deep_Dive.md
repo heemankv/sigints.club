@@ -32,7 +32,7 @@ Common menu options (MVP):
 
 Future options (post-MVP):
 - Subscription-limited (quota-based).
-- Per-signal (pay per tick).
+- Per-signal (pay per signal update).
 
 Trust vs Verifier is an evidence-access level that can be layered on top of any pricing option.
 

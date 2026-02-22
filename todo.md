@@ -19,13 +19,13 @@ Completed
 8. UI redesign to match introduction site and wallet login/profile pages.
 9. Subscription now mints an on-chain 1-of-1 NFT and profile reads subscriptions from chain.
 10. Wallet-signed on-chain subscribe flow in the frontend (no backend signer).
-11. SDK and MCP server scaffolding for agent tick listening.
+11. SDK and MCP server scaffolding for agent signal listening.
 12. Tapestry social feed + intent/slash posts integrated into UI.
 13. Auto-create Tapestry profiles on login (when API key present).
 14. Demo data seeding with backend + optional localnet on-chain seed flag.
-15. Align codebase with sigints.club protocol: branding (non-landing pages), public vs private signals, monthly-only pricing, intent-first UX, SDK/MCP parity.
+15. Align codebase with sigints.club protocol: branding (non-landing pages), public vs private streams, monthly-only pricing, intent-first UX, SDK/MCP parity.
 16. Add public signal path (no keybox) + on-chain allow record without subscribers for public.
 17. Remove per-signal and limited tiers from UI/backend validation.
-18. Update tests to cover public signals and monthly-only subscriptions.
+18. Update tests to cover public stream signals and monthly-only subscriptions.
 19. Enforce soulbound subscription NFTs (Token-2022 non-transferable) + keybox access gating by NFT ownership.
-20. Update SDK + MCP docs for keybox auth (wallet signature required for private signals).
+20. Update SDK + MCP docs for keybox auth (wallet signature required for private stream signals).

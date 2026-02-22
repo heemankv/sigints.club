@@ -285,7 +285,7 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       return res.status(404).json({ error: "keybox not found" });
     }
     if ((meta.visibility ?? "private") === "public") {
-      return res.status(400).json({ error: "public signals do not have a keybox" });
+      return res.status(400).json({ error: "public stream signals do not have a keybox" });
     }
 
     if (!wallet || !signature) {

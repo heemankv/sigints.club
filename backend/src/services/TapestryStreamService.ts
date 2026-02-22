@@ -1,5 +1,6 @@
 import { TapestryClient } from "../tapestry/TapestryClient";
 import { StreamTier } from "../streams/StreamStore";
+import { tapestryCache } from "./TapestryCache";
 
 type StreamMetaInput = {
   streamId: string;
@@ -25,6 +26,9 @@ export type TapestryStreamProfile = StreamMetaInput & {
 const STREAM_META_TYPE = "stream";
 const TIER_TYPE = "tier";
 
+const DEFAULT_REGISTRY_ID = "sigints-registry";
+const REGISTRY_TYPE = "registry";
+
 export class TapestryStreamService {
   constructor(
     private client: TapestryClient,
@@ -32,6 +36,7 @@ export class TapestryStreamService {
   ) {}
 
   async upsertStream(input: StreamMetaInput, tiers: StreamTier[]): Promise<string> {
+    await this.ensureRegistryProfile();
     const profileId = await this.ensureStreamProfile(input);
     await this.upsertStreamMeta(profileId, input);
     await this.upsertTiers(profileId, input.streamId, tiers);
@@ -42,10 +47,13 @@ export class TapestryStreamService {
         // ignore follow conflicts
       }
     }
+    // Bust the streams list cache so the next request sees the new stream.
+    tapestryCache.invalidatePrefix("streams:");
     return profileId;
   }
 
   async listStreams(limit = 50): Promise<TapestryStreamProfile[]> {
+    await this.ensureRegistryProfile();
     if (!this.registryProfileId) {
       return [];
     }
@@ -53,21 +61,47 @@ export class TapestryStreamService {
       profileId: this.registryProfileId,
       pageSize: limit,
     });
-    const profiles = following?.profiles ?? [];
-    const results: TapestryStreamProfile[] = [];
-    for (const profile of profiles) {
-      const stream = await this.fetchStreamFromProfile(profile.id);
-      if (stream) results.push(stream);
-    }
-    return results;
+    const profiles: Array<{ id: string }> = following?.profiles ?? [];
+    const settled = await Promise.all(
+      profiles.map((profile) => this.fetchStreamFromProfile(profile.id))
+    );
+    return settled.filter((s): s is TapestryStreamProfile => s !== null);
   }
 
   async getStream(streamId: string): Promise<TapestryStreamProfile | null> {
     const byStreamId = await this.searchStreamById(streamId);
     if (byStreamId) return byStreamId;
+    await this.ensureRegistryProfile();
     if (!this.registryProfileId) return null;
     const list = await this.listStreams();
     return list.find((p) => p.streamId === streamId) ?? null;
+  }
+
+  private async ensureRegistryProfile(): Promise<void> {
+    if (this.registryProfileId) {
+      return;
+    }
+    const walletAddress =
+      process.env.TAPESTRY_REGISTRY_WALLET ??
+      process.env.SOLANA_ADDRESS ??
+      process.env.SOLANA_PUBLIC_KEY;
+    if (!walletAddress) {
+      return;
+    }
+    try {
+      const properties = [{ key: "type", value: REGISTRY_TYPE }];
+      const res = await this.client.createProfile({
+        walletAddress,
+        username: DEFAULT_REGISTRY_ID,
+        id: DEFAULT_REGISTRY_ID,
+        bio: "Sigints stream registry",
+        properties,
+      });
+      this.registryProfileId =
+        res?.profile?.id ?? res?.data?.id ?? res?.id ?? DEFAULT_REGISTRY_ID;
+    } catch {
+      // ignore registry creation failures
+    }
   }
 
   private async ensureStreamProfile(input: StreamMetaInput): Promise<string> {

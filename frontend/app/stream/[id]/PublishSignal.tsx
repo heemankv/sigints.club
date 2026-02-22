@@ -33,7 +33,7 @@ export default function PublishSignal({ streamId, tierId }: { streamId: string; 
     <div className="card">
       <div className="hud-corners" />
       <h3>Publish Demo Signal</h3>
-      <p>Maker-only. Private signals are encrypted; public signals are open.</p>
+      <p>Maker-only. Private stream signals are encrypted; public stream signals are open.</p>
       <div className="field">
         <label>Visibility</label>
         <select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "private")}>

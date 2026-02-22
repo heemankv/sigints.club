@@ -3,7 +3,7 @@
 Date: 2026-02-20
 
 ## Status
-The testing plan is now **implemented** across backend and E2E. Backend unit + integration tests pass, and a full localnet E2E flow passes (subscribe → NFT mint → record_signal → SDK + MCP tick delivery).
+The testing plan is now **implemented** across backend and E2E. Backend unit + integration tests pass, and a full localnet E2E flow passes (subscribe → NFT mint → record_signal → SDK + MCP signal delivery).
 
 ---
 
@@ -49,8 +49,8 @@ Flow tested:
 3. Takers subscribe (NFT minted).
 4. Signals published, ciphertext + keybox stored.
 5. `record_signal` written on-chain.
-6. SDK listeners receive ticks (maxAge enforced).
-7. MCP stream receives ticks.
+6. SDK listeners receive signals (maxAge enforced).
+7. MCP stream receives signals.
 
 Assertions:
 - NFT minted per subscriber.

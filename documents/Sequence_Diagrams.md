@@ -154,8 +154,8 @@ sequenceDiagram
   API->>RPC: Verify subscription NFT ownership
   SDK-->>Agent: decrypted plaintext
 
-  Agent->>MCP: listen_stream_ticks
+  Agent->>MCP: listen_stream_signals
   MCP->>SDK: listenForSignals
-  SDK-->>MCP: decrypted tick
+  SDK-->>MCP: decrypted signal
   MCP-->>Agent: streaming notification
 ```

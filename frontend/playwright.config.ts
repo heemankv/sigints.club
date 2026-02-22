@@ -1,4 +1,21 @@
 import { defineConfig } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { Keypair } from "@solana/web3.js";
+
+function resolveTestWalletPubkey() {
+  if (process.env.NEXT_PUBLIC_TEST_WALLET_PUBKEY) {
+    return process.env.NEXT_PUBLIC_TEST_WALLET_PUBKEY;
+  }
+  try {
+    const keyPath = path.resolve(process.cwd(), "../accounts/taker.json");
+    const raw = readFileSync(keyPath, "utf8");
+    const kp = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw)));
+    return kp.publicKey.toBase58();
+  } catch {
+    return "";
+  }
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -18,8 +35,8 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
-      NEXT_PUBLIC_TEST_WALLET:
-        process.env.NEXT_PUBLIC_TEST_WALLET ?? "DRyWQCVXuTkffjmJvDUD3A57L3agpPdP9KHi4tqxFqPi",
+      NEXT_PUBLIC_TEST_WALLET: process.env.NEXT_PUBLIC_TEST_WALLET ?? "true",
+      NEXT_PUBLIC_TEST_WALLET_PUBKEY: resolveTestWalletPubkey(),
       NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3001",
     },
   },

@@ -10,13 +10,27 @@ type OwnedSubscriptionCardProps = {
   pricingType?: string;
   expiresAt?: number;
   nftMint: string;
+  description?: string;
 };
 
 function formatDate(ms?: number): string | null {
   if (!ms) return null;
   const date = new Date(ms);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString();
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function daysRemaining(ms?: number): number | null {
+  if (!ms) return null;
+  const diff = ms - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+function expiryColor(days: number | null): string {
+  if (days === null) return "";
+  if (days <= 7) return "sub-expiry--critical";
+  if (days <= 14) return "sub-expiry--warn";
+  return "sub-expiry--ok";
 }
 
 export default function OwnedSubscriptionCard({
@@ -28,13 +42,16 @@ export default function OwnedSubscriptionCard({
   pricingType,
   expiresAt,
   nftMint,
+  description,
 }: OwnedSubscriptionCardProps) {
   const artUrl = getCardArtUrl(`${streamId}:${tierLabel}`);
   const expiresLabel = formatDate(expiresAt);
+  const days = daysRemaining(expiresAt);
   const pricingLabel =
     pricingType === "subscription_unlimited"
-      ? "monthly subscription"
+      ? "Monthly subscription"
       : pricingType?.replace(/_/g, " ");
+
   return (
     <div className="data-card">
       <div className="data-card__media">
@@ -45,6 +62,7 @@ export default function OwnedSubscriptionCard({
         </div>
         <div className="data-card__tier">{tierLabel}</div>
       </div>
+
       <div className="data-card__body">
         <div className="data-card__title">
           <div>
@@ -53,13 +71,30 @@ export default function OwnedSubscriptionCard({
           </div>
           {price && <div className="data-card__price">{price}</div>}
         </div>
-        {expiresLabel && <p className="subtext">Expires {expiresLabel}</p>}
+
+        {description && <p className="data-card__desc">{description}</p>}
+
+        {expiresLabel && (
+          <div className={`sub-expiry ${expiryColor(days)}`}>
+            <span className="sub-expiry__date">Expires {expiresLabel}</span>
+            {days !== null && (
+              <span className="sub-expiry__pill">
+                {days === 0 ? "Expires today" : `${days}d left`}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="data-card__actions">
-          <a className="button ghost" href={explorerAddress(nftMint)} target="_blank">
-            View NFT
+          <a
+            className="button ghost data-card__nft-btn"
+            href={explorerAddress(nftMint)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View NFT ↗
           </a>
         </div>
-        <p className="subtext">Mint {nftMint.slice(0, 10)}…</p>
       </div>
     </div>
   );

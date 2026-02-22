@@ -15,7 +15,8 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(`Backend error ${res.status}`);
+    const text = await res.text();
+    throw new Error(`Backend error ${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
 }

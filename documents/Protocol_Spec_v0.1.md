@@ -20,8 +20,8 @@ Tier fields (MVP):
 - expires_at (timestamp, optional)
 
 Notes:
-- Public signals are free and open; no subscription required.
-- Private signals require a monthly subscription (pricing_type above).
+- Public streams are free and open; no subscription required.
+- Private streams require a monthly subscription (pricing_type above).
 
 Rationale: Rich enough for pricing and SLA, but still small for hackathon.
 
@@ -70,8 +70,8 @@ Rationale: minimum set for full lifecycle.
 - signal_pointer
 - keybox_hash
 - keybox_pointer
-- created_at (updated per tick; used as updated_at)
- - Public signals set keybox fields to zero.
+- created_at (updated per signal update; used as updated_at)
+ - Public stream signals set keybox fields to zero.
 
 4. Challenge PDA
 - challenger_pubkey

@@ -52,11 +52,11 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       }
 
       if (!pubKey || !privKey) {
-        setStatus("Keys required for private signals");
+        setStatus("Keys required for private stream signals");
         return;
       }
       if (!publicKey) {
-        setStatus("Connect wallet to decrypt private signals");
+        setStatus("Connect wallet to decrypt private stream signals");
         return;
       }
       if (!signMessage) {
@@ -67,7 +67,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       const keyboxSha = latest.keyboxPointer?.split("/").pop();
       const signalSha = latest.signalPointer.split("/").pop();
       if (!keyboxSha) {
-        setStatus("Missing keybox pointer for private signal");
+        setStatus("Missing keybox pointer for private stream signal");
         return;
       }
 

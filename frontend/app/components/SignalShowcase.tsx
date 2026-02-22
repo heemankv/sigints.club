@@ -146,8 +146,8 @@ export default function SignalShowcase() {
             <p className="showcase-action">{sig.action}</p>
 
             <div className="showcase-footer">
-              <Link href="/feed" className="showcase-cta-btn">Subscribe to signal →</Link>
-              <span className="showcase-meta">Tick updates in real-time · Solana-verified</span>
+              <Link href="/feed" className="showcase-cta-btn">Subscribe to stream →</Link>
+              <span className="showcase-meta">Signal updates in real-time · Solana-verified</span>
             </div>
           </div>
         </div>

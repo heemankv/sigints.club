@@ -2,6 +2,11 @@ import { StreamTier } from "../streams";
 import { hashTiersHex } from "../streams/tiersHash";
 import { StreamRegistryClient } from "./StreamRegistryClient";
 import { TapestryStreamService } from "./TapestryStreamService";
+import { tapestryCache } from "./TapestryCache";
+
+// Cache TTLs
+const TTL_STREAMS_LIST = 30_000;   // 30 s — kept warm by background poller
+const TTL_STREAM_DETAIL = 60_000;  // 60 s per individual stream
 
 export type StreamSummary = {
   id: string;
@@ -58,20 +63,22 @@ export class DiscoveryService {
     if (!this.tapestryStreams) {
       throw new Error("Tapestry is required for stream discovery");
     }
-    const streams = await this.tapestryStreams.listStreams();
-    return this.attachOnchain(streams);
+    return tapestryCache.swr(
+      "streams:all",
+      TTL_STREAMS_LIST,
+      () => this._rawListStreamDetails()
+    );
   }
 
   async getStream(id: string): Promise<StreamDetail | null> {
     if (!this.tapestryStreams) {
       throw new Error("Tapestry is required for stream discovery");
     }
-    const stream = await this.tapestryStreams.getStream(id);
-    if (!stream) {
-      return null;
-    }
-    const enriched = await this.attachOnchain([stream]);
-    return enriched[0] ?? null;
+    return tapestryCache.swr(
+      `stream:${id}`,
+      TTL_STREAM_DETAIL,
+      () => this._rawGetStream(id)
+    );
   }
 
   async listRequests(): Promise<RequestSummary[]> {
@@ -93,6 +100,35 @@ export class DiscoveryService {
     ];
   }
 
+  /**
+   * Start background polling so the streams list is always warm.
+   * Call once on server startup.
+   */
+  startBackgroundRefresh(intervalMs = 20_000): void {
+    tapestryCache.startPoller(
+      "streams:all",
+      intervalMs,
+      intervalMs + 5_000,
+      () => this._rawListStreamDetails()
+    );
+    // eslint-disable-next-line no-console
+    console.log(`[TapestryCache] Streams background refresh started (interval: ${intervalMs}ms)`);
+  }
+
+  // ─── Private raw fetchers (bypass cache, used by swr + poller) ───────────
+
+  private async _rawListStreamDetails(): Promise<StreamDetail[]> {
+    const streams = await this.tapestryStreams!.listStreams();
+    return this.attachOnchain(streams);
+  }
+
+  private async _rawGetStream(id: string): Promise<StreamDetail | null> {
+    const stream = await this.tapestryStreams!.getStream(id);
+    if (!stream) return null;
+    const enriched = await this.attachOnchain([stream]);
+    return enriched[0] ?? null;
+  }
+
   private async attachOnchain(streams: Array<StreamDetail & { ownerWallet?: string }>): Promise<StreamDetail[]> {
     if (streams.length === 0) {
       return [];
@@ -101,24 +137,20 @@ export class DiscoveryService {
       return streams;
     }
     const configs = await this.streamRegistry.getStreamConfigs(streams.map((p) => p.id));
-    return streams
-      .map((stream) => {
-        const config = configs[stream.id];
-        if (!config || config.status !== 1) {
-          return null;
-        }
-        const tiersHash = hashTiersHex(stream.tiers);
-        if (tiersHash !== config.tiersHashHex) {
-          return null;
-        }
-        return {
-          ...stream,
-          onchainAddress: config.pda,
-          authority: config.authority,
-          dao: config.dao,
-          tapestryProfileId: stream.tapestryProfileId,
-        };
-      })
-      .filter((stream): stream is StreamDetail => stream !== null);
+    const results: StreamDetail[] = [];
+    for (const stream of streams) {
+      const config = configs[stream.id];
+      if (!config || config.status !== 1) continue;
+      const tiersHash = hashTiersHex(stream.tiers);
+      if (tiersHash !== config.tiersHashHex) continue;
+      results.push({
+        ...stream,
+        onchainAddress: config.pda,
+        authority: config.authority,
+        dao: config.dao,
+        tapestryProfileId: stream.tapestryProfileId,
+      });
+    }
+    return results;
   }
 }

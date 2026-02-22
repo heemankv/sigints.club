@@ -23,7 +23,7 @@ async function main() {
   const listener = new ListenerService(storage);
   const latest = signals[signals.length - 1];
   if (latest.visibility !== "public" && (!privKey || !pubKey)) {
-    throw new Error("Set PRIVKEY_BASE64 and PUBKEY_BASE64 env vars for private signals");
+    throw new Error("Set PRIVKEY_BASE64 and PUBKEY_BASE64 env vars for private stream signals");
   }
   const decrypted = await listener.decryptLatestSignal(
     latest,

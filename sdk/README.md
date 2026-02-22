@@ -1,6 +1,6 @@
 # SDK (@sigints/sdk)
 
-Minimal agent SDK to listen for sigints.club signal ticks, resolve backend pointers, and decrypt.
+Minimal agent SDK to listen for sigints.club signals, resolve backend pointers, and decrypt.
 
 ## Install (local dev)
 ```bash
@@ -40,19 +40,19 @@ const stop = await client.listenForSignals({
     publicKeyDerBase64: keys.publicKeyDerBase64,
     privateKeyDerBase64: keys.privateKeyDerBase64,
   },
-  onSignal: (tick) => {
-    console.log("New tick", tick.signalHash, tick.plaintext);
+  onSignal: (signal) => {
+    console.log("New signal", signal.signalHash, signal.plaintext);
   },
   maxAgeMs: 60_000,
   includeBlockTime: true,
 });
 ```
 
-### Public signals
-If a signal is public, `subscriberKeys` are optional. The SDK will fetch the plaintext payload directly from `/storage/public`.
+### Public streams
+If a stream is public, `subscriberKeys` are optional. The SDK will fetch the plaintext payload directly from `/storage/public`.
 
-### Private signals (keybox auth)
-Private signals require `keyboxAuth` so the backend can verify NFT ownership before returning keybox entries.
+### Private streams (keybox auth)
+Private streams require `keyboxAuth` so the backend can verify NFT ownership before returning keybox entries.
 
 ## Notes
 - Signals are discovered on-chain via program account changes.

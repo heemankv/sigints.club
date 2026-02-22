@@ -6,7 +6,7 @@ export default function SignalFlowDiagram() {
           <span className="kicker flow-kicker">Protocol</span>
           <h2 className="flow-h2">How signals flow on-chain</h2>
           <p className="flow-sub">
-            Every tick is a Solana account update. Listeners — human or AI — detect the change
+            Every signal update is a Solana account update. Listeners — human or AI — detect the change
             and decrypt in milliseconds via <code>getAccountChanged</code>.
           </p>
         </div>
@@ -127,7 +127,7 @@ export default function SignalFlowDiagram() {
           </div>
           <div className="flow-pill">
             <span className="flow-pill-dot purple" />
-            <span>One PDA per provider. Every tick overwrites it — no history bloat, subscribers always get the latest</span>
+            <span>One PDA per provider. Every signal overwrites it — no history bloat, subscribers always get the latest</span>
           </div>
           <div className="flow-pill">
             <span className="flow-pill-dot teal" />

@@ -7,6 +7,7 @@ import WalletConnect from "./components/WalletConnect";
 import SearchBar from "./components/SearchBar";
 import NetworkOnboarding from "./components/NetworkOnboarding";
 import Footer from "./components/Footer";
+import TapestryHeaderBadge from "./components/TapestryHeaderBadge";
 
 export const metadata = {
   title: "sigints.club",
@@ -20,10 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <header className="nav">
             <div className="container nav-inner">
-              <div className="brand">
+              <Link href="/" className="brand">
                 <span className="logo">sigints.club</span>
                 <span className="tag">Signals intelligence network</span>
-              </div>
+              </Link>
               <nav className="nav-links">
                 <Link href="/feed">Feed</Link>
                 <Link href="/">Discover</Link>
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/profile">Profile</Link>
               </nav>
               <div className="nav-actions">
+                <TapestryHeaderBadge />
                 <Suspense fallback={<div className="nav-search nav-search--placeholder" />}>
                   <SearchBar />
                 </Suspense>

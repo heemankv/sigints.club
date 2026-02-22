@@ -30,7 +30,7 @@ export class ListenerService {
     }
 
     if (!keys) {
-      throw new Error("subscriber keys required for private signals");
+      throw new Error("subscriber keys required for private stream signals");
     }
     if (!meta.keyboxPointer) {
       throw new Error("keybox pointer missing for private signal");

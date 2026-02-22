@@ -13,10 +13,9 @@ import {
 } from "../lib/streamRegistry";
 import type { TierInput } from "../lib/tiersHash";
 import { parseSolLamports } from "../lib/pricing";
-import { fetchStreams } from "../lib/api/streams";
 import { explorerTx } from "../lib/constants";
 import { parseQuota } from "../lib/utils";
-import type { StreamDetail } from "../lib/types";
+import MyStreamsSection from "../components/MyStreamsSection";
 
 const DEFAULT_TIER: TierInput = {
   tierId: "tier-basic",
@@ -52,44 +51,17 @@ export default function RegisterStreamPage() {
   const [deployTx, setDeployTx] = useState<string | null>(null);
   const [deploySuccess, setDeploySuccess] = useState(false);
 
-  // ─── My streams tab ───────────────────────────────────────────────────────
-  const [myStreams, setMyStreams] = useState<StreamDetail[]>([]);
-  const [streamsLoading, setStreamsLoading] = useState(false);
-  const [publishOpen, setPublishOpen] = useState<Record<string, boolean>>({});
-  const [publishTier, setPublishTier] = useState<Record<string, string>>({});
-  const [publishVisibility, setPublishVisibility] = useState<Record<string, "public" | "private">>({});
-  const [publishMessage, setPublishMessage] = useState<Record<string, string>>({});
-  const [publishStatus, setPublishStatus] = useState<Record<string, string | null>>({});
-  const [publishLoading, setPublishLoading] = useState<Record<string, boolean>>({});
+  useEffect(() => {}, [activeTab, publicKey]); // kept for lint — tab switching only
 
-  useEffect(() => {
-    if (activeTab === "mystreams") {
-      void loadMyStreams();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async function waitForStreamAccount(streamPda: import("@solana/web3.js").PublicKey, timeoutMs = 10_000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const info = await connection.getAccountInfo(streamPda);
+      if (info) return true;
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
-  }, [activeTab, publicKey]);
-
-  async function loadMyStreams() {
-    setStreamsLoading(true);
-    try {
-      const data = await fetchStreams({ includeTiers: true });
-      const walletAddr = publicKey?.toBase58();
-      const mine = walletAddr
-        ? (data.streams ?? []).filter((s) => s.authority === walletAddr)
-        : [];
-      setMyStreams(mine);
-      const tierDefaults: Record<string, string> = {};
-      const visDefaults: Record<string, "public" | "private"> = {};
-      mine.forEach((s) => {
-        tierDefaults[s.id] = s.tiers?.[0]?.tierId ?? "";
-        visDefaults[s.id] = "public";
-      });
-      setPublishTier(tierDefaults);
-      setPublishVisibility(visDefaults);
-    } catch {
-      setMyStreams([]);
-    } finally {
-      setStreamsLoading(false);
-    }
+    return false;
   }
 
   // ─── Tier management ──────────────────────────────────────────────────────
@@ -145,14 +117,23 @@ export default function RegisterStreamPage() {
         });
         const tx = new Transaction().add(instruction);
         tx.feePayer = publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        tx.recentBlockhash = blockhash;
+        const latest = await connection.getLatestBlockhash();
+        tx.recentBlockhash = latest.blockhash;
         signature = await sendTransaction(tx, connection);
+        await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+        const ready = await waitForStreamAccount(streamPda);
+        if (!ready) {
+          throw new Error("Stream account not initialized yet. Try again in a moment.");
+        }
         setDeployTx(signature);
       }
 
       if (tiers.length) {
         setDeployStatus("Registering tiers…");
+        const streamReady = await connection.getAccountInfo(streamPda);
+        if (!streamReady) {
+          throw new Error("Stream account missing. Ensure create stream transaction is confirmed.");
+        }
         const tierTx = new Transaction();
         for (const tier of tiers) {
           const quota = parseQuota(tier.quota) ?? 0;
@@ -198,40 +179,6 @@ export default function RegisterStreamPage() {
       setDeployStatus(err instanceof Error ? err.message : "Failed to register stream");
     } finally {
       setDeployLoading(false);
-    }
-  }
-
-  // ─── Publish signal ───────────────────────────────────────────────────────
-
-  async function publishSignal(sid: string) {
-    const tierId = publishTier[sid];
-    const visibility = publishVisibility[sid] ?? "public";
-    const message = publishMessage[sid] ?? "";
-    if (!message) {
-      setPublishStatus((prev) => ({ ...prev, [sid]: "Message is required." }));
-      return;
-    }
-    setPublishLoading((prev) => ({ ...prev, [sid]: true }));
-    setPublishStatus((prev) => ({ ...prev, [sid]: null }));
-    try {
-      const plaintextBase64 = btoa(unescape(encodeURIComponent(message)));
-      const result = await postJson<{ signal?: { hash?: string }; onchainTx?: string }>(
-        "/signals",
-        { streamId: sid, tierId, plaintextBase64, visibility },
-      );
-      const hash = result?.signal?.hash ?? "";
-      const txSig = result?.onchainTx ?? "";
-      let statusMsg = hash ? `Signal published. Hash: ${hash.slice(0, 16)}…` : "Signal published.";
-      if (txSig) statusMsg += ` · Tx: ${txSig.slice(0, 10)}…`;
-      setPublishStatus((prev) => ({ ...prev, [sid]: statusMsg }));
-      setPublishMessage((prev) => ({ ...prev, [sid]: "" }));
-    } catch (err: unknown) {
-      setPublishStatus((prev) => ({
-        ...prev,
-        [sid]: err instanceof Error ? err.message : "Failed to publish",
-      }));
-    } finally {
-      setPublishLoading((prev) => ({ ...prev, [sid]: false }));
     }
   }
 
@@ -519,172 +466,7 @@ export default function RegisterStreamPage() {
       )}
 
       {/* ── Tab 2: My Streams ── */}
-      {activeTab === "mystreams" && (
-        <div>
-          {!publicKey && (
-            <div className="module">
-              <p className="subtext">Connect your wallet to view your streams.</p>
-            </div>
-          )}
-
-          {publicKey && streamsLoading && (
-            <div className="module">
-              <p className="subtext">Loading your streams…</p>
-            </div>
-          )}
-
-          {publicKey && !streamsLoading && myStreams.length === 0 && (
-            <div className="module">
-              <p className="subtext">
-                No streams registered yet. Switch to the Register tab to get started.
-              </p>
-              <button className="button ghost" onClick={() => setActiveTab("register")}>
-                Register Stream →
-              </button>
-            </div>
-          )}
-
-          {publicKey && !streamsLoading && myStreams.length > 0 && (
-            <div className="stream-card-grid">
-              {myStreams.map((stream) => {
-                const isOpen = publishOpen[stream.id] ?? false;
-                const selTier = publishTier[stream.id] ?? stream.tiers?.[0]?.tierId ?? "";
-                const visibility = publishVisibility[stream.id] ?? "public";
-                const message = publishMessage[stream.id] ?? "";
-                const loading = publishLoading[stream.id] ?? false;
-                const sigStatus = publishStatus[stream.id];
-
-                return (
-                  <div className="stream-card" key={stream.id}>
-                    <div className="stream-card-header">
-                      {stream.domain && (
-                        <span className="badge badge-teal">{stream.domain}</span>
-                      )}
-                      {stream.evidence && (
-                        <span className="badge badge-gold">{stream.evidence}</span>
-                      )}
-                    </div>
-
-                    <h3 className="stream-card-name">{stream.name}</h3>
-
-                    {stream.description && (
-                      <p className="stream-card-desc">
-                        {stream.description.length > 100
-                          ? `${stream.description.slice(0, 100)}…`
-                          : stream.description}
-                      </p>
-                    )}
-
-                    <div className="stream-card-meta">
-                      {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
-                      {stream.latency && <span>{stream.latency} latency</span>}
-                    </div>
-
-                    {stream.tiers?.length > 0 && (
-                      <div className="chip-row" style={{ marginTop: 8 }}>
-                        {stream.tiers.map((t) => (
-                          <span className="chip" key={t.tierId}>
-                            {t.tierId}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="stream-card-actions">
-                      <Link className="button ghost" href={`/stream/${stream.id}`}>
-                        View Stream →
-                      </Link>
-                      <button
-                        className="button primary"
-                        onClick={() =>
-                          setPublishOpen((prev) => ({ ...prev, [stream.id]: !isOpen }))
-                        }
-                      >
-                        {isOpen ? "Close ▲" : "Publish Signal ▾"}
-                      </button>
-                    </div>
-
-                    {isOpen && (
-                      <div className="stream-publish-panel">
-                        <div className="stream-publish-row">
-                          <label className="publish-label">Tier</label>
-                          <select
-                            className="input"
-                            value={selTier}
-                            onChange={(e) =>
-                              setPublishTier((prev) => ({ ...prev, [stream.id]: e.target.value }))
-                            }
-                          >
-                            {stream.tiers.map((t) => (
-                              <option key={t.tierId} value={t.tierId}>
-                                {t.tierId} — {t.price}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="stream-publish-row">
-                          <label className="publish-label">Visibility</label>
-                          <div className="publish-vis-toggle">
-                            <button
-                              className={`vis-btn${visibility === "public" ? " vis-btn--active" : ""}`}
-                              onClick={() =>
-                                setPublishVisibility((prev) => ({
-                                  ...prev,
-                                  [stream.id]: "public",
-                                }))
-                              }
-                            >
-                              Public
-                            </button>
-                            <button
-                              className={`vis-btn${visibility === "private" ? " vis-btn--active" : ""}`}
-                              onClick={() =>
-                                setPublishVisibility((prev) => ({
-                                  ...prev,
-                                  [stream.id]: "private",
-                                }))
-                              }
-                            >
-                              Private
-                            </button>
-                          </div>
-                        </div>
-
-                        <textarea
-                          className="input"
-                          value={message}
-                          onChange={(e) =>
-                            setPublishMessage((prev) => ({ ...prev, [stream.id]: e.target.value }))
-                          }
-                          placeholder="Signal message…"
-                          rows={3}
-                          style={{ marginBottom: 0 }}
-                        />
-
-                        <button
-                          className="button primary"
-                          onClick={() => publishSignal(stream.id)}
-                          disabled={loading}
-                          style={{ marginTop: 10 }}
-                        >
-                          {loading ? "Publishing…" : "Publish"}
-                        </button>
-
-                        {sigStatus && (
-                          <p className="subtext" style={{ marginTop: 8 }}>
-                            {sigStatus}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      {activeTab === "mystreams" && <MyStreamsSection />}
     </div>
   );
 }

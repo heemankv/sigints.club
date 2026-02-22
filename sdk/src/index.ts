@@ -46,7 +46,7 @@ export type PublicSignalPayload = {
   plaintext: string;
 };
 
-export type SignalTick = {
+export type Signal = {
   signalHash: string;
   metadata: SignalMetadata;
   plaintext: string;
@@ -61,7 +61,7 @@ export type ListenOptions = {
   streamPubkey: string;
   streamId: string;
   subscriberKeys?: SubscriberKeys;
-  onSignal: (tick: SignalTick) => void | Promise<void>;
+  onSignal: (signal: Signal) => void | Promise<void>;
   onError?: (error: Error) => void;
   maxAgeMs?: number;
   includeBlockTime?: boolean;
@@ -187,7 +187,7 @@ export class SigintsClient {
       return Buffer.from(payload.plaintext, "base64").toString("utf8");
     }
     if (!keys) {
-      throw new Error("subscriber keys required for private signals");
+      throw new Error("subscriber keys required for private stream signals");
     }
     if (!meta.keyboxPointer) {
       throw new Error("keybox pointer missing for private signal");
