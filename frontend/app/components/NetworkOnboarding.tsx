@@ -29,8 +29,8 @@ export default function NetworkOnboarding() {
     const walletEndpoint = getWalletRpcEndpoint();
     const required = describeEndpoint(requiredEndpoint);
     const current = describeEndpoint(walletEndpoint ?? connection.rpcEndpoint);
-    const mismatch = walletEndpoint ? !isSameNetwork(required, describeEndpoint(walletEndpoint)) : required.isLocal;
-    const needsAttention = mismatch || (!walletEndpoint && required.isLocal);
+    const mismatch = walletEndpoint ? !isSameNetwork(required, describeEndpoint(walletEndpoint)) : false;
+    const needsAttention = mismatch;
     const currentLabel = walletEndpoint ? current.label : "Unknown (wallet hides RPC)";
     const requiredLabel = required.label;
     const detail = walletEndpoint ? walletEndpoint : "Wallet RPC not exposed by adapter";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -9,16 +9,17 @@ import { backendUrl } from "../lib/api";
 
 export default function WalletConnect() {
   const pathname = usePathname();
-  if (pathname === "/") return null;
   const { wallets, wallet, select, connect, disconnect, connected, connecting, publicKey } =
     useWallet();
   const [open, setOpen] = useState(false);
+  const pendingConnect = useRef(false);
 
-  // Auto-connect after wallet is selected
+  // Connect after wallet adapter state has updated following select()
   useEffect(() => {
-    if (!wallet || connected || connecting) return;
-    connect().catch(() => {});
-  }, [wallet]);
+    if (!pendingConnect.current || !wallet || connected || connecting) return;
+    pendingConnect.current = false;
+    connect().catch(console.error);
+  }, [wallet, connected, connecting]);
 
   // Login on connect
   useEffect(() => {
@@ -29,6 +30,8 @@ export default function WalletConnect() {
       body: JSON.stringify({ wallet: publicKey.toBase58() }),
     }).catch(() => null);
   }, [publicKey]);
+
+  if (pathname === "/") return null;
 
   const detected = wallets.filter(
     (w) => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable
@@ -77,8 +80,15 @@ export default function WalletConnect() {
                     key={w.adapter.name}
                     className="wallet-option"
                     onClick={() => {
-                      select(w.adapter.name);
                       setOpen(false);
+                      if (wallet?.adapter.name === w.adapter.name) {
+                        // Already selected — adapter is ready, connect directly
+                        connect().catch(console.error);
+                      } else {
+                        // New selection — wait for adapter state to update then connect via useEffect
+                        pendingConnect.current = true;
+                        select(w.adapter.name);
+                      }
                     }}
                   >
                     <img src={w.adapter.icon} alt="" width={36} height={36} />

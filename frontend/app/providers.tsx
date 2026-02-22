@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { ConnectionProvider, useWallet } from "@solana/wallet-adapter-react";
-import { UnifiedWalletProvider } from "@jup-ag/wallet-adapter";
+import { ConnectionProvider, WalletProvider, useWallet } from "@solana/wallet-adapter-react";
 import { type WalletName } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import { TestWalletAdapter } from "./lib/TestWalletAdapter";
@@ -23,23 +22,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <UnifiedWalletProvider
-        wallets={wallets}
-        config={{
-          autoConnect: false,
-          env: "devnet",
-          metadata: {
-            name: "sigints.club",
-            url: "https://sigints.club",
-            description: "Verifiable Social Intelligence Protocol",
-            iconUrls: [],
-          },
-          theme: "light",
-        }}
-      >
+      <WalletProvider wallets={wallets} autoConnect={false}>
         {testWallet && <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />}
         {children}
-      </UnifiedWalletProvider>
+      </WalletProvider>
     </ConnectionProvider>
   );
 }

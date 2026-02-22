@@ -205,7 +205,15 @@ export class SocialService {
     if (!profileId) {
       throw new Error("Unable to create Tapestry profile");
     }
-    return this.client.createComment({ profileId, contentId, text: comment });
+    try {
+      return await this.client.createComment({ profileId, contentId, text: comment });
+    } catch (err: any) {
+      if (err?.message?.includes("404") || err?.status === 404) {
+        await new Promise((r) => setTimeout(r, 1200));
+        return this.client.createComment({ profileId, contentId, text: comment });
+      }
+      throw err;
+    }
   }
 
   getComments(contentId: string) {
@@ -217,7 +225,16 @@ export class SocialService {
     if (!profileId) {
       throw new Error("Unable to create Tapestry profile");
     }
-    return this.client.createLike({ profileId, contentId });
+    try {
+      return await this.client.createLike({ profileId, contentId });
+    } catch (err: any) {
+      // Profile may not be propagated yet (FAST_UNCONFIRMED timing) — retry once
+      if (err?.message?.includes("404") || err?.status === 404) {
+        await new Promise((r) => setTimeout(r, 1200));
+        return this.client.createLike({ profileId, contentId });
+      }
+      throw err;
+    }
   }
 
   async follow(wallet: string, targetProfileId: string, displayName?: string) {
@@ -228,7 +245,15 @@ export class SocialService {
     if (profileId === targetProfileId) {
       throw new Error("Cannot follow self");
     }
-    return this.client.follow({ startId: profileId, endId: targetProfileId });
+    try {
+      return await this.client.follow({ startId: profileId, endId: targetProfileId });
+    } catch (err: any) {
+      if (err?.message?.includes("404") || err?.status === 404) {
+        await new Promise((r) => setTimeout(r, 1200));
+        return this.client.follow({ startId: profileId, endId: targetProfileId });
+      }
+      throw err;
+    }
   }
 
   async unlike(wallet: string, contentId: string, displayName?: string) {
@@ -237,6 +262,12 @@ export class SocialService {
       throw new Error("Unable to create Tapestry profile");
     }
     return this.client.deleteLike({ profileId, contentId });
+  }
+
+  async getPost(contentId: string): Promise<SocialPost | null> {
+    const details = await this.client.getContentDetails(contentId);
+    if (!details) return null;
+    return mapTapestryEntryToPost(details);
   }
 
   async getLikes(contentId: string): Promise<number> {

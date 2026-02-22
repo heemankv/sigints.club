@@ -1,5 +1,6 @@
 import "./styles.css";
 import { Suspense } from "react";
+import Link from "next/link";
 import NetworkBanner from "./components/NetworkBanner";
 import Providers from "./providers";
 import WalletConnect from "./components/WalletConnect";
@@ -24,23 +25,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="tag">Signals intelligence network</span>
               </div>
               <nav className="nav-links">
-                <a href="/feed">Feed</a>
-                <a href="/">Discover</a>
-                <a href="/signals">Signals</a>
-                <a href="/profile">Profile</a>
+                <Link href="/feed">Feed</Link>
+                <Link href="/">Discover</Link>
+                <Link href="/signals">Signals</Link>
+                <Link href="/profile">Profile</Link>
               </nav>
               <div className="nav-actions">
                 <Suspense fallback={<div className="nav-search nav-search--placeholder" />}>
                   <SearchBar />
                 </Suspense>
-                <a
-                  href="https://www.usetapestry.dev/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="tapestry-badge"
-                >
-                  Powered by Tapestry
-                </a>
                 <div className="wallet-shell">
                   <WalletConnect />
                 </div>
@@ -52,6 +45,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NetworkBanner />
             {children}
           </main>
+          <a
+            href="https://www.usetapestry.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="tapestry-fab"
+          >
+            Powered by Tapestry
+          </a>
           <Footer />
         </Providers>
       </body>
