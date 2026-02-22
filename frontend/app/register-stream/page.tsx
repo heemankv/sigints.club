@@ -44,6 +44,7 @@ export default function RegisterStreamPage() {
   const [latency, setLatency] = useState("2s");
   const [price, setPrice] = useState("0.05 SOL/mo");
   const [evidence, setEvidence] = useState("Verifier supported");
+  const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [dao, setDao] = useState(process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "");
   const [tiers, setTiers] = useState<TierInput[]>([{ ...DEFAULT_TIER }]);
   const [deployStatus, setDeployStatus] = useState<string | null>(null);
@@ -160,6 +161,7 @@ export default function RegisterStreamPage() {
         name,
         domain,
         description,
+        visibility,
         accuracy,
         latency,
         price,
@@ -287,6 +289,14 @@ export default function RegisterStreamPage() {
                   onChange={(e) => setEvidence(e.target.value)}
                   placeholder="Evidence (e.g. Verifier supported)"
                 />
+                <select
+                  className="input"
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as "public" | "private")}
+                >
+                  <option value="private">Private stream (encrypted signals)</option>
+                  <option value="public">Public stream (open signals)</option>
+                </select>
                 <input
                   className="input"
                   value={dao}
@@ -394,6 +404,10 @@ export default function RegisterStreamPage() {
                 <div className="deploy-summary-row">
                   <span>Evidence</span>
                   <strong>{evidence}</strong>
+                </div>
+                <div className="deploy-summary-row">
+                  <span>Visibility</span>
+                  <strong>{visibility === "public" ? "Public" : "Private"}</strong>
                 </div>
                 <div className="deploy-summary-row">
                   <span>Base Price</span>

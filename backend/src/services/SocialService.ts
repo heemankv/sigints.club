@@ -35,6 +35,27 @@ export class SocialService {
     private users: UserStore
   ) {}
 
+  private bumpFeedCache(post: SocialPost) {
+    const keys = [`feed:${post.type}:50`, "feed:all:50"];
+    for (const key of keys) {
+      const cached =
+        tapestryCache.get<{ posts: SocialPost[]; likeCounts?: Record<string, number>; commentCounts?: Record<string, number> }>(key) ??
+        tapestryCache.getStale<{ posts: SocialPost[]; likeCounts?: Record<string, number>; commentCounts?: Record<string, number> }>(key);
+      if (cached) {
+        const posts = [post, ...cached.posts.filter((p) => p.contentId !== post.contentId)].slice(0, 50);
+        const likeCounts = { ...(cached.likeCounts ?? {}), [post.contentId]: 0 };
+        const commentCounts = { ...(cached.commentCounts ?? {}), [post.contentId]: 0 };
+        tapestryCache.set(key, { posts, likeCounts, commentCounts }, TTL_FEED);
+      } else {
+        tapestryCache.set(
+          key,
+          { posts: [post], likeCounts: { [post.contentId]: 0 }, commentCounts: { [post.contentId]: 0 } },
+          TTL_FEED
+        );
+      }
+    }
+  }
+
   async ensureProfile(wallet: string, displayName?: string) {
     const user = await this.users.getUser(wallet);
     if (user?.tapestryProfileId) {
@@ -77,8 +98,7 @@ export class SocialService {
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
     }
-    tapestryCache.invalidatePrefix("feed:");
-    return {
+    const post = {
       id: resolvedId,
       type: "intent",
       contentId: resolvedId,
@@ -88,6 +108,9 @@ export class SocialService {
       customProperties: toPropertyMap(properties),
       createdAt: Date.now(),
     };
+    tapestryCache.invalidatePrefix("feed:");
+    this.bumpFeedCache(post);
+    return post;
   }
 
   async createSlashReport(input: CreateSlashInput) {
@@ -114,8 +137,7 @@ export class SocialService {
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
     }
-    tapestryCache.invalidatePrefix("feed:");
-    return {
+    const post = {
       id: resolvedId,
       type: "slash",
       contentId: resolvedId,
@@ -125,6 +147,9 @@ export class SocialService {
       customProperties: toPropertyMap(properties),
       createdAt: Date.now(),
     };
+    tapestryCache.invalidatePrefix("feed:");
+    this.bumpFeedCache(post);
+    return post;
   }
 
   listPosts(type?: SocialPostType) {

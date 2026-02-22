@@ -907,6 +907,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
             name: stream.name,
             domain: stream.domain,
             description: stream.description,
+            visibility: streamVisibility[stream.id] ?? "private",
             accuracy: stream.accuracy,
             latency: stream.latency,
             price: stream.price,

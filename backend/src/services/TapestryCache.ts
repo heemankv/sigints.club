@@ -39,6 +39,12 @@ export class TapestryCache {
     return entry.data as T;
   }
 
+  /** Return the last known-good stale value, or null. */
+  getStale<T>(key: string): T | null {
+    const value = this.stale.get(key);
+    return value === undefined ? null : (value as T);
+  }
+
   /** Store a value with an explicit TTL (ms). Also updates the stale copy. */
   set<T>(key: string, data: T, ttlMs: number): void {
     this.store.set(key, { data, expiresAt: Date.now() + ttlMs });

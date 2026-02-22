@@ -6,10 +6,10 @@ import { usePathname } from "next/navigation";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import WalletModal from "../components/WalletModal";
 import SubscribeForm from "../stream/[id]/SubscribeForm";
+import StreamCard from "../components/StreamCard";
 import type { SocialPost, CommentEntry, StreamDetail, BotProfile } from "../lib/types";
 import {
   fetchFeed,
-  fetchFollowingFeed,
   fetchTrendingFeed,
   createIntent,
   createSlashReport,
@@ -27,36 +27,46 @@ import { explorerTx } from "../lib/constants";
 
 type FeedClientProps = {
   searchQuery: string;
+  initialTab?: FeedTab;
 };
 
-type FeedTab = "foryou" | "following" | "intents" | "slashing";
+type FeedTab = "feed" | "streams" | "intents" | "slashing";
 
-const FEED_TABS: Array<{ id: FeedTab; label: string }> = [
-  { id: "foryou", label: "For you" },
-  { id: "following", label: "Explore Streams" },
-  { id: "intents", label: "Intents" },
-  { id: "slashing", label: "Ongoing Slashing" },
-];
-
-const NAV_ITEMS = [
+const NAV_ITEMS: Array<{ id: string; label: string; href: string; icon: JSX.Element }> = [
   {
-    href: "/feed", label: "Feed",
+    id: "feed",
+    label: "Feed",
+    href: "/feed",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>,
   },
   {
-    href: "/", label: "Discover",
-    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
-  },
-  {
-    href: "/signals", label: "Signals",
+    id: "streams",
+    label: "Streams",
+    href: "/streams",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>,
   },
   {
-    href: "/profile", label: "Profile",
+    id: "intents",
+    label: "Intents",
+    href: "/intents",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
+  },
+  {
+    id: "slashing",
+    label: "Slashings",
+    href: "/slashings",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg>,
+  },
+  {
+    id: "profile",
+    label: "Profile",
+    href: "/profile",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
   },
   {
-    href: "/register-stream", label: "Register",
+    id: "register",
+    label: "Register",
+    href: "/register-stream",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>,
   },
 ];
@@ -66,7 +76,7 @@ function AvatarCircle({ seed }: { seed: string }) {
   return <div className="xpost-avatar-circle">{char}</div>;
 }
 
-export default function FeedClient({ searchQuery }: FeedClientProps) {
+export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedClientProps) {
   const pathname = usePathname();
   const { publicKey } = useWalletConnect();
   const wallet = publicKey?.toBase58() ?? null;
@@ -82,9 +92,10 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   const [feed, setFeed] = useState<SocialPost[]>([]);
   const [trending, setTrending] = useState<SocialPost[]>([]);
   const [streams, setStreams] = useState<StreamDetail[]>([]);
+  const [streamsLoading, setStreamsLoading] = useState(true);
   const [bots, setBots] = useState<BotProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
+  const [activeTab, setActiveTab] = useState<FeedTab>(initialTab);
   const [status, setStatus] = useState<string | null>(null);
   const [likes, setLikes] = useState<Record<string, number>>({});
   const [liked, setLiked] = useState<Record<string, boolean>>({});
@@ -117,6 +128,22 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
     activeStream?.tiers?.[0];
 
   useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (activeTab === "slashing") {
+      setComposerMode("slash");
+    } else if (activeTab === "intents" || activeTab === "feed") {
+      setComposerMode("intent");
+    }
+    if (activeTab === "streams") {
+      setLoading(false);
+      setStatus(null);
+      setFeed([]);
+      setOpenComments({});
+      return;
+    }
     void loadFeed();
   }, [activeTab]);
 
@@ -147,10 +174,16 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       setCommentTotals((prev) => ({ ...prev, ...(trendingData.commentCounts ?? {}) }));
     } catch { setTrending([]); }
     try {
-      const { fetchStreams } = await import("../lib/api/streams");
+      setStreamsLoading(true);
+      const { fetchStreams, readStreamsCache } = await import("../lib/api/streams");
+      const cached = readStreamsCache();
+      if (cached?.streams?.length) {
+        setStreams(cached.streams);
+      }
       const data = await fetchStreams({ includeTiers: true });
       setStreams(data.streams ?? []);
     } catch { setStreams([]); }
+    finally { setStreamsLoading(false); }
   }
 
   async function loadFeed() {
@@ -162,22 +195,10 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       activeTab === "slashing" ? "slash" as const :
       undefined;
     try {
-      if (activeTab === "following") {
-        if (!wallet) {
-          setFeed([]);
-          setStatus("Connect your wallet to view your following feed.");
-          return;
-        }
-        const data = await fetchFollowingFeed(wallet, type);
-        setFeed(data.posts ?? []);
-        setLikes((prev) => ({ ...prev, ...(data.likeCounts ?? {}) }));
-        setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
-      } else {
-        const data = await fetchFeed(type);
-        setFeed(data.posts ?? []);
-        setLikes((prev) => ({ ...prev, ...(data.likeCounts ?? {}) }));
-        setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
-      }
+      const data = await fetchFeed(type);
+      setFeed(data.posts ?? []);
+      setLikes((prev) => ({ ...prev, ...(data.likeCounts ?? {}) }));
+      setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
     } catch (err: any) {
       setStatus(err.message ?? "Failed to load feed");
       setFeed([]);
@@ -315,16 +336,20 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       {/* ─── Left: X-style nav sidebar ─── */}
       <aside className="x-sidebar">
         <nav className="x-nav">
-          {NAV_ITEMS.map(({ href, label, icon }) => (
+          {NAV_ITEMS.map(({ id, label, icon, href }) => {
+            const isActive = pathname === href;
+            return (
             <Link
-              key={href}
+              key={id}
               href={href}
-              className={`x-nav-item${pathname === href ? " x-nav-item--active" : ""}`}
+              className={`x-nav-item${isActive ? " x-nav-item--active" : ""}`}
+              aria-current={isActive ? "page" : undefined}
             >
               {icon}
               <span>{label}</span>
             </Link>
-          ))}
+          );
+          })}
         </nav>
         <a
           href="https://www.usetapestry.dev/"
@@ -345,286 +370,299 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       {/* ─── Center: tabs + composer + feed ─── */}
       <div className="social-main">
 
-        {/* Tab bar */}
-        <div className="feed-tabs-bar">
-          {FEED_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={`feed-tab${activeTab === tab.id ? " feed-tab--active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         {/* Composer */}
-        <div className="x-composer" style={{ position: "relative" }}>
-          <div className="x-composer-avatar">
-            <AvatarCircle seed={wallet ?? "?"} />
-          </div>
-          <div className="x-composer-body">
-            <div className="x-composer-mode-tabs">
-              <button
-                className={`x-mode-tab${composerMode === "intent" ? " x-mode-tab--active" : ""}`}
-                onClick={() => setComposerMode("intent")}
-              >
-                Intent
-              </button>
-              <button
-                className={`x-mode-tab${composerMode === "slash" ? " x-mode-tab--active" : ""}`}
-                onClick={() => setComposerMode("slash")}
-              >
-                Slash report
-              </button>
+        {activeTab !== "streams" && (
+          <div className="x-composer" style={{ position: "relative" }}>
+            <div className="x-composer-avatar">
+              <AvatarCircle seed={wallet ?? "?"} />
             </div>
+            <div className="x-composer-body">
+              <div className="x-composer-mode-tabs">
+                <button
+                  className={`x-mode-tab${composerMode === "intent" ? " x-mode-tab--active" : ""}`}
+                  onClick={() => setComposerMode("intent")}
+                >
+                  Intent
+                </button>
+                <button
+                  className={`x-mode-tab${composerMode === "slash" ? " x-mode-tab--active" : ""}`}
+                  onClick={() => setComposerMode("slash")}
+                >
+                  Slash report
+                </button>
+              </div>
 
-            {composerMode === "intent" ? (
-              <>
-                <textarea
-                  className="x-composer-textarea"
-                  value={intentText}
-                  onChange={(e) => setIntentText(e.target.value)}
-                  placeholder="Share your market intelligence..."
-                  rows={2}
-                />
-                <div className="x-composer-fields">
-                  <input
-                    className="input"
-                    value={intentTopic}
-                    onChange={(e) => setIntentTopic(e.target.value)}
-                    placeholder="Topic (optional)"
+              {composerMode === "intent" ? (
+                <>
+                  <textarea
+                    className="x-composer-textarea"
+                    value={intentText}
+                    onChange={(e) => setIntentText(e.target.value)}
+                    placeholder="Share your market intelligence..."
+                    rows={2}
                   />
-                  <input
-                    className="input"
-                    value={intentTags}
-                    onChange={(e) => setIntentTags(e.target.value)}
-                    placeholder="Tags: eth, alerts, drop"
+                  <div className="x-composer-fields">
+                    <input
+                      className="input"
+                      value={intentTopic}
+                      onChange={(e) => setIntentTopic(e.target.value)}
+                      placeholder="Topic (optional)"
+                    />
+                    <input
+                      className="input"
+                      value={intentTags}
+                      onChange={(e) => setIntentTags(e.target.value)}
+                      placeholder="Tags: eth, alerts, drop"
+                    />
+                  </div>
+                  <div className="x-composer-footer">
+                    <span className="subtext">Visible to all makers on the network.</span>
+                    <button className="x-submit-btn" onClick={postIntent} disabled={!intentText}>
+                      Post
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <textarea
+                    className="x-composer-textarea"
+                    value={slashText}
+                    onChange={(e) => setSlashText(e.target.value)}
+                    placeholder="Report a false or misleading signal..."
+                    rows={2}
                   />
-                </div>
-                <div className="x-composer-footer">
-                  <span className="subtext">Visible to all makers on the network.</span>
-                  <button className="x-submit-btn" onClick={postIntent} disabled={!intentText}>
-                    Post
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <textarea
-                  className="x-composer-textarea"
-                  value={slashText}
-                  onChange={(e) => setSlashText(e.target.value)}
-                  placeholder="Report a false or misleading signal..."
-                  rows={2}
-                />
-                <div className="x-composer-fields">
-                  <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
-                  <input className="input" value={slashMakerWallet} onChange={(e) => setSlashMakerWallet(e.target.value)} placeholder="Maker wallet" />
-                  <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
-                </div>
-                <div className="x-composer-footer">
-                  <span className="subtext">Triggers a public review thread.</span>
-                  <button className="x-submit-btn" onClick={postSlash} disabled={!slashText}>
-                    Report
-                  </button>
-                </div>
-              </>
+                  <div className="x-composer-fields">
+                    <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
+                    <input className="input" value={slashMakerWallet} onChange={(e) => setSlashMakerWallet(e.target.value)} placeholder="Maker wallet" />
+                    <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
+                  </div>
+                  <div className="x-composer-footer">
+                    <span className="subtext">Triggers a public review thread.</span>
+                    <button className="x-submit-btn" onClick={postSlash} disabled={!slashText}>
+                      Report
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            {!wallet && (
+              <div className="composer-gate">
+                <button className="button primary" onClick={() => openWalletModal(false)}>
+                  Connect wallet to post
+                </button>
+              </div>
             )}
           </div>
-          {!wallet && (
-            <div className="composer-gate">
-              <button className="button primary" onClick={() => openWalletModal(false)}>
-                Connect wallet to post
-              </button>
-            </div>
-          )}
-        </div>
+        )}
 
-        {status && <div className="x-status-msg">{status}</div>}
+        {activeTab !== "streams" && status && <div className="x-status-msg">{status}</div>}
 
-        {/* Feed posts */}
-        <div className="feed-list">
-          {loading && (
-            <div className="feed-skeleton">
-              {Array.from({ length: 4 }).map((_, idx) => (
-                <div className="xpost shimmer" key={`shimmer-${idx}`}>
+        {activeTab === "streams" ? (
+          <div className="data-grid data-grid--single" style={{ marginTop: 16 }}>
+            {streamsLoading && (
+              <div className="x-empty-state">
+                <p>Loading streams…</p>
+              </div>
+            )}
+            {!streamsLoading && !streams.length && (
+              <div className="x-empty-state">
+                <p>No streams available yet. Create the first stream to get started.</p>
+                <Link className="button ghost" href="/register-stream" style={{ marginTop: 12, display: "inline-block" }}>
+                  Register a Stream →
+                </Link>
+              </div>
+            )}
+            {streams.map((stream) => (
+              <StreamCard
+                key={stream.id}
+                stream={stream}
+                onSubscribe={openSubscribe}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="feed-list">
+            {loading && (
+              <div className="feed-skeleton">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div className="xpost shimmer" key={`shimmer-${idx}`}>
+                    <div className="xpost-avatar">
+                      <div className="x-skel-circle" />
+                    </div>
+                    <div className="xpost-body">
+                      <div className="skeleton-line wide" />
+                      <div className="skeleton-line" />
+                      <div className="skeleton-line short" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!loading && !feed.length && (
+              <div className="x-empty-state">
+                <p>No posts yet. Be the first to post an intent or slash report.</p>
+              </div>
+            )}
+
+            {feed.map((post) => {
+              const tags = resolveTags(post);
+              const streamId = post.customProperties?.streamId;
+              const makerWallet = post.customProperties?.makerWallet;
+              const challengeTx = post.customProperties?.challengeTx;
+              const topic = post.customProperties?.topic;
+              const streamDetails = streamId ? streamById.get(streamId) : undefined;
+              const isOpen = openComments[post.contentId] ?? false;
+              const totalComments = commentTotals[post.contentId] ?? 0;
+              const loadedComments = comments[post.contentId]?.length ?? 0;
+              const isLiked = liked[post.contentId] ?? false;
+
+              return (
+                <div className="xpost" key={post.id}>
                   <div className="xpost-avatar">
-                    <div className="x-skel-circle" />
+                    <AvatarCircle seed={post.authorWallet} />
                   </div>
                   <div className="xpost-body">
-                    <div className="skeleton-line wide" />
-                    <div className="skeleton-line" />
-                    <div className="skeleton-line short" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!loading && !feed.length && (
-            <div className="x-empty-state">
-              <p>No posts yet. Be the first to post an intent or slash report.</p>
-            </div>
-          )}
-
-          {feed.map((post) => {
-            const tags = resolveTags(post);
-            const streamId = post.customProperties?.streamId;
-            const makerWallet = post.customProperties?.makerWallet;
-            const challengeTx = post.customProperties?.challengeTx;
-            const topic = post.customProperties?.topic;
-            const streamDetails = streamId ? streamById.get(streamId) : undefined;
-            const isOpen = openComments[post.contentId] ?? false;
-            const totalComments = commentTotals[post.contentId] ?? 0;
-            const loadedComments = comments[post.contentId]?.length ?? 0;
-            const isLiked = liked[post.contentId] ?? false;
-
-            return (
-              <div className="xpost" key={post.id}>
-                <div className="xpost-avatar">
-                  <AvatarCircle seed={post.authorWallet} />
-                </div>
-                <div className="xpost-body">
-                  <div className="xpost-header">
-                    <span className="xpost-name">
-                      {shortWallet(post.authorWallet)}
-                    </span>
-                    <Link href={`/post/${post.contentId}`} className="xpost-time" title="View post">
-                      · {timeAgo(post.createdAt)}
-                    </Link>
-                    <span className={`xpost-type-badge ${post.type}`}>
-                      {post.type === "slash" ? "Slash" : "Intent"}
-                    </span>
-                  </div>
-
-                  <p className="xpost-content">{post.content}</p>
-
-                  {(tags.length > 0 || topic || streamId) && (
-                    <div className="xpost-tags">
-                      {streamId && (
-                        <Link className="xpost-tag" href={`/stream/${streamId}`}>
-                          #{streamDetails?.name ?? streamId}
-                        </Link>
-                      )}
-                      {topic && <span className="xpost-tag">#{topic}</span>}
-                      {tags.slice(0, 3).map((tag) => (
-                        <span className="xpost-tag" key={`${post.id}-${tag}`}>#{tag}</span>
-                      ))}
+                    <div className="xpost-header">
+                      <span className="xpost-name">
+                        {shortWallet(post.authorWallet)}
+                      </span>
+                      <Link href={`/post/${post.contentId}`} className="xpost-time" title="View post">
+                        · {timeAgo(post.createdAt)}
+                      </Link>
+                      <span className={`xpost-type-badge ${post.type}`}>
+                        {post.type === "slash" ? "Slash" : "Intent"}
+                      </span>
                     </div>
-                  )}
 
-                  {(makerWallet || challengeTx) && (
-                    <div className="xpost-meta">
-                      {makerWallet && <span className="subtext">Maker: {makerWallet.slice(0, 10)}…</span>}
-                      {challengeTx && (
-                        <a
-                          className="link subtext"
-                          href={explorerTx(challengeTx)}
-                          target="_blank"
-                        >
-                          Tx: {challengeTx.slice(0, 10)}…
-                        </a>
-                      )}
-                    </div>
-                  )}
+                    <p className="xpost-content">{post.content}</p>
 
-                  <div className="xpost-actions">
-                    {/* Vote */}
-                    <button
-                      className={`xpost-action-btn${isLiked ? " liked" : ""}`}
-                      onClick={() => toggleLike(post.contentId)}
-                      title="Vote"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                      </svg>
-                      <span>{likes[post.contentId] ?? 0}</span>
-                    </button>
+                    {(tags.length > 0 || topic || streamId) && (
+                      <div className="xpost-tags">
+                        {streamId && (
+                          <Link className="xpost-tag" href={`/stream/${streamId}`}>
+                            #{streamDetails?.name ?? streamId}
+                          </Link>
+                        )}
+                        {topic && <span className="xpost-tag">#{topic}</span>}
+                        {tags.slice(0, 3).map((tag) => (
+                          <span className="xpost-tag" key={`${post.id}-${tag}`}>#{tag}</span>
+                        ))}
+                      </div>
+                    )}
 
-                    {/* Comment */}
-                    <button
-                      className="xpost-action-btn"
-                      title="Comments"
-                      onClick={() => {
-                        if (isOpen) {
-                          setOpenComments((prev) => ({ ...prev, [post.contentId]: false }));
-                          return;
-                        }
-                        setOpenComments((prev) => ({ ...prev, [post.contentId]: true }));
-                        setCommentPages((prev) => ({ ...prev, [post.contentId]: 1 }));
-                        void loadComments(post.contentId, 1);
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                      </svg>
-                      <span>{totalComments}</span>
-                    </button>
+                    {(makerWallet || challengeTx) && (
+                      <div className="xpost-meta">
+                        {makerWallet && <span className="subtext">Maker: {makerWallet.slice(0, 10)}…</span>}
+                        {challengeTx && (
+                          <a
+                            className="link subtext"
+                            href={explorerTx(challengeTx)}
+                            target="_blank"
+                          >
+                            Tx: {challengeTx.slice(0, 10)}…
+                          </a>
+                        )}
+                      </div>
+                    )}
 
-                    {/* Follow */}
-                    <button
-                      className="xpost-action-btn"
-                      title="Follow maker"
-                      onClick={() => followAuthor(post.profileId)}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
-                      </svg>
-                      <span>Follow</span>
-                    </button>
-
-                    {/* Subscribe */}
-                    {streamId && (
-                      <button className="xpost-subscribe-btn" onClick={() => openSubscribe(streamId)}>
-                        Subscribe
+                    <div className="xpost-actions">
+                      {/* Vote */}
+                      <button
+                        className={`xpost-action-btn${isLiked ? " liked" : ""}`}
+                        onClick={() => toggleLike(post.contentId)}
+                        title="Vote"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                        <span>{likes[post.contentId] ?? 0}</span>
                       </button>
+
+                      {/* Comment */}
+                      <button
+                        className="xpost-action-btn"
+                        title="Comments"
+                        onClick={() => {
+                          if (isOpen) {
+                            setOpenComments((prev) => ({ ...prev, [post.contentId]: false }));
+                            return;
+                          }
+                          setOpenComments((prev) => ({ ...prev, [post.contentId]: true }));
+                          setCommentPages((prev) => ({ ...prev, [post.contentId]: 1 }));
+                          void loadComments(post.contentId, 1);
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span>{totalComments}</span>
+                      </button>
+
+                      {/* Follow */}
+                      <button
+                        className="xpost-action-btn"
+                        title="Follow maker"
+                        onClick={() => followAuthor(post.profileId)}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
+                        </svg>
+                        <span>Follow</span>
+                      </button>
+
+                      {/* Subscribe */}
+                      {streamId && (
+                        <button className="xpost-subscribe-btn" onClick={() => openSubscribe(streamId)}>
+                          Subscribe
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Comments inline */}
+                    {isOpen && (
+                      <div className="x-comment-box">
+                        {commentLoading[post.contentId] && loadedComments === 0 && (
+                          <div className="subtext" style={{ padding: "6px 0" }}>Loading…</div>
+                        )}
+                        {(comments[post.contentId] ?? []).map((entry, idx) => (
+                          <div key={`${post.contentId}-${idx}`} className="x-comment-item">
+                            {resolveCommentText(entry) || "Comment"}
+                          </div>
+                        ))}
+                        {loadedComments === 0 && !commentLoading[post.contentId] && (
+                          <p className="subtext">No comments yet.</p>
+                        )}
+                        {loadedComments < totalComments && (
+                          <button className="xpost-action-btn" onClick={() => loadMoreComments(post.contentId)}>
+                            Load more
+                          </button>
+                        )}
+                        <div className="x-comment-input">
+                          <input
+                            className="input"
+                            placeholder="Post a reply…"
+                            value={commentDraft[post.contentId] ?? ""}
+                            onChange={(e) => setCommentDraft((prev) => ({ ...prev, [post.contentId]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                void postComment(post.contentId);
+                              }
+                            }}
+                          />
+                          <button className="x-submit-btn" onClick={() => postComment(post.contentId)}>
+                            Reply
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
-
-                  {/* Comments inline */}
-                  {isOpen && (
-                    <div className="x-comment-box">
-                      {commentLoading[post.contentId] && loadedComments === 0 && (
-                        <div className="subtext" style={{ padding: "6px 0" }}>Loading…</div>
-                      )}
-                      {(comments[post.contentId] ?? []).map((entry, idx) => (
-                        <div key={`${post.contentId}-${idx}`} className="x-comment-item">
-                          {resolveCommentText(entry) || "Comment"}
-                        </div>
-                      ))}
-                      {loadedComments === 0 && !commentLoading[post.contentId] && (
-                        <p className="subtext">No comments yet.</p>
-                      )}
-                      {loadedComments < totalComments && (
-                        <button className="xpost-action-btn" onClick={() => loadMoreComments(post.contentId)}>
-                          Load more
-                        </button>
-                      )}
-                      <div className="x-comment-input">
-                        <input
-                          className="input"
-                          placeholder="Post a reply…"
-                          value={commentDraft[post.contentId] ?? ""}
-                          onChange={(e) => setCommentDraft((prev) => ({ ...prev, [post.contentId]: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              void postComment(post.contentId);
-                            }
-                          }}
-                        />
-                        <button className="x-submit-btn" onClick={() => postComment(post.contentId)}>
-                          Reply
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ─── Right: Discovery panels ─── */}

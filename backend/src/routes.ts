@@ -24,43 +24,69 @@ import {
   tapestryStreamServiceInstance,
 } from "./services/ServiceContainer";
 import { decodeSubscriptionAccount } from "./services/OnChainSubscriptionClient";
+import { tapestryCache } from "./services/TapestryCache";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 import { hashTiersHex } from "./streams/tiersHash";
 
 const router = Router();
 
 const TEST_WALLET_ENABLED = process.env.TEST_WALLET === "true";
-let cachedTestKeypair: Keypair | null = null;
+const DEFAULT_TEST_WALLET_NAME = process.env.TEST_WALLET_NAME ?? "taker";
+const cachedTestKeypairs = new Map<string, Keypair>();
+const SAFE_WALLET_NAME = /^[a-z0-9_-]+$/i;
 
-function resolveTestWalletPath() {
+function resolveTestWalletPath(walletName?: string) {
+  if (walletName) {
+    const safe = walletName.trim();
+    if (!SAFE_WALLET_NAME.test(safe)) {
+      throw new Error("invalid test wallet name");
+    }
+    return path.resolve(process.cwd(), "..", "accounts", `${safe}.json`);
+  }
   return (
     process.env.TEST_WALLET_PATH ??
-    path.resolve(process.cwd(), "..", "accounts", "taker.json")
+    path.resolve(process.cwd(), "..", "accounts", `${DEFAULT_TEST_WALLET_NAME}.json`)
   );
 }
 
-function getTestWalletKeypair(): Keypair {
-  if (cachedTestKeypair) {
-    return cachedTestKeypair;
+function getTestWalletKeypair(walletName?: string): Keypair {
+  const cacheKey = walletName ?? "default";
+  const cached = cachedTestKeypairs.get(cacheKey);
+  if (cached) {
+    return cached;
   }
-  const keyPath = resolveTestWalletPath();
+  const keyPath = resolveTestWalletPath(walletName);
   const raw = fs.readFileSync(keyPath, "utf8");
   const parsed = JSON.parse(raw);
   const secret = Uint8Array.from(parsed);
-  cachedTestKeypair = Keypair.fromSecretKey(secret);
-  return cachedTestKeypair;
+  const keypair = Keypair.fromSecretKey(secret);
+  cachedTestKeypairs.set(cacheKey, keypair);
+  return keypair;
+}
+
+function resolveWalletName(req: { query?: any; header?: (name: string) => string | undefined }): string | undefined {
+  const queryName = req?.query?.wallet;
+  if (typeof queryName === "string" && queryName.trim()) {
+    return queryName.trim();
+  }
+  const headerName = req?.header?.("x-test-wallet");
+  if (headerName && headerName.trim()) {
+    return headerName.trim();
+  }
+  return undefined;
 }
 
 router.get("/health", (_req, res) => {
   return res.json({ ok: true, timestamp: Date.now() });
 });
 
-router.get("/test-wallet", (_req, res) => {
+router.get("/test-wallet", (req, res) => {
   if (!TEST_WALLET_ENABLED) {
     return res.status(404).json({ error: "test wallet disabled" });
   }
   try {
-    const keypair = getTestWalletKeypair();
+    const walletName = resolveWalletName(req);
+    const keypair = getTestWalletKeypair(walletName);
     return res.json({ wallet: keypair.publicKey.toBase58() });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message ?? "failed to load test wallet" });
@@ -81,14 +107,19 @@ router.post("/test-wallet/send", async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const keypair = getTestWalletKeypair();
+    const walletName = resolveWalletName(req);
+    const keypair = getTestWalletKeypair(walletName);
     const rpcUrl = process.env.SOLANA_RPC_URL ?? "http://127.0.0.1:8899";
     const connection = new Connection(rpcUrl, "confirmed");
     const raw = Buffer.from(parsed.data.transactionBase64, "base64");
     let signature: string;
+    let blockhash: string | undefined;
+    let lastValidBlockHeight: number | undefined;
     try {
       const vtx = VersionedTransaction.deserialize(raw);
-      const { blockhash } = await connection.getLatestBlockhash("confirmed");
+      const latest = await connection.getLatestBlockhash("confirmed");
+      blockhash = latest.blockhash;
+      lastValidBlockHeight = latest.lastValidBlockHeight;
       // Always refresh the blockhash for localnet to avoid stale hashes.
       vtx.message.recentBlockhash = blockhash;
       const accountKeys = vtx.message.getAccountKeys();
@@ -117,7 +148,9 @@ router.post("/test-wallet/send", async (req, res) => {
       if (!tx.feePayer) {
         tx.feePayer = keypair.publicKey;
       }
-      const { blockhash } = await connection.getLatestBlockhash("confirmed");
+      const latest = await connection.getLatestBlockhash("confirmed");
+      blockhash = latest.blockhash;
+      lastValidBlockHeight = latest.lastValidBlockHeight;
       tx.recentBlockhash = blockhash;
       const programIds = tx.instructions.map((ix) => ix.programId.toBase58());
       const uniquePrograms = Array.from(new Set(programIds));
@@ -138,6 +171,15 @@ router.post("/test-wallet/send", async (req, res) => {
         skipPreflight: parsed.data.skipPreflight ?? false,
       });
     }
+    if (blockhash && lastValidBlockHeight) {
+      const confirmation = await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        "confirmed"
+      );
+      if (confirmation.value.err) {
+        return res.status(500).json({ error: `Transaction failed: ${JSON.stringify(confirmation.value.err)}` });
+      }
+    }
     return res.json({ signature });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message ?? "test wallet send failed" });
@@ -157,7 +199,8 @@ router.post("/test-wallet/sign-message", async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const keypair = getTestWalletKeypair();
+    const walletName = resolveWalletName(req);
+    const keypair = getTestWalletKeypair(walletName);
     const message = Buffer.from(parsed.data.messageBase64, "base64");
     const signature = nacl.sign.detached(message, keypair.secretKey);
     return res.json({ signatureBase64: Buffer.from(signature).toString("base64") });
@@ -366,12 +409,17 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       return res.status(403).json({ error: "encryption key not registered" });
     }
     if (providedEncPubKey) {
-      const provided = Buffer.from(providedEncPubKey, "base64");
-      if (provided.length !== 32 || !Buffer.from(onchainEncPub).equals(provided)) {
-        return res.status(403).json({ error: "encryption key mismatch" });
+      try {
+        const provided = normalizeX25519PublicKey(providedEncPubKey).raw;
+        if (!Buffer.from(onchainEncPub).equals(provided)) {
+          return res.status(403).json({ error: "encryption key mismatch" });
+        }
+      } catch (error: any) {
+        return res.status(403).json({ error: error?.message ?? "invalid encryption key" });
       }
     }
-    const subscriberIdFinal = subscriberIdFromPubkey(Buffer.from(onchainEncPub));
+    const onchainDer = x25519RawToDer(onchainEncPub);
+    const subscriberIdFinal = subscriberIdFromPubkey(onchainDer);
 
     const pointer = { id: `backend://keybox/${sha}`, sha256: sha };
     const bytes = await storageProvider.getKeybox(pointer);
@@ -433,6 +481,23 @@ router.get("/streams/:id", async (req, res) => {
   return res.json({ stream });
 });
 
+router.get("/streams/:id/subscribers", async (req, res) => {
+  if (!streamRegistry || !onChainSubscriptionClient) {
+    return res.status(503).json({ error: "on-chain subscription client not configured" });
+  }
+  const streamId = req.params.id;
+  try {
+    const onchain = await streamRegistry.getStreamConfig(streamId);
+    if (!onchain || onchain.status !== 1) {
+      return res.status(404).json({ error: "stream not found on-chain" });
+    }
+    const subs = await onChainSubscriptionClient.listSubscriptionsForStream(onchain.pda);
+    return res.json({ count: subs.length });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message ?? "failed to load subscribers" });
+  }
+});
+
 const tierSchema = z.object({
   tierId: z.string(),
   pricingType: z.literal("subscription_unlimited"),
@@ -446,6 +511,7 @@ const streamSchema = z.object({
   name: z.string(),
   domain: z.string(),
   description: z.string(),
+  visibility: z.enum(["public", "private"]).optional(),
   accuracy: z.string(),
   latency: z.string(),
   price: z.string(),
@@ -481,12 +547,14 @@ router.post("/streams", async (req, res) => {
   }
   let tapestryProfileId: string;
   try {
+    const visibility = parsed.data.visibility ?? "private";
     tapestryProfileId = await tapestryStreamServiceInstance.upsertStream(
       {
         streamId: parsed.data.id,
         name: parsed.data.name,
         domain: parsed.data.domain,
         description: parsed.data.description,
+        visibility,
         accuracy: parsed.data.accuracy,
         latency: parsed.data.latency,
         price: parsed.data.price,
@@ -505,6 +573,7 @@ router.post("/streams", async (req, res) => {
     stream: {
       ...parsed.data,
       onchainAddress: onchain.pda,
+      visibility: parsed.data.visibility ?? "private",
       tapestryProfileId,
     },
   });
@@ -902,6 +971,32 @@ function decodeSubscriberKey(data: Buffer): { encPubkey: Uint8Array } | null {
   return { encPubkey };
 }
 
+const X25519_SPKI_PREFIX = Buffer.from("302a300506032b656e032100", "hex");
+
+function x25519RawToDer(raw: Uint8Array): Buffer {
+  if (raw.length !== 32) {
+    throw new Error("raw x25519 public key must be 32 bytes");
+  }
+  return Buffer.concat([X25519_SPKI_PREFIX, Buffer.from(raw)]);
+}
+
+function x25519DerToRaw(der: Buffer): Buffer {
+  if (der.length === 32) {
+    return der;
+  }
+  if (der.length === X25519_SPKI_PREFIX.length + 32 && der.subarray(0, X25519_SPKI_PREFIX.length).equals(X25519_SPKI_PREFIX)) {
+    return der.subarray(X25519_SPKI_PREFIX.length);
+  }
+  throw new Error("invalid x25519 public key encoding");
+}
+
+function normalizeX25519PublicKey(base64: string): { raw: Buffer; der: Buffer } {
+  const buf = Buffer.from(base64, "base64");
+  const raw = x25519DerToRaw(buf);
+  const der = buf.length === 32 ? x25519RawToDer(raw) : buf;
+  return { raw, der };
+}
+
 function buildKeyboxMessage(sha: string): string {
   return `sigints:keybox:${sha}`;
 }
@@ -914,6 +1009,21 @@ function verifySignature(wallet: PublicKey, signatureBase64: string, message: st
   } catch {
     return false;
   }
+}
+
+async function getAccountWithRetry(
+  connection: Connection,
+  pubkey: PublicKey,
+  timeoutMs = 15_000,
+  intervalMs = 1_000
+): Promise<ReturnType<Connection["getAccountInfo"]>> {
+  const start = Date.now();
+  let account = await connection.getAccountInfo(pubkey);
+  while (!account && Date.now() - start < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    account = await connection.getAccountInfo(pubkey);
+  }
+  return account;
 }
 
 const subscribeSchema = z.object({
@@ -956,11 +1066,24 @@ router.post("/subscribe", async (req, res) => {
       new PublicKey(subscriptionProgramId)
     );
     const connection = new Connection(rpcUrl, "confirmed");
-    const subscriptionAccount = await connection.getAccountInfo(subscriptionPda);
+    const subscriptionAccount = await getAccountWithRetry(
+      connection,
+      subscriptionPda,
+      Number(process.env.SUBSCRIBE_WAIT_MS ?? 15_000),
+      1_000
+    );
     if (!subscriptionAccount) {
       return res.status(400).json({ error: "on-chain subscription not found" });
     }
     let encPubKeyBase64 = parsed.data.encPubKeyDerBase64;
+    if (encPubKeyBase64) {
+      try {
+        const normalized = normalizeX25519PublicKey(encPubKeyBase64);
+        encPubKeyBase64 = normalized.der.toString("base64");
+      } catch (error: any) {
+        return res.status(400).json({ error: error?.message ?? "invalid encryption public key" });
+      }
+    }
     if (!encPubKeyBase64) {
       const [walletKeyPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("wallet_key"), subscriberPubkey.toBuffer()],
@@ -974,10 +1097,10 @@ router.post("/subscribe", async (req, res) => {
       if (!decoded) {
         return res.status(400).json({ error: "wallet encryption key invalid" });
       }
-      encPubKeyBase64 = Buffer.from(decoded.encPubkey).toString("base64");
+      encPubKeyBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
     }
-    const pub = Buffer.from(encPubKeyBase64, "base64");
-    const subscriberId = subscriberIdFromPubkey(pub);
+    const pubDer = Buffer.from(encPubKeyBase64, "base64");
+    const subscriberId = subscriberIdFromPubkey(pubDer);
     await subscriberDirectory.addSubscriber({
       streamId: parsed.data.streamId,
       subscriberId,
@@ -1038,7 +1161,13 @@ router.get("/subscriptions/onchain", async (req, res) => {
     return res.status(400).json({ error: "subscriber required" });
   }
   try {
-    const subscriptions = await onChainSubscriptionClient.listSubscriptionsFor(subscriber);
+    const cacheKey = `onchain:subs:${subscriber}`;
+    const ttlMs = 15_000;
+    const subscriptions = await tapestryCache.swr(
+      cacheKey,
+      ttlMs,
+      () => onChainSubscriptionClient.listSubscriptionsFor(subscriber)
+    );
     return res.json({ subscriptions });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "on-chain list failed" });

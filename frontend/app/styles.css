@@ -78,7 +78,7 @@ a {
 
 
 .container {
-  width: min(1200px, 92vw);
+  width: min(1480px, 96vw);
   margin: 0 auto;
 }
 
@@ -123,13 +123,6 @@ body:not(:has(.hero-fullscreen)) .tag {
   color: rgba(11, 26, 54, 0.42);
 }
 
-body:not(:has(.hero-fullscreen)) .nav-links {
-  color: rgba(11, 26, 54, 0.52);
-}
-
-body:not(:has(.hero-fullscreen)) .nav-links a:hover {
-  color: #0B1A36;
-}
 
 body:not(:has(.hero-fullscreen)) .nav-search {
   border-color: rgba(10, 25, 60, 0.12);
@@ -195,42 +188,6 @@ main:not(:has(.hero-fullscreen)) {
   letter-spacing: 0.04em;
 }
 
-.nav-links {
-  display: flex;
-  gap: 18px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.48);
-}
-
-.nav-links a {
-  position: relative;
-  padding: 6px 0;
-  transition: color 0.2s ease;
-}
-
-.nav-links a::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: -6px;
-  height: 2px;
-  width: 100%;
-  background: linear-gradient(90deg, transparent, #F0A500, transparent);
-  opacity: 0;
-  transform: scaleX(0.4);
-  transition: all 0.2s ease;
-}
-
-.nav-links a:hover {
-  color: #ffffff;
-}
-
-.nav-links a:hover::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
 
 .nav-actions {
   display: flex;
@@ -750,22 +707,24 @@ main {
   gap: 24px;
 }
 
+.data-grid--single {
+  grid-template-columns: 1fr;
+}
+
 .data-card {
   position: relative;
   border-radius: 22px;
   overflow: hidden;
-  background:
-    linear-gradient(130deg, rgba(29, 176, 166, 0.2), rgba(255, 107, 53, 0.16)) padding-box,
-    linear-gradient(120deg, rgba(29, 176, 166, 0.5), rgba(255, 107, 53, 0.35), rgba(242, 184, 7, 0.4)) border-box;
-  border: 1px solid transparent;
-  box-shadow: var(--shadow-strong);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-soft);
   backdrop-filter: blur(16px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .data-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-strong);
 }
 
 .data-card__media {
@@ -826,10 +785,11 @@ main {
 .data-card__price {
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(11, 31, 42, 0.06);
+  border: 1px solid var(--stroke);
   font-size: 13px;
   font-weight: 600;
+  color: var(--ink);
   white-space: nowrap;
 }
 
@@ -837,6 +797,75 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.data-card--side {
+  display: flex;
+  align-items: stretch;
+}
+
+.data-card--side .data-card__media {
+  flex: 0 0 20%;
+  max-width: 220px;
+  min-width: 160px;
+  height: auto;
+  min-height: 180px;
+  overflow: hidden;
+}
+
+.data-card--side .data-card__media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.data-card--side .data-card__body {
+  flex: 1;
+  padding: 18px 20px;
+}
+
+.data-card--side .data-card__title h3 {
+  font-size: 20px;
+}
+
+.data-card--side .data-card__desc {
+  -webkit-line-clamp: 3;
+}
+
+.data-card--side .data-card__actions {
+  margin-top: auto;
+}
+
+.data-card--compact .data-card__media {
+  height: 120px;
+}
+
+.data-card--compact .data-card__overlay .badge {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+.data-card--compact .data-card__tier {
+  font-size: 10px;
+  padding: 4px 10px;
+}
+
+.data-card--compact .data-card__body {
+  padding: 14px 16px 16px;
+  gap: 8px;
+}
+
+.data-card--compact .data-card__title h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.data-card--compact .data-card__desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .form-grid {
@@ -1394,6 +1423,12 @@ textarea {
   color: var(--ink);
   text-decoration: none;
   transition: background 0.15s ease;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
 }
 
 .x-nav-item:hover {
@@ -2036,9 +2071,7 @@ textarea {
 }
 
 @media (max-width: 900px) {
-  .nav-links {
-    display: none;
-  }
+
 
   .nav-actions {
     width: 100%;

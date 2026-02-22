@@ -37,6 +37,7 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_TEST_WALLET: process.env.NEXT_PUBLIC_TEST_WALLET ?? "true",
       NEXT_PUBLIC_TEST_WALLET_PUBKEY: resolveTestWalletPubkey(),
+      NEXT_PUBLIC_TEST_WALLET_ACCOUNT: process.env.NEXT_PUBLIC_TEST_WALLET_ACCOUNT ?? "taker",
       NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3001",
     },
   },

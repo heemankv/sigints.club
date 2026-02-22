@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { postJson } from "../lib/api";
-import { fetchStreams } from "../lib/api/streams";
+import { fetchStreams, fetchStreamSubscribers } from "../lib/api/streams";
 import type { StreamDetail } from "../lib/types";
 
 export default function MyStreamsSection() {
@@ -13,6 +13,7 @@ export default function MyStreamsSection() {
 
   const [myStreams, setMyStreams] = useState<StreamDetail[]>([]);
   const [loading, setLoading] = useState(false);
+  const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
 
   const [publishOpen, setPublishOpen] = useState<Record<string, boolean>>({});
   const [publishTier, setPublishTier] = useState<Record<string, string>>({});
@@ -32,6 +33,17 @@ export default function MyStreamsSection() {
       const data = await fetchStreams({ includeTiers: true });
       const mine = (data.streams ?? []).filter((s) => s.authority === walletAddr);
       setMyStreams(mine);
+      const countEntries = await Promise.all(
+        mine.map(async (stream) => {
+          try {
+            const res = await fetchStreamSubscribers(stream.id);
+            return [stream.id, res.count] as const;
+          } catch {
+            return [stream.id, 0] as const;
+          }
+        })
+      );
+      setSubscriberCounts(Object.fromEntries(countEntries));
       const tierDefaults: Record<string, string> = {};
       const visDefaults: Record<string, "public" | "private"> = {};
       mine.forEach((s) => {
@@ -128,6 +140,9 @@ export default function MyStreamsSection() {
             <div className="stream-card-meta">
               {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
               {stream.latency && <span>{stream.latency} latency</span>}
+              {subscriberCounts[stream.id] !== undefined && (
+                <span>{subscriberCounts[stream.id]} subscribers</span>
+              )}
             </div>
 
             {stream.tiers?.length > 0 && (

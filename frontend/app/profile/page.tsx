@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchJson, postJson } from "../lib/api";
-import type { BotProfile } from "../lib/types";
+import { fetchStreams } from "../lib/api/streams";
+import { fetchOnchainSubscriptions } from "../lib/api/subscriptions";
+import type { BotProfile, OnChainSubscription, StreamDetail, StreamTier } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import KeyManager from "../stream/[id]/KeyManager";
 import MyStreamsSection from "../components/MyStreamsSection";
+import { sha256Bytes } from "../lib/solana";
+import { toHex } from "../lib/utils";
 
 type UserProfile = {
   wallet: string;
@@ -28,8 +32,17 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/",
-    label: "Discover",
+    href: "/streams",
+    label: "Streams",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/intents",
+    label: "Intents",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="11" cy="11" r="8" />
@@ -38,11 +51,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/signals",
-    label: "Signals",
+    href: "/slashings",
+    label: "Slashings",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       </svg>
     ),
   },
@@ -79,6 +94,10 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("subscriptions");
   const [makerBots, setMakerBots] = useState<BotProfile[]>([]);
   const [listenerBots, setListenerBots] = useState<BotProfile[]>([]);
+  const [subscriptions, setSubscriptions] = useState<OnChainSubscription[]>([]);
+  const [subscriptionCards, setSubscriptionCards] = useState<ComponentProps<typeof OwnedSubscriptionCard>[]>([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [subsError, setSubsError] = useState<string | null>(null);
 
   const [botName, setBotName] = useState("");
   const [botDomain, setBotDomain] = useState("");
@@ -113,6 +132,84 @@ export default function ProfilePage() {
       }
     }
   }, [walletAddr]);
+
+  useEffect(() => {
+    if (!walletAddr) return;
+    if (activeTab !== "subscriptions") return;
+    void loadSubscriptions();
+  }, [walletAddr, activeTab]);
+
+  async function buildTierIndex(stream: StreamDetail): Promise<Map<string, StreamTier>> {
+    const entries = await Promise.all(
+      stream.tiers.map(async (tier) => {
+        const hash = toHex(await sha256Bytes(tier.tierId));
+        return [hash, tier] as const;
+      })
+    );
+    return new Map(entries);
+  }
+
+  async function loadSubscriptions() {
+    if (!walletAddr) return;
+    setSubsLoading(true);
+    setSubsError(null);
+    try {
+      const [subsRes, streamsRes] = await Promise.all([
+        fetchOnchainSubscriptions(walletAddr),
+        fetchStreams({ includeTiers: true }),
+      ]);
+      const subs = subsRes.subscriptions ?? [];
+      setSubscriptions(subs);
+
+      const streamByPda = new Map<string, StreamDetail>();
+      (streamsRes.streams ?? []).forEach((stream) => {
+        if (stream.onchainAddress) {
+          streamByPda.set(stream.onchainAddress, stream);
+        }
+      });
+
+      const tierIndexCache = new Map<string, Map<string, StreamTier>>();
+      const cards: ComponentProps<typeof OwnedSubscriptionCard>[] = [];
+
+      for (const sub of subs) {
+        if (sub.status !== 1) continue;
+        const streamMeta = streamByPda.get(sub.stream);
+        let tierMatch: StreamTier | undefined;
+        if (streamMeta) {
+          let tierIndex = tierIndexCache.get(streamMeta.id);
+          if (!tierIndex) {
+            tierIndex = await buildTierIndex(streamMeta);
+            tierIndexCache.set(streamMeta.id, tierIndex);
+          }
+          tierMatch = tierIndex.get(sub.tierIdHex);
+        }
+
+        const pricingType = sub.pricingType === 1 ? "subscription_unlimited" : String(sub.pricingType);
+        const evidenceLevel =
+          tierMatch?.evidenceLevel ?? (sub.evidenceLevel === 1 ? "verifier" : "trust");
+        const price = tierMatch?.price ?? undefined;
+
+        cards.push({
+          streamName: streamMeta?.name ?? `Stream ${sub.stream.slice(0, 6)}…`,
+          streamId: streamMeta?.id ?? sub.stream.slice(0, 10),
+          tierLabel: tierMatch?.tierId ?? `tier-${sub.tierIdHex.slice(0, 6)}`,
+          price,
+          evidenceLevel,
+          pricingType,
+          expiresAt: sub.expiresAt,
+          nftMint: sub.nftMint,
+          description: streamMeta?.description,
+        });
+      }
+
+      setSubscriptionCards(cards);
+    } catch (err: any) {
+      setSubsError(err?.message ?? "Failed to load subscriptions.");
+      setSubscriptionCards([]);
+    } finally {
+      setSubsLoading(false);
+    }
+  }
 
   async function createBot() {
     if (!walletAddr) { setBotStatus("Connect your wallet first."); return; }
@@ -230,40 +327,14 @@ export default function ProfilePage() {
             {activeTab === "subscriptions" && (
               <div className="profile-tab-content">
                 <div className="data-grid">
-                  {/* DUMMY: replace with real on-chain subscriptions */}
-                  <OwnedSubscriptionCard
-                    streamName="BTC Alpha Stream"
-                    streamId="btc-alpha"
-                    tierLabel="tier-pro"
-                    price="0.5 SOL / mo"
-                    evidenceLevel="verifier"
-                    pricingType="subscription_unlimited"
-                    expiresAt={Date.now() + 30 * 24 * 60 * 60 * 1000}
-                    nftMint="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
-                    description="Real-time BTC alpha signals with multi-source aggregation and on-chain evidence."
-                  />
-                  <OwnedSubscriptionCard
-                    streamName="DeFi Liquidations"
-                    streamId="defi-liq"
-                    tierLabel="tier-standard"
-                    price="0.1 SOL / mo"
-                    evidenceLevel="trust"
-                    pricingType="subscription_unlimited"
-                    expiresAt={Date.now() + 7 * 24 * 60 * 60 * 1000}
-                    nftMint="5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"
-                    description="Monitors DeFi protocols for liquidation events across Aave, Compound, and Solend."
-                  />
-                  <OwnedSubscriptionCard
-                    streamName="Solana MEV Watch"
-                    streamId="sol-mev"
-                    tierLabel="tier-elite"
-                    price="1 SOL / mo"
-                    evidenceLevel="verifier"
-                    pricingType="subscription_unlimited"
-                    expiresAt={Date.now() + 14 * 24 * 60 * 60 * 1000}
-                    nftMint="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-                    description="Tracks sandwich attacks and MEV opportunities across the Solana mempool in real time."
-                  />
+                  {subsLoading && <p className="subtext">Loading subscriptions…</p>}
+                  {subsError && <p className="subtext">{subsError}</p>}
+                  {!subsLoading && !subsError && subscriptionCards.length === 0 && (
+                    <p className="subtext">No active subscriptions yet.</p>
+                  )}
+                  {subscriptionCards.map((card) => (
+                    <OwnedSubscriptionCard key={`${card.streamId}:${card.tierLabel}`} {...card} />
+                  ))}
                 </div>
               </div>
             )}

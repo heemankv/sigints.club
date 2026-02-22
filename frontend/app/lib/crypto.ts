@@ -5,8 +5,31 @@ export function toBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
+export function toBase64Bytes(bytes: Uint8Array): string {
+  return toBase64(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+}
+
 export function fromBase64(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+const X25519_SPKI_PREFIX = new Uint8Array([
+  0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00,
+]);
+
+export function x25519SpkiToRaw(base64Der: string): Uint8Array {
+  const bytes = fromBase64(base64Der);
+  if (bytes.length === 32) {
+    return bytes;
+  }
+  if (bytes.length === 44) {
+    const prefix = bytes.slice(0, X25519_SPKI_PREFIX.length);
+    const matches = prefix.every((value, idx) => value === X25519_SPKI_PREFIX[idx]);
+    if (matches) {
+      return bytes.slice(X25519_SPKI_PREFIX.length);
+    }
+  }
+  throw new Error("Encryption public key must be 32 bytes (base64)");
 }
 
 export async function sha256Hex(data: ArrayBuffer): Promise<string> {

@@ -19,7 +19,9 @@ export default function SearchBar() {
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const q = value.trim();
-    router.push(q ? `/feed?q=${encodeURIComponent(q)}` : "/feed");
+    const feedRoutes = new Set(["/feed", "/streams", "/intents", "/slashings"]);
+    const base = feedRoutes.has(pathname) ? pathname : "/feed";
+    router.push(q ? `${base}?q=${encodeURIComponent(q)}` : base);
   }
 
   return (

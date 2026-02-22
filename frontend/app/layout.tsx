@@ -25,13 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="logo">sigints.club</span>
                 <span className="tag">Signals intelligence network</span>
               </Link>
-              <nav className="nav-links">
-                <Link href="/feed">Feed</Link>
-                <Link href="/">Discover</Link>
-                <Link href="/signals">Signals</Link>
-                <Link href="/profile">Profile</Link>
-              </nav>
-              <div className="nav-actions">
+<div className="nav-actions">
                 <TapestryHeaderBadge />
                 <Suspense fallback={<div className="nav-search nav-search--placeholder" />}>
                   <SearchBar />

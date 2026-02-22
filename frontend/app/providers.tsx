@@ -9,6 +9,8 @@ import { backendUrl } from "./lib/api";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName;
 const TEST_WALLET_FLAG = process.env.NEXT_PUBLIC_TEST_WALLET === "true";
+const TEST_WALLET_ACCOUNT_KEY = "testWalletAccount";
+const DEFAULT_TEST_WALLET_ACCOUNT = process.env.NEXT_PUBLIC_TEST_WALLET_ACCOUNT ?? "taker";
 
 if (TEST_WALLET_FLAG && typeof window !== "undefined") {
   try {
@@ -35,17 +37,34 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [testWalletActive, setTestWalletActive] = useState(
     testWalletFlag || Boolean(envTestWalletPubkey)
   );
+  const [testWalletAccount, setTestWalletAccount] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_TEST_WALLET_ACCOUNT;
+    try {
+      const stored = localStorage.getItem(TEST_WALLET_ACCOUNT_KEY);
+      if (stored) return stored;
+    } catch {
+      // ignore
+    }
+    return DEFAULT_TEST_WALLET_ACCOUNT;
+  });
   const [providerKey, setProviderKey] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(TEST_WALLET_ACCOUNT_KEY);
+      if (!stored) {
+        localStorage.setItem(TEST_WALLET_ACCOUNT_KEY, DEFAULT_TEST_WALLET_ACCOUNT);
+      }
+    } catch {
+      // ignore
+    }
     if (envTestWalletPubkey) {
-      setTestWalletPubkey(envTestWalletPubkey);
       setTestWalletActive(true);
-      return;
     }
     let cancelled = false;
-    fetch(`${backendUrl()}/test-wallet`)
+    const accountParam = testWalletAccount ? `?wallet=${encodeURIComponent(testWalletAccount)}` : "";
+    fetch(`${backendUrl()}/test-wallet${accountParam}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Test wallet unavailable"))))
       .then((data: { wallet?: string }) => {
         if (cancelled) return;
@@ -54,6 +73,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         if (cancelled) return;
+        if (envTestWalletPubkey) {
+          setTestWalletPubkey(envTestWalletPubkey);
+          setTestWalletActive(true);
+          return;
+        }
         setTestWalletPubkey(null);
         if (!testWalletFlag) {
           setTestWalletActive(false);
@@ -62,7 +86,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [testWalletFlag, envTestWalletPubkey]);
+  }, [testWalletFlag, envTestWalletPubkey, testWalletAccount]);
   const [testAdapter, setTestAdapter] = useState<TestWalletAdapter | null>(null);
 
   useEffect(() => {
@@ -74,9 +98,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       if (prev && prev.publicKey?.toBase58() === testWalletPubkey) {
         return prev;
       }
-      return new TestWalletAdapter(testWalletPubkey);
+      return new TestWalletAdapter(testWalletPubkey, testWalletAccount);
     });
-  }, [testWalletActive, testWalletPubkey]);
+  }, [testWalletActive, testWalletPubkey, testWalletAccount]);
 
   useEffect(() => {
     if (!testAdapter) return;

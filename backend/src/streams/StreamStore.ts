@@ -11,6 +11,7 @@ export type StreamProfile = {
   name: string;
   domain: string;
   description: string;
+  visibility?: "public" | "private";
   evidence: string;
   accuracy: string;
   latency: string;

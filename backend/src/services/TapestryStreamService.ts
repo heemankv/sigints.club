@@ -7,6 +7,7 @@ type StreamMetaInput = {
   name: string;
   domain: string;
   description: string;
+  visibility?: "public" | "private";
   accuracy: string;
   latency: string;
   price: string;
@@ -133,6 +134,7 @@ export class TapestryStreamService {
       { key: "name", value: input.name },
       { key: "domain", value: input.domain },
       { key: "description", value: input.description },
+      ...(input.visibility ? [{ key: "visibility", value: input.visibility }] : []),
       { key: "accuracy", value: input.accuracy },
       { key: "latency", value: input.latency },
       { key: "price", value: input.price },
@@ -215,6 +217,7 @@ export class TapestryStreamService {
       name: String(meta.name ?? meta.text ?? meta.streamId ?? "Stream"),
       domain: String(meta.domain ?? "general"),
       description: String(meta.description ?? ""),
+      visibility: meta.visibility ? String(meta.visibility) : undefined,
       accuracy: String(meta.accuracy ?? ""),
       latency: String(meta.latency ?? ""),
       price: String(meta.price ?? ""),

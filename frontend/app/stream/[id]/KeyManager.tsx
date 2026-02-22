@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { generateX25519Keypair, subscriberIdFromPubkey } from "../../lib/crypto";
+import { generateX25519Keypair, subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../lib/crypto";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { buildRegisterWalletKeyInstruction, resolveProgramId } from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
@@ -56,11 +56,12 @@ export default function KeyManager() {
       if (!pubKey) {
         throw new Error("Generate or paste a public key first.");
       }
+      const rawPub = x25519SpkiToRaw(pubKey);
       const programId = resolveProgramId();
       const ix = buildRegisterWalletKeyInstruction({
         programId,
         subscriber: publicKey,
-        encPubKeyBase64: pubKey,
+        encPubKeyBase64: toBase64Bytes(rawPub),
       });
       const tx = new Transaction().add(ix);
       tx.feePayer = publicKey;

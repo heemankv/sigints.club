@@ -35,6 +35,7 @@ export type StreamDetail = {
   name: string;
   domain: string;
   description?: string;
+  visibility?: "public" | "private";
   evidence: string;
   accuracy?: string;
   latency?: string;
@@ -44,6 +45,19 @@ export type StreamDetail = {
   dao?: string;
   tapestryProfileId?: string;
   tiers: StreamTier[];
+};
+
+export type OnChainSubscription = {
+  subscription: string;
+  subscriber: string;
+  stream: string;
+  tierIdHex: string;
+  pricingType: number;
+  evidenceLevel: number;
+  expiresAt: number;
+  quotaRemaining: number;
+  status: number;
+  nftMint: string;
 };
 
 export type BotProfile = {

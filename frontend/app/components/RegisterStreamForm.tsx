@@ -18,6 +18,7 @@ type StreamPayload = {
   name: string;
   domain: string;
   description: string;
+  visibility?: "public" | "private";
   accuracy: string;
   latency: string;
   price: string;
@@ -47,6 +48,7 @@ export default function RegisterStreamForm() {
   const [latency, setLatency] = useState("2s");
   const [price, setPrice] = useState("0.05 SOL/mo");
   const [evidence, setEvidence] = useState("Verifier supported");
+  const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [dao, setDao] = useState(process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "");
   const [tiers, setTiers] = useState<TierInput[]>([{ ...DEFAULT_TIER }]);
 
@@ -121,6 +123,7 @@ export default function RegisterStreamForm() {
         latency,
         price,
         evidence,
+        visibility,
         ownerWallet: publicKey.toBase58(),
         tiers,
       };
@@ -157,6 +160,14 @@ export default function RegisterStreamForm() {
         <input className="input" value={latency} onChange={(e) => setLatency(e.target.value)} placeholder="Latency" />
         <input className="input" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
         <input className="input" value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="Evidence" />
+        <select
+          className="input"
+          value={visibility}
+          onChange={(e) => setVisibility(e.target.value as "public" | "private")}
+        >
+          <option value="private">Private stream</option>
+          <option value="public">Public stream</option>
+        </select>
         <input className="input" value={dao} onChange={(e) => setDao(e.target.value)} placeholder="DAO pubkey (optional)" />
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description" />
       </div>

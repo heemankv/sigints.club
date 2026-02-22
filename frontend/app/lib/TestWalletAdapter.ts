@@ -25,10 +25,12 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   publicKey: PublicKey | null = null;
   connecting = false;
   private readonly basePublicKey: PublicKey;
+  private readonly walletName?: string;
 
-  constructor(publicKeyBase58: string) {
+  constructor(publicKeyBase58: string, walletName?: string) {
     super();
     this.basePublicKey = new PublicKey(publicKeyBase58);
+    this.walletName = walletName;
     this.publicKey = null;
   }
 
@@ -70,7 +72,8 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
     const serialized = isVersioned
       ? transaction.serialize()
       : transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
-    const res = await fetch(`${backendUrl()}/test-wallet/send`, {
+    const walletQuery = this.walletName ? `?wallet=${encodeURIComponent(this.walletName)}` : "";
+    const res = await fetch(`${backendUrl()}/test-wallet/send${walletQuery}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -90,7 +93,8 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   }
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
-    const res = await fetch(`${backendUrl()}/test-wallet/sign-message`, {
+    const walletQuery = this.walletName ? `?wallet=${encodeURIComponent(this.walletName)}` : "";
+    const res = await fetch(`${backendUrl()}/test-wallet/sign-message${walletQuery}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messageBase64: Buffer.from(message).toString("base64") }),

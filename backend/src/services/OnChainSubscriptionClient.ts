@@ -253,6 +253,29 @@ export class OnChainSubscriptionClient {
       .filter((item): item is OnChainSubscription => item !== null);
   }
 
+  async listSubscriptionsForStream(streamPubkey: string): Promise<OnChainSubscription[]> {
+    const { provider } = await this.getClient();
+    const stream = new PublicKey(streamPubkey);
+    const filters = [
+      { memcmp: { offset: 8 + 32, bytes: stream.toBase58() } },
+    ];
+
+    const programAccounts = await provider.connection.getProgramAccounts(this.programId, {
+      filters,
+    });
+
+    return programAccounts
+      .map((acc) => {
+        try {
+          const decoded = decodeSubscriptionAccount(acc.pubkey, acc.account.data);
+          return decoded;
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is OnChainSubscription => item !== null);
+  }
+
   private resolveStream(streamId: string, fallback: PublicKey): PublicKey {
     const mapped = this.config.streamMap?.[streamId] ?? this.config.streamDefault;
     if (mapped) {
