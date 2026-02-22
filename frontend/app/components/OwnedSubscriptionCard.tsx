@@ -1,8 +1,8 @@
 import { getCardArtUrl } from "../lib/cardArt";
 
 type OwnedSubscriptionCardProps = {
-  personaName: string;
-  personaId: string;
+  streamName: string;
+  streamId: string;
   tierLabel: string;
   price?: string;
   evidenceLevel?: string;
@@ -19,8 +19,8 @@ function formatDate(ms?: number): string | null {
 }
 
 export default function OwnedSubscriptionCard({
-  personaName,
-  personaId,
+  streamName,
+  streamId,
   tierLabel,
   price,
   evidenceLevel,
@@ -28,22 +28,26 @@ export default function OwnedSubscriptionCard({
   expiresAt,
   nftMint,
 }: OwnedSubscriptionCardProps) {
-  const artUrl = getCardArtUrl(`${personaId}:${tierLabel}`);
+  const artUrl = getCardArtUrl(`${streamId}:${tierLabel}`);
   const expiresLabel = formatDate(expiresAt);
+  const pricingLabel =
+    pricingType === "subscription_unlimited"
+      ? "monthly subscription"
+      : pricingType?.replace(/_/g, " ");
   return (
     <div className="data-card">
       <div className="data-card__media">
-        <img src={artUrl} alt={`${personaName} art`} />
+        <img src={artUrl} alt={`${streamName} art`} />
         <div className="data-card__overlay">
           {evidenceLevel && <span className="badge">{evidenceLevel}</span>}
-          {pricingType && <span className="badge accent">{pricingType.replace(/_/g, " ")}</span>}
+          {pricingLabel && <span className="badge accent">{pricingLabel}</span>}
         </div>
         <div className="data-card__tier">{tierLabel}</div>
       </div>
       <div className="data-card__body">
         <div className="data-card__title">
           <div>
-            <h3>{personaName}</h3>
+            <h3>{streamName}</h3>
             <p className="subtext">Subscription NFT</p>
           </div>
           {price && <div className="data-card__price">{price}</div>}

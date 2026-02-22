@@ -9,7 +9,7 @@ import path from "node:path";
 import { sha256Hex } from "../utils/hash";
 
 export type SubscriptionRequest = {
-  personaId: string;
+  streamId: string;
   tierId: string;
   pricingType: string | number;
   evidenceLevel: string | number;
@@ -22,21 +22,21 @@ export type SubscriptionRequest = {
 };
 
 export type RenewalRequest = {
-  personaId: string;
+  streamId: string;
   expiresAt?: number;
   quotaRemaining?: number;
   subscriberPubkey?: string;
 };
 
 export type CancelRequest = {
-  personaId: string;
+  streamId: string;
   subscriberPubkey?: string;
 };
 
 export type OnChainSubscription = {
   subscription: string;
   subscriber: string;
-  persona: string;
+  stream: string;
   tierIdHex: string;
   pricingType: number;
   evidenceLevel: number;
@@ -51,16 +51,14 @@ type AnchorSubscriptionConfig = {
   keypairPath?: string;
   secretKeyBase58?: string;
   programId: string;
-  personaRegistryProgramId?: string;
+  streamRegistryProgramId?: string;
   commitment?: anchor.web3.Commitment;
-  personaMap?: Record<string, string>;
-  personaDefault?: string;
+  streamMap?: Record<string, string>;
+  streamDefault?: string;
 };
 
 const PRICING_TYPE_MAP: Record<string, number> = {
-  subscription_limited: 0,
   subscription_unlimited: 1,
-  per_signal: 2,
 };
 
 const EVIDENCE_LEVEL_MAP: Record<string, number> = {
@@ -73,12 +71,12 @@ const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183
 export class OnChainSubscriptionClient {
   private client?: { provider: anchor.AnchorProvider; coder: anchor.BorshInstructionCoder; idl: anchor.Idl };
   private readonly programId: PublicKey;
-  private readonly personaRegistryId?: PublicKey;
+  private readonly streamRegistryId?: PublicKey;
 
   constructor(private config: AnchorSubscriptionConfig) {
     this.programId = new PublicKey(config.programId);
-    this.personaRegistryId = config.personaRegistryProgramId
-      ? new PublicKey(config.personaRegistryProgramId)
+    this.streamRegistryId = config.streamRegistryProgramId
+      ? new PublicKey(config.streamRegistryProgramId)
       : undefined;
   }
 
@@ -86,7 +84,7 @@ export class OnChainSubscriptionClient {
     const { provider, coder } = await this.getClient();
     const walletPubkey = provider.wallet.publicKey;
     const subscriberPubkey = this.resolveSubscriber(input.subscriberPubkey, walletPubkey);
-    const personaPubkey = this.resolvePersona(input.personaId, walletPubkey);
+    const streamPubkey = this.resolveStream(input.streamId, walletPubkey);
     if (!input.makerPubkey || !input.treasuryPubkey) {
       throw new Error("makerPubkey and treasuryPubkey are required for subscribe");
     }
@@ -101,15 +99,15 @@ export class OnChainSubscriptionClient {
     const priceLamports = input.priceLamports ?? 0;
 
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
+      [Buffer.from("subscription"), streamPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
-    if (!this.personaRegistryId) {
-      throw new Error("personaRegistryProgramId not configured");
+    if (!this.streamRegistryId) {
+      throw new Error("streamRegistryProgramId not configured");
     }
     const [tierConfig] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tier"), personaPubkey.toBuffer(), tierHashBytes],
-      this.personaRegistryId
+      [Buffer.from("tier"), streamPubkey.toBuffer(), tierHashBytes],
+      this.streamRegistryId
     );
 
     const data = encodeSubscribeData({
@@ -122,11 +120,11 @@ export class OnChainSubscriptionClient {
     });
 
     const [subscriptionMint] = PublicKey.findProgramAddressSync(
-      [Buffer.from("subscription_mint"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
+      [Buffer.from("subscription_mint"), streamPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
-    const [personaState] = PublicKey.findProgramAddressSync(
-      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+    const [streamState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stream_state"), streamPubkey.toBuffer()],
       this.programId
     );
 
@@ -137,9 +135,9 @@ export class OnChainSubscriptionClient {
       keys: [
         { pubkey: subscriptionPda, isSigner: false, isWritable: true },
         { pubkey: subscriptionMint, isSigner: false, isWritable: true },
-        { pubkey: personaState, isSigner: false, isWritable: true },
+        { pubkey: streamState, isSigner: false, isWritable: true },
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
-        { pubkey: personaPubkey, isSigner: false, isWritable: false },
+        { pubkey: streamPubkey, isSigner: false, isWritable: false },
         { pubkey: tierConfig, isSigner: false, isWritable: false },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: true },
         { pubkey: makerPubkey, isSigner: false, isWritable: true },
@@ -161,14 +159,14 @@ export class OnChainSubscriptionClient {
     const { provider, coder } = await this.getClient();
     const walletPubkey = provider.wallet.publicKey;
     const subscriberPubkey = this.resolveSubscriber(input.subscriberPubkey, walletPubkey);
-    const personaPubkey = this.resolvePersona(input.personaId, walletPubkey);
+    const streamPubkey = this.resolveStream(input.streamId, walletPubkey);
 
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
+      [Buffer.from("subscription"), streamPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
-    const [personaState] = PublicKey.findProgramAddressSync(
-      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+    const [streamState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stream_state"), streamPubkey.toBuffer()],
       this.programId
     );
 
@@ -181,7 +179,7 @@ export class OnChainSubscriptionClient {
       programId: this.programId,
       keys: [
         { pubkey: subscriptionPda, isSigner: false, isWritable: true },
-        { pubkey: personaState, isSigner: false, isWritable: true },
+        { pubkey: streamState, isSigner: false, isWritable: true },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: false },
       ],
       data,
@@ -195,14 +193,14 @@ export class OnChainSubscriptionClient {
     const { provider, coder } = await this.getClient();
     const walletPubkey = provider.wallet.publicKey;
     const subscriberPubkey = this.resolveSubscriber(input.subscriberPubkey, walletPubkey);
-    const personaPubkey = this.resolvePersona(input.personaId, walletPubkey);
+    const streamPubkey = this.resolveStream(input.streamId, walletPubkey);
 
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("subscription"), personaPubkey.toBuffer(), subscriberPubkey.toBuffer()],
+      [Buffer.from("subscription"), streamPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
-    const [personaState] = PublicKey.findProgramAddressSync(
-      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+    const [streamState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stream_state"), streamPubkey.toBuffer()],
       this.programId
     );
 
@@ -212,7 +210,7 @@ export class OnChainSubscriptionClient {
       programId: this.programId,
       keys: [
         { pubkey: subscriptionPda, isSigner: false, isWritable: true },
-        { pubkey: personaState, isSigner: false, isWritable: true },
+        { pubkey: streamState, isSigner: false, isWritable: true },
         { pubkey: subscriberPubkey, isSigner: true, isWritable: false },
       ],
       data,
@@ -245,8 +243,8 @@ export class OnChainSubscriptionClient {
       .filter((item): item is OnChainSubscription => item !== null);
   }
 
-  private resolvePersona(personaId: string, fallback: PublicKey): PublicKey {
-    const mapped = this.config.personaMap?.[personaId] ?? this.config.personaDefault;
+  private resolveStream(streamId: string, fallback: PublicKey): PublicKey {
+    const mapped = this.config.streamMap?.[streamId] ?? this.config.streamDefault;
     if (mapped) {
       return new PublicKey(mapped);
     }
@@ -312,6 +310,10 @@ export class OnChainSubscriptionClient {
 
 function normalizeEnum(value: string | number, map: Record<string, number>, label: string): number {
   if (typeof value === "number") {
+    const allowed = Object.values(map);
+    if (!allowed.includes(value)) {
+      throw new Error(`Unsupported ${label}: ${value}`);
+    }
     return value;
   }
   const mapped = map[value];
@@ -375,7 +377,7 @@ function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): OnChainSubs
   let offset = 8;
   const subscriber = new PublicKey(data.subarray(offset, offset + 32));
   offset += 32;
-  const persona = new PublicKey(data.subarray(offset, offset + 32));
+  const stream = new PublicKey(data.subarray(offset, offset + 32));
   offset += 32;
   const tierId = data.subarray(offset, offset + 32);
   offset += 32;
@@ -394,7 +396,7 @@ function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): OnChainSubs
   return {
     subscription: pubkey.toBase58(),
     subscriber: subscriber.toBase58(),
-    persona: persona.toBase58(),
+    stream: stream.toBase58(),
     tierIdHex: tierId.toString("hex"),
     pricingType,
     evidenceLevel,

@@ -42,7 +42,7 @@ function wrapKeyForSubscriber(subscriberPubDerBase64: string, keyToWrap: Buffer)
     type: "spki",
   });
   const shared = diffieHellman({ privateKey: ephPrivate, publicKey: subPublic });
-  const sharedKey = hkdfSha256(shared, Buffer.from("persona-fun-keywrap"), 32);
+  const sharedKey = hkdfSha256(shared, Buffer.from("sigints-keywrap"), 32);
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", sharedKey, iv);
   const encKey = Buffer.concat([cipher.update(keyToWrap), cipher.final()]);

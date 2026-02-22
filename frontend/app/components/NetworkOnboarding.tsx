@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { describeEndpoint, getWalletRpcEndpoint, isSameNetwork } from "../lib/network";
 
@@ -15,8 +16,11 @@ type NetworkCheck = {
 };
 
 export default function NetworkOnboarding() {
+  const pathname = usePathname();
   const { connection } = useConnection();
   const { connected } = useWallet();
+
+  if (pathname === "/") return null;
   const [status, setStatus] = useState<string | null>(null);
   const [forceCheck, setForceCheck] = useState(0);
 
@@ -59,7 +63,7 @@ export default function NetworkOnboarding() {
 
   return (
     <>
-      {check.needsAttention && (
+      {connected && check.needsAttention && (
         <div className="network-indicator" title={tooltip} aria-label={tooltip}>
           ✕
         </div>

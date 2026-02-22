@@ -1,4 +1,4 @@
-# MVP Achievements (Persona.fun)
+# MVP Achievements (sigints.club)
 Date: 2026-02-20
 
 ## Summary
@@ -7,19 +7,20 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
 ## Solana (On-Chain)
 1. Programs deployed (devnet + localnet):
    - `subscription_royalty`: `BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE`
-   - `persona_registry`: `5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi`
+   - `stream_registry`: `5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi`
    - `challenge_slashing`: `DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP`
-2. `persona_registry` enforces persona + tier config:
-   - `create_persona`, `update_persona`, `upsert_tier`.
+2. `stream_registry` enforces stream + tier config:
+   - `create_stream`, `update_stream`, `upsert_tier`.
    - Tier hash is derived from tier config and enforced in registry.
 3. `subscription_royalty` enforces on-chain subscribe:
-   - Validates persona status, tier status, price, pricing type, evidence level, and quota.
+   - Validates stream status, tier status, price, pricing type, evidence level, and quota.
    - Validates maker authority and treasury (DAO) from the registry.
    - Splits fee: 1% platform fee + 99% maker payout.
    - Mints a 1-of-1 NFT (SPL mint, supply=1) to the subscriber’s wallet.
-   - Tracks `persona_state.subscription_count`.
+   - Tracks `stream_state.subscription_count`.
 4. `record_signal` uses Solana Clock for `created_at` (time anchor).
-5. On-chain signal record stores **hashes + pointer hashes** (not raw pointers).
+5. Signal anchoring is **latest-only** (one on-chain account per stream).
+6. On-chain signal record stores **hashes + pointer hashes** (not raw pointers).
 
 ## Backend (Node.js + TypeScript)
 1. Hybrid encryption delivery is implemented:
@@ -32,11 +33,12 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
    - Comment pagination and like/comment counts returned with feed responses.
 4. Signal + storage endpoints for SDK and UI:
    - `POST /signals`
-   - `GET /signals?personaId=`
-   - `GET /signals/latest?personaId=`
+   - `GET /signals?streamId=`
+   - `GET /signals/latest?streamId=`
    - `GET /signals/by-hash/:hash`
    - `GET /storage/ciphertext/:sha`
    - `GET /storage/keybox/:sha?subscriberId=`
+   - `GET /storage/public/:sha` (public signals)
 5. Social endpoints:
    - `POST /social/intents`
    - `POST /social/slash`
@@ -52,8 +54,8 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
    - Filters: Following + Type (All/Intent/Slash)
    - Like/Comment/Follow actions
    - Trending rail + maker rail
-2. Inline persona chips + subscribe modal from feed cards.
-3. Persona page supports:
+2. Inline stream chips + subscribe modal from feed cards.
+3. Stream page supports:
    - publish signal
    - decrypt signal
    - on-chain subscribe (wallet-signed)
@@ -62,16 +64,16 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
 6. Loading shimmer for feed + comments.
 
 ## SDK + MCP
-1. `@personafun/sdk`:
+1. `@sigints/sdk`:
    - listen on-chain for `record_signal`
    - resolve backend pointers
    - decrypt signals
    - on-chain `createdAt` via SignalRecord
    - maxAge filtering
 2. MCP server:
-   - `check_persona_tick`
-   - `listen_persona_ticks` (stream)
-   - `stop_persona_ticks`
+   - `check_stream_tick`
+   - `listen_stream_ticks` (stream)
+   - `stop_stream_ticks`
 
 ## Tests
 1. Backend unit + integration tests pass.
@@ -81,4 +83,4 @@ We now have a working MVP across Solana programs, a Node/TS backend with hybrid 
 ## Known Gaps (Next Steps)
 1. On-chain records store hashes only; pointer resolution still requires backend or DA layer.
 2. Slashing program is not fully wired into UI and social flows.
-3. Tapestry social features require API key; without it, social feed is disabled.
+3. Tapestry social features require API key; without it, social + discovery are unavailable (no fallback).

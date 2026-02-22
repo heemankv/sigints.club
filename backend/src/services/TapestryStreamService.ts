@@ -1,8 +1,8 @@
 import { TapestryClient } from "../tapestry/TapestryClient";
-import { PersonaTier } from "../personas/PersonaStore";
+import { StreamTier } from "../streams/StreamStore";
 
-type PersonaMetaInput = {
-  personaId: string;
+type StreamMetaInput = {
+  streamId: string;
   name: string;
   domain: string;
   description: string;
@@ -16,25 +16,25 @@ type PersonaMetaInput = {
   onchainAddress?: string;
 };
 
-export type TapestryPersonaProfile = PersonaMetaInput & {
+export type TapestryStreamProfile = StreamMetaInput & {
   id: string;
   tapestryProfileId: string;
-  tiers: PersonaTier[];
+  tiers: StreamTier[];
 };
 
-const PERSONA_META_TYPE = "persona";
+const STREAM_META_TYPE = "stream";
 const TIER_TYPE = "tier";
 
-export class TapestryPersonaService {
+export class TapestryStreamService {
   constructor(
     private client: TapestryClient,
     private registryProfileId?: string
   ) {}
 
-  async upsertPersona(input: PersonaMetaInput, tiers: PersonaTier[]): Promise<string> {
-    const profileId = await this.ensurePersonaProfile(input);
-    await this.upsertPersonaMeta(profileId, input);
-    await this.upsertTiers(profileId, input.personaId, tiers);
+  async upsertStream(input: StreamMetaInput, tiers: StreamTier[]): Promise<string> {
+    const profileId = await this.ensureStreamProfile(input);
+    await this.upsertStreamMeta(profileId, input);
+    await this.upsertTiers(profileId, input.streamId, tiers);
     if (this.registryProfileId) {
       try {
         await this.client.follow({ startId: this.registryProfileId, endId: profileId });
@@ -45,7 +45,7 @@ export class TapestryPersonaService {
     return profileId;
   }
 
-  async listPersonas(limit = 50): Promise<TapestryPersonaProfile[]> {
+  async listStreams(limit = 50): Promise<TapestryStreamProfile[]> {
     if (!this.registryProfileId) {
       return [];
     }
@@ -54,27 +54,27 @@ export class TapestryPersonaService {
       pageSize: limit,
     });
     const profiles = following?.profiles ?? [];
-    const results: TapestryPersonaProfile[] = [];
+    const results: TapestryStreamProfile[] = [];
     for (const profile of profiles) {
-      const persona = await this.fetchPersonaFromProfile(profile.id);
-      if (persona) results.push(persona);
+      const stream = await this.fetchStreamFromProfile(profile.id);
+      if (stream) results.push(stream);
     }
     return results;
   }
 
-  async getPersona(personaId: string): Promise<TapestryPersonaProfile | null> {
-    const byPersonaId = await this.searchPersonaById(personaId);
-    if (byPersonaId) return byPersonaId;
+  async getStream(streamId: string): Promise<TapestryStreamProfile | null> {
+    const byStreamId = await this.searchStreamById(streamId);
+    if (byStreamId) return byStreamId;
     if (!this.registryProfileId) return null;
-    const list = await this.listPersonas();
-    return list.find((p) => p.personaId === personaId) ?? null;
+    const list = await this.listStreams();
+    return list.find((p) => p.streamId === streamId) ?? null;
   }
 
-  private async ensurePersonaProfile(input: PersonaMetaInput): Promise<string> {
-    const username = toPersonaUsername(input.personaId);
+  private async ensureStreamProfile(input: StreamMetaInput): Promise<string> {
+    const username = toStreamUsername(input.streamId);
     const properties = [
-      { key: "type", value: PERSONA_META_TYPE },
-      { key: "personaId", value: input.personaId },
+      { key: "type", value: STREAM_META_TYPE },
+      { key: "streamId", value: input.streamId },
       { key: "ownerWallet", value: input.ownerWallet },
     ];
     const res = await this.client.createProfile({
@@ -86,16 +86,16 @@ export class TapestryPersonaService {
     });
     const profileId = res?.profile?.id ?? res?.data?.id ?? res?.id ?? username;
     if (!profileId) {
-      throw new Error("Unable to create Tapestry persona profile");
+      throw new Error("Unable to create Tapestry stream profile");
     }
     return profileId;
   }
 
-  private async upsertPersonaMeta(profileId: string, input: PersonaMetaInput) {
+  private async upsertStreamMeta(profileId: string, input: StreamMetaInput) {
     const properties = [
-      { key: "type", value: PERSONA_META_TYPE },
+      { key: "type", value: STREAM_META_TYPE },
       { key: "text", value: input.name },
-      { key: "personaId", value: input.personaId },
+      { key: "streamId", value: input.streamId },
       { key: "name", value: input.name },
       { key: "domain", value: input.domain },
       { key: "description", value: input.description },
@@ -109,7 +109,7 @@ export class TapestryPersonaService {
       ...(input.onchainAddress ? [{ key: "onchainAddress", value: input.onchainAddress }] : []),
     ];
 
-    const contentId = personaMetaContentId(input.personaId);
+    const contentId = streamMetaContentId(input.streamId);
     const created = await this.client.createContent({
       profileId,
       id: contentId,
@@ -122,18 +122,18 @@ export class TapestryPersonaService {
     }
   }
 
-  private async upsertTiers(profileId: string, personaId: string, tiers: PersonaTier[]) {
+  private async upsertTiers(profileId: string, streamId: string, tiers: StreamTier[]) {
     for (const tier of tiers) {
       const properties = [
         { key: "type", value: TIER_TYPE },
-        { key: "personaId", value: personaId },
+        { key: "streamId", value: streamId },
         { key: "tierId", value: tier.tierId },
         { key: "pricingType", value: tier.pricingType },
         { key: "price", value: tier.price },
         { key: "evidenceLevel", value: tier.evidenceLevel },
         ...(tier.quota ? [{ key: "quota", value: tier.quota }] : []),
       ];
-      const contentId = tierContentId(personaId, tier.tierId);
+      const contentId = tierContentId(streamId, tier.tierId);
       const created = await this.client.createContent({
         profileId,
         id: contentId,
@@ -147,11 +147,11 @@ export class TapestryPersonaService {
     }
   }
 
-  private async fetchPersonaFromProfile(profileId: string): Promise<TapestryPersonaProfile | null> {
+  private async fetchStreamFromProfile(profileId: string): Promise<TapestryStreamProfile | null> {
     const metaResponse = await this.client.listContents({
       profileId,
       filterField: "type",
-      filterValue: PERSONA_META_TYPE,
+      filterValue: STREAM_META_TYPE,
       orderByField: "created_at",
       orderByDirection: "DESC",
       pageSize: 1,
@@ -159,8 +159,8 @@ export class TapestryPersonaService {
     const metaEntry = metaResponse.contents?.[0];
     const meta = extractContent(metaEntry);
     if (!meta) return null;
-    const personaId = String(meta.personaId ?? "").trim();
-    if (!personaId) return null;
+    const streamId = String(meta.streamId ?? "").trim();
+    if (!streamId) return null;
 
     const tiersResponse = await this.client.listContents({
       profileId,
@@ -172,13 +172,13 @@ export class TapestryPersonaService {
     });
     const tiers = (tiersResponse.contents ?? [])
       .map((entry) => parseTier(entry))
-      .filter((tier): tier is PersonaTier => Boolean(tier));
+      .filter((tier): tier is StreamTier => Boolean(tier));
 
     return {
-      id: personaId,
+      id: streamId,
       tapestryProfileId: profileId,
-      personaId,
-      name: String(meta.name ?? meta.text ?? meta.personaId ?? "Persona"),
+      streamId,
+      name: String(meta.name ?? meta.text ?? meta.streamId ?? "Stream"),
       domain: String(meta.domain ?? "general"),
       description: String(meta.description ?? ""),
       accuracy: String(meta.accuracy ?? ""),
@@ -193,35 +193,35 @@ export class TapestryPersonaService {
     };
   }
 
-  private async searchPersonaById(personaId: string): Promise<TapestryPersonaProfile | null> {
+  private async searchStreamById(streamId: string): Promise<TapestryStreamProfile | null> {
     const response = await this.client.listContents({
-      filterField: "personaId",
-      filterValue: personaId,
+      filterField: "streamId",
+      filterValue: streamId,
       orderByField: "created_at",
       orderByDirection: "DESC",
       pageSize: 10,
     });
     const entry = (response.contents ?? []).find((item) => {
       const content = extractContent(item);
-      return content?.type === PERSONA_META_TYPE;
+      return content?.type === STREAM_META_TYPE;
     });
     if (!entry) return null;
     const profileId = entry.authorProfile?.id;
     if (!profileId) return null;
-    return this.fetchPersonaFromProfile(profileId);
+    return this.fetchStreamFromProfile(profileId);
   }
 }
 
-function personaMetaContentId(personaId: string) {
-  return `persona-${slugify(personaId)}-meta`;
+function streamMetaContentId(streamId: string) {
+  return `stream-${slugify(streamId)}-meta`;
 }
 
-function tierContentId(personaId: string, tierId: string) {
-  return `persona-${slugify(personaId)}-tier-${slugify(tierId)}`;
+function tierContentId(streamId: string, tierId: string) {
+  return `stream-${slugify(streamId)}-tier-${slugify(tierId)}`;
 }
 
-function toPersonaUsername(personaId: string) {
-  return `persona-${slugify(personaId)}`;
+function toStreamUsername(streamId: string) {
+  return `stream-${slugify(streamId)}`;
 }
 
 function slugify(input: string) {
@@ -233,7 +233,7 @@ function extractContent(entry: any): Record<string, any> | null {
   return entry.content ?? entry?.data?.content ?? null;
 }
 
-function parseTier(entry: any): PersonaTier | null {
+function parseTier(entry: any): StreamTier | null {
   const content = extractContent(entry);
   if (!content || content.type !== TIER_TYPE) return null;
   const tierId = String(content.tierId ?? "").trim();
@@ -241,12 +241,13 @@ function parseTier(entry: any): PersonaTier | null {
   const price = String(content.price ?? "").trim();
   const evidenceLevel = String(content.evidenceLevel ?? "").trim();
   if (!tierId || !pricingType || !price || !evidenceLevel) return null;
+  if (pricingType !== "subscription_unlimited") return null;
   const quotaRaw = content.quota ?? "";
   return {
     tierId,
-    pricingType: pricingType as PersonaTier["pricingType"],
+    pricingType: pricingType as StreamTier["pricingType"],
     price,
     quota: quotaRaw ? String(quotaRaw) : undefined,
-    evidenceLevel: evidenceLevel as PersonaTier["evidenceLevel"],
+    evidenceLevel: evidenceLevel as StreamTier["evidenceLevel"],
   };
 }

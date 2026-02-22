@@ -11,19 +11,20 @@ Below is a **current, concrete summary** of what works right now, plus the **SDK
    - Trending + maker rails
    - Shimmer loading states
 3. **Tapestry social integration** (profiles, posts, likes, comments, follows).  
-4. **On-chain persona + tier registry** (persona_registry program).  
+4. **On-chain stream + tier registry** (stream_registry program).  
 5. **On-chain subscription NFT** minted to subscriber wallet, with **price + tier enforcement**.  
 6. **On-chain fee split** (1% platform fee + maker payout).  
 7. **Hybrid encryption delivery** (ciphertext + keybox off-chain).  
-8. **On-chain record_signal** with Clock-based `createdAt`.  
-9. **SDK + MCP** for agent listening and decryption.  
-10. **Localnet E2E tests pass** (subscribe, NFT mint, record_signal, SDK + MCP streaming).  
+8. **Public signals** supported (plaintext stored off-chain, no keybox).  
+9. **On-chain record_signal** with Clock-based `createdAt` (latest-only account).  
+10. **SDK + MCP** for agent listening and decryption.  
+11. **Localnet E2E tests pass** (subscribe, NFT mint, record_signal, SDK + MCP streaming).  
 
 ---
 
 ## Current limitations (explicit)
 1. **On-chain only stores hashes** (signal_hash + pointer_hash). Agents still need backend/DA to resolve pointers.  
-2. **Tapestry is required for social feeds**; no API key = social feed disabled.  
+2. **Tapestry is mandatory for social + discovery**; backend startup fails without `TAPESTRY_API_KEY` (or tests can set `TAPESTRY_MOCK=true`).  
 3. **Following feed depends on Tapestry follow graph** and may be eventually consistent.  
 4. **Slashing program is not fully wired to UI** (slash posts exist, on-chain challenge flow pending).  
 
@@ -32,14 +33,14 @@ Below is a **current, concrete summary** of what works right now, plus the **SDK
 ## How AI agents can subscribe to ticks (today)
 There are three viable paths:
 
-1. **On-chain logs (best integrity)**  
-   - Listen to `subscription_royalty` for `record_signal` PDA changes.  
-   - Fetch `SignalRecord` to get `createdAt` and hashes.  
+1. **On-chain account changes (best integrity)**  
+   - Listen to `subscription_royalty` for `signal_latest` account changes.  
+   - Fetch `SignalLatest` to get `createdAt` and hashes.  
    - Resolve ciphertext/keybox pointers via backend storage.  
 
 2. **Backend signals feed (simplest)**  
-   - `GET /signals/latest?personaId=...`  
-   - `GET /signals?personaId=...`  
+   - `GET /signals/latest?streamId=...`  
+   - `GET /signals?streamId=...`  
    - Use signal metadata to resolve ciphertext/keybox.  
 
 3. **Tapestry feed (social context)**  
@@ -49,32 +50,32 @@ There are three viable paths:
 ---
 
 ## SDK (current API surface)
-Package: `@personafun/sdk`
+Package: `@sigints/sdk`
 
 **Key API:**
-- `PersonaClient.generateKeys()`
-- `registerEncryptionKey(personaId, publicKeyDerBase64, subscriberWallet)`
-- `fetchLatestSignal(personaId)` / `fetchSignalByHash(signalHash)`
-- `decryptSignal(meta, keys)`
-- `listenForSignals({ personaPubkey, personaId, subscriberKeys, maxAgeMs, includeBlockTime, onSignal })`
-- `fetchSignalRecordCreatedAt(personaPubkey, signalHash)`
+- `SigintsClient.generateKeys()`
+- `registerEncryptionKey(streamId, publicKeyDerBase64, subscriberWallet)`
+- `fetchLatestSignal(streamId)` / `fetchSignalByHash(signalHash)`
+- `decryptSignal(meta, keys?)` (keys optional for public signals)
+- `listenForSignals({ streamPubkey, streamId, subscriberKeys?, maxAgeMs, includeBlockTime, onSignal })`
+- `fetchSignalRecordCreatedAt(streamPubkey, signalHash)`
 
 **Example (agent)**
 ```ts
-import { PersonaClient } from "@personafun/sdk";
+import { SigintsClient } from "@sigints/sdk";
 
-const client = new PersonaClient({
+const client = new SigintsClient({
   rpcUrl: "http://127.0.0.1:8899",
   backendUrl: "http://localhost:3001",
   programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
 });
 
-const keys = PersonaClient.generateKeys();
-await client.registerEncryptionKey("persona-eth", keys.publicKeyDerBase64, subscriberWallet);
+const keys = SigintsClient.generateKeys();
+await client.registerEncryptionKey("stream-eth", keys.publicKeyDerBase64, subscriberWallet);
 
 const stop = await client.listenForSignals({
-  personaId: "persona-eth",
-  personaPubkey: personaPda,
+  streamId: "stream-eth",
+  streamPubkey: streamPda,
   subscriberKeys: keys,
   maxAgeMs: 60_000,
   includeBlockTime: true,
@@ -89,16 +90,16 @@ const stop = await client.listenForSignals({
 ---
 
 ## MCP Server (current tools)
-- `check_persona_tick` → checks the latest signal, decrypts it, returns JSON text.  
-- `listen_persona_ticks` → long-running stream; emits notifications with decrypted ticks.  
-- `stop_persona_ticks` → stops a stream by ID.  
+- `check_stream_tick` → checks the latest signal, decrypts it, returns JSON text.  
+- `listen_stream_ticks` → long-running stream; emits notifications with decrypted ticks.  
+- `stop_stream_ticks` → stops a stream by ID.  
 
 ---
 
 ## Open Questions (optional, for later)
 1. Should SDK enforce subscription NFT ownership before decrypting?  
 2. Should we push pointer resolution to a DA layer instead of backend?  
-3. Should Tapestry become mandatory for all discovery and feed views (v2)?  
+3. Do we want an on-chain mapping from `streamId → Tapestry profileId`, or keep it purely in Tapestry?  
 
 ---
 

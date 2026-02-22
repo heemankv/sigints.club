@@ -7,12 +7,13 @@ import { createServer } from "../src/server";
 function createFakeClient() {
   const now = Date.now();
   const meta = {
-    personaId: "persona-eth",
+    streamId: "stream-eth",
     tierId: "trust",
     signalHash: "a".repeat(64),
     signalPointer: "backend://ciphertext/abc",
     keyboxHash: "b".repeat(64),
     keyboxPointer: "backend://keybox/def",
+    visibility: "private",
     createdAt: now,
   };
 
@@ -52,10 +53,10 @@ describe("MCP server", () => {
 
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
-    expect(names).toEqual(["check_persona_tick", "listen_persona_ticks", "stop_persona_ticks"].sort());
+    expect(names).toEqual(["check_stream_tick", "listen_stream_ticks", "stop_stream_ticks"].sort());
   });
 
-  it("returns tick payload on check_persona_tick", async () => {
+  it("returns tick payload on check_stream_tick", async () => {
     const server = createServer(() => createFakeClient());
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test-client", version: "0.1.0" }, { capabilities: {} });
@@ -63,10 +64,10 @@ describe("MCP server", () => {
     await client.connect(clientTransport);
 
     const result = await client.callTool({
-      name: "check_persona_tick",
+      name: "check_stream_tick",
       arguments: {
-        personaId: "persona-eth",
-        personaPubkey: "11111111111111111111111111111111",
+        streamId: "stream-eth",
+        streamPubkey: "11111111111111111111111111111111",
         subscriberPublicKeyBase64: "cHVibGlj",
         subscriberPrivateKeyBase64: "cHJpdmF0ZQ==",
         backendUrl: "http://localhost:3001",
@@ -96,10 +97,10 @@ describe("MCP server", () => {
     });
 
     await client.callTool({
-      name: "listen_persona_ticks",
+      name: "listen_stream_ticks",
       arguments: {
-        personaId: "persona-eth",
-        personaPubkey: "11111111111111111111111111111111",
+        streamId: "stream-eth",
+        streamPubkey: "11111111111111111111111111111111",
         subscriberPublicKeyBase64: "cHVibGlj",
         subscriberPrivateKeyBase64: "cHJpdmF0ZQ==",
         backendUrl: "http://localhost:3001",

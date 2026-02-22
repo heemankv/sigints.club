@@ -1,16 +1,19 @@
+export type SignalVisibility = "public" | "private";
+
 export type SignalMetadata = {
-  personaId: string;
+  streamId: string;
   tierId: string;
   signalHash: string;
   signalPointer: string;
-  keyboxHash: string;
-  keyboxPointer: string;
+  keyboxHash?: string | null;
+  keyboxPointer?: string | null;
+  visibility: SignalVisibility;
   createdAt: number;
   onchainTx?: string;
 };
 
 export interface MetadataStore {
   addSignal(meta: SignalMetadata): Promise<void>;
-  listSignals(personaId: string): Promise<SignalMetadata[]>;
+  listSignals(streamId: string): Promise<SignalMetadata[]>;
   listAllSignals(): Promise<SignalMetadata[]>;
 }

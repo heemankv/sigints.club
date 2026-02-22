@@ -7,7 +7,7 @@ export class InMemorySubscriberDirectory implements SubscriberDirectory {
     this.records.push(record);
   }
 
-  async listSubscribers(personaId: string): Promise<SubscriberRecord[]> {
-    return this.records.filter((r) => r.personaId === personaId);
+  async listSubscribers(streamId: string): Promise<SubscriberRecord[]> {
+    return this.records.filter((r) => r.streamId === streamId);
   }
 }

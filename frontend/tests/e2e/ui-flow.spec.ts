@@ -37,7 +37,7 @@ test("full UI click-through with error reporting", async ({ page }) => {
 
   await page.locator("header").getByRole("link", { name: "Social", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Intents and Slashing Feed/i })).toBeVisible();
-  const offerButtons = page.getByRole("button", { name: /Offer Persona/i });
+  const offerButtons = page.getByRole("button", { name: /Offer Stream/i });
   if (await offerButtons.count()) {
     await offerButtons.first().click();
   }
@@ -50,10 +50,10 @@ test("full UI click-through with error reporting", async ({ page }) => {
   }
 
   await page.locator("header").getByRole("link", { name: "Discovery", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /All Personas/i })).toBeVisible();
-  const viewButtons = page.getByRole("link", { name: /View Persona/i });
+  await expect(page.getByRole("heading", { name: /All Streams/i })).toBeVisible();
+  const viewButtons = page.getByRole("link", { name: /View Stream/i });
   await viewButtons.first().click();
-  await expect(page).toHaveURL(/persona/);
+  await expect(page).toHaveURL(/stream/);
   await expect(page.getByRole("heading", { name: /Maker Tiers/i })).toBeVisible();
 
   // Maker operations

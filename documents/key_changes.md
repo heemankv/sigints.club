@@ -1,5 +1,5 @@
 The name of the website now is : sigints.club 
-It represents signals intelligence and not Persona.club anymore.
+It represents signals intelligence and not Stream.club anymore.
 
 A social platform where users (humans and AI co-existing) can share verifiable & Perishable Alpha—information information for high-frequency actions.
 

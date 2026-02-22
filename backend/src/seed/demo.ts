@@ -18,14 +18,14 @@ import bs58 from "bs58";
 import { BackendStorage } from "../storage/providers/BackendStorage";
 import { FileMetadata } from "../metadata/providers/FileMetadata";
 import { FileSubscriberDirectory } from "../services/FileSubscriberDirectory";
-import { FileUserStore, FileBotStore, FileSubscriptionStore, FileSocialPostStore } from "../social";
-import { FilePersonaStore, PersonaTier } from "../personas";
-import { buildTiersSeed } from "../personas/tiersHash";
+import { FileUserStore, FileBotStore, FileSubscriptionStore } from "../social";
+import { StreamTier } from "../streams";
+import { buildTiersSeed } from "../streams/tiersHash";
 import { generateX25519Keypair, subscriberIdFromPubkey } from "../crypto/hybrid";
 import { SignalService } from "../services/SignalService";
 import { getTapestryClient } from "../tapestry";
 import { SocialService } from "../services/SocialService";
-import { TapestryPersonaService } from "../services/TapestryPersonaService";
+import { TapestryStreamService } from "../services/TapestryStreamService";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,18 +34,16 @@ const bs58Codec = (bs58 as unknown as { default?: typeof bs58 }).default ?? bs58
 const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
 const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 const PRICING_TYPE_MAP: Record<string, number> = {
-  subscription_limited: 0,
   subscription_unlimited: 1,
-  per_signal: 2,
 };
 const EVIDENCE_LEVEL_MAP: Record<string, number> = {
   trust: 0,
   verifier: 1,
 };
 
-const personaSpecs = [
+const streamSpecs = [
   {
-    id: "persona-eth",
+    id: "stream-eth",
     name: "ETH Scout",
     domain: "pricing",
     description: "Best ETH price alerts across top venues.",
@@ -55,7 +53,7 @@ const personaSpecs = [
     evidence: "trust",
   },
   {
-    id: "persona-amazon",
+    id: "stream-amazon",
     name: "Amazon Dropwatch",
     domain: "commerce",
     description: "Live Amazon availability + deal alerts.",
@@ -65,42 +63,48 @@ const personaSpecs = [
     evidence: "trust",
   },
   {
-    id: "persona-anime",
+    id: "stream-anime",
     name: "Anime Pulse",
     domain: "media",
     description: "Anime episode drop alerts with timestamps.",
     accuracy: "93%",
     latency: "<10s",
-    price: "0.02 SOL/signal",
+    price: "0.02 SOL/mo",
     evidence: "verifier",
   },
 ];
 
-const personaTiers: Record<string, { tierId: string; pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal"; evidenceLevel: "trust" | "verifier"; priceLamports: number; quota: number }> = {
-  "persona-eth": { tierId: "tier-eth-trust", pricingType: "subscription_limited", evidenceLevel: "trust", priceLamports: 50_000_000, quota: 200 },
-  "persona-amazon": { tierId: "tier-amz-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 80_000_000, quota: 0 },
-  "persona-anime": { tierId: "tier-anime-verifier", pricingType: "per_signal", evidenceLevel: "verifier", priceLamports: 20_000_000, quota: 0 },
+const streamTiers: Record<string, { tierId: string; pricingType: "subscription_unlimited"; evidenceLevel: "trust" | "verifier"; priceLamports: number; quota: number }> = {
+  "stream-eth": { tierId: "tier-eth-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 50_000_000, quota: 0 },
+  "stream-amazon": { tierId: "tier-amz-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 80_000_000, quota: 0 },
+  "stream-anime": { tierId: "tier-anime-verifier", pricingType: "subscription_unlimited", evidenceLevel: "verifier", priceLamports: 20_000_000, quota: 0 },
 };
 
 function formatTierPriceLabel(tier: { pricingType: string; priceLamports: number }) {
   const sol = tier.priceLamports / 1_000_000_000;
-  return tier.pricingType === "per_signal" ? `${sol} SOL/signal` : `${sol} SOL/mo`;
+  return `${sol} SOL/mo`;
 }
 
 const signalTemplates: Record<string, string[]> = {
-  "persona-eth": [
+  "stream-eth": [
     "ETH best price: $2,512 on Kraken (spread 0.18%)",
     "ETH best price: $2,523 on Coinbase (depth 250k)",
     "ETH alert: volatility spike, maker confidence 0.92",
   ],
-  "persona-amazon": [
+  "stream-amazon": [
     "Amazon drop: Echo Dot 5th Gen $29 (Prime)",
     "Amazon alert: SSD 1TB $49, deal ends in 2h",
   ],
-  "persona-anime": [
+  "stream-anime": [
     "One Piece ep 1103 drops today 19:30 UTC",
     "Jujutsu Kaisen S2 finale live in 45 min",
   ],
+};
+
+const streamVisibility: Record<string, "public" | "private"> = {
+  "stream-eth": "public",
+  "stream-amazon": "private",
+  "stream-anime": "private",
 };
 
 type SeedOptions = {
@@ -111,12 +115,12 @@ type SeedOptions = {
 
 type DemoSummary = {
   createdAt: number;
-  personas: Array<{ id: string; pda?: string }>;
+  streams: Array<{ id: string; pda?: string }>;
   makerWallets: string[];
   listenerWallets: string[];
-  subscriberKeys: Array<{ personaId: string; subscriberId: string; publicKeyBase64: string; privateKeyBase64: string }>;
-  signals: Array<{ personaId: string; signalHash: string; onchainTx?: string }>;
-  onchainSubscriptions: Array<{ personaId: string; subscriber: string; signature?: string }>;
+  subscriberKeys: Array<{ streamId: string; subscriberId: string; publicKeyBase64: string; privateKeyBase64: string }>;
+  signals: Array<{ streamId: string; signalHash: string; onchainTx?: string }>;
+  onchainSubscriptions: Array<{ streamId: string; subscriber: string; signature?: string }>;
   notes?: string[];
 };
 
@@ -143,8 +147,8 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function loadPersonaRegistryCoder(): Promise<anchor.BorshInstructionCoder> {
-  const idlPath = path.resolve(backendRoot, "idl", "persona_registry.json");
+async function loadStreamRegistryCoder(): Promise<anchor.BorshInstructionCoder> {
+  const idlPath = path.resolve(backendRoot, "idl", "stream_registry.json");
   const raw = await fs.readFile(idlPath, "utf8");
   const idl = JSON.parse(raw) as anchor.Idl;
   return new anchor.BorshInstructionCoder(idl);
@@ -187,26 +191,26 @@ async function ensureBalance(connection: Connection, pubkey: PublicKey, minSol =
   await connection.confirmTransaction(sig, "confirmed");
 }
 
-async function ensurePersonaConfig(args: {
+async function ensureStreamConfig(args: {
   connection: Connection;
   programId: PublicKey;
   authority: Keypair;
-  personaId: string;
-  tiers: PersonaTier[];
+  streamId: string;
+  tiers: StreamTier[];
   coder: anchor.BorshInstructionCoder;
 }): Promise<PublicKey> {
-  const personaIdBytes = sha256Bytes(args.personaId);
+  const streamIdBytes = sha256Bytes(args.streamId);
   const tiersSeed = buildTiersSeed(args.tiers);
   const tiersHashBytes = sha256Bytes(tiersSeed);
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("persona"), personaIdBytes],
+    [Buffer.from("stream"), streamIdBytes],
     args.programId
   );
   const existing = await args.connection.getAccountInfo(pda);
   if (existing) return pda;
 
-  const data = args.coder.encode("create_persona", {
-    persona_id: Array.from(personaIdBytes),
+  const data = args.coder.encode("create_stream", {
+    stream_id: Array.from(streamIdBytes),
     tiers_hash: Array.from(tiersHashBytes),
     dao: args.authority.publicKey,
   });
@@ -230,7 +234,7 @@ async function ensureTierConfig(args: {
   connection: Connection;
   programId: PublicKey;
   authority: Keypair;
-  persona: PublicKey;
+  stream: PublicKey;
   tierId: string;
   pricingType: number;
   evidenceLevel: number;
@@ -239,7 +243,7 @@ async function ensureTierConfig(args: {
 }): Promise<PublicKey> {
   const tierHash = sha256Bytes(args.tierId);
   const [tierPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
+    [Buffer.from("tier"), args.stream.toBuffer(), tierHash],
     args.programId
   );
   const existing = await args.connection.getAccountInfo(tierPda);
@@ -257,7 +261,7 @@ async function ensureTierConfig(args: {
   const ix = new TransactionInstruction({
     programId: args.programId,
     keys: [
-      { pubkey: args.persona, isSigner: false, isWritable: true },
+      { pubkey: args.stream, isSigner: false, isWritable: true },
       { pubkey: tierPda, isSigner: false, isWritable: true },
       { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
@@ -330,25 +334,25 @@ function encodeSubscribeData(params: {
   return data;
 }
 
-function deriveSubscriptionPda(programId: PublicKey, persona: PublicKey, subscriber: PublicKey): PublicKey {
+function deriveSubscriptionPda(programId: PublicKey, stream: PublicKey, subscriber: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("subscription"), persona.toBuffer(), subscriber.toBuffer()],
+    [Buffer.from("subscription"), stream.toBuffer(), subscriber.toBuffer()],
     programId
   );
   return pda;
 }
 
-function deriveSubscriptionMint(programId: PublicKey, persona: PublicKey, subscriber: PublicKey): PublicKey {
+function deriveSubscriptionMint(programId: PublicKey, stream: PublicKey, subscriber: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("subscription_mint"), persona.toBuffer(), subscriber.toBuffer()],
+    [Buffer.from("subscription_mint"), stream.toBuffer(), subscriber.toBuffer()],
     programId
   );
   return pda;
 }
 
-function derivePersonaState(programId: PublicKey, persona: PublicKey): PublicKey {
+function deriveStreamState(programId: PublicKey, stream: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("persona_state"), persona.toBuffer()],
+    [Buffer.from("stream_state"), stream.toBuffer()],
     programId
   );
   return pda;
@@ -357,8 +361,8 @@ function derivePersonaState(programId: PublicKey, persona: PublicKey): PublicKey
 async function sendSubscribeTx(args: {
   connection: Connection;
   programId: PublicKey;
-  personaRegistryProgramId: PublicKey;
-  persona: PublicKey;
+  streamRegistryProgramId: PublicKey;
+  stream: PublicKey;
   subscriber: Keypair;
   maker: PublicKey;
   treasury: PublicKey;
@@ -377,14 +381,14 @@ async function sendSubscribeTx(args: {
     quotaRemaining: args.quotaRemaining ?? 0,
     priceLamports: args.priceLamports ?? 0,
   });
-  const subscription = deriveSubscriptionPda(args.programId, args.persona, args.subscriber.publicKey);
-  const subscriptionMint = deriveSubscriptionMint(args.programId, args.persona, args.subscriber.publicKey);
-  const personaState = derivePersonaState(args.programId, args.persona);
+  const subscription = deriveSubscriptionPda(args.programId, args.stream, args.subscriber.publicKey);
+  const subscriptionMint = deriveSubscriptionMint(args.programId, args.stream, args.subscriber.publicKey);
+  const streamState = deriveStreamState(args.programId, args.stream);
   const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, args.subscriber.publicKey);
   const tierHash = sha256Bytes(args.tierId);
   const [tierConfig] = PublicKey.findProgramAddressSync(
-    [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
-    args.personaRegistryProgramId
+    [Buffer.from("tier"), args.stream.toBuffer(), tierHash],
+    args.streamRegistryProgramId
   );
 
   const ix = new TransactionInstruction({
@@ -392,9 +396,9 @@ async function sendSubscribeTx(args: {
     keys: [
       { pubkey: subscription, isSigner: false, isWritable: true },
       { pubkey: subscriptionMint, isSigner: false, isWritable: true },
-      { pubkey: personaState, isSigner: false, isWritable: true },
+      { pubkey: streamState, isSigner: false, isWritable: true },
       { pubkey: subscriberAta, isSigner: false, isWritable: true },
-      { pubkey: args.persona, isSigner: false, isWritable: false },
+      { pubkey: args.stream, isSigner: false, isWritable: false },
       { pubkey: tierConfig, isSigner: false, isWritable: false },
       { pubkey: args.subscriber.publicKey, isSigner: true, isWritable: true },
       { pubkey: args.maker, isSigner: false, isWritable: true },
@@ -444,27 +448,29 @@ function toBytes32(hex: string, label: string): Buffer {
 async function recordSignalOnchain(args: {
   connection: Connection;
   programId: PublicKey;
-  persona: PublicKey;
+  stream: PublicKey;
   authority: Keypair;
   coder: anchor.BorshInstructionCoder;
   signalHash: string;
   signalPointer: string;
-  keyboxHash: string;
-  keyboxPointer: string;
+  keyboxHash?: string | null;
+  keyboxPointer?: string | null;
 }): Promise<string> {
   const signalHashBytes = toBytes32(args.signalHash, "signalHash");
   const signalPointerHash = sha256Hex(Buffer.from(args.signalPointer));
-  const keyboxPointerHash = sha256Hex(Buffer.from(args.keyboxPointer));
   const signalPointerHashBytes = toBytes32(signalPointerHash, "signalPointerHash");
-  const keyboxHashBytes = toBytes32(args.keyboxHash, "keyboxHash");
-  const keyboxPointerHashBytes = toBytes32(keyboxPointerHash, "keyboxPointerHash");
+  const zero32 = new Uint8Array(32);
+  const keyboxHashBytes = args.keyboxHash ? toBytes32(args.keyboxHash, "keyboxHash") : zero32;
+  const keyboxPointerHashBytes = args.keyboxPointer
+    ? toBytes32(sha256Hex(Buffer.from(args.keyboxPointer)), "keyboxPointerHash")
+    : zero32;
 
   const [signalPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("signal"), args.persona.toBuffer(), Buffer.from(signalHashBytes)],
+    [Buffer.from("signal_latest"), args.stream.toBuffer()],
     args.programId
   );
-  const [personaState] = PublicKey.findProgramAddressSync(
-    [Buffer.from("persona_state"), args.persona.toBuffer()],
+  const [streamState] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stream_state"), args.stream.toBuffer()],
     args.programId
   );
 
@@ -479,8 +485,8 @@ async function recordSignalOnchain(args: {
     programId: args.programId,
     keys: [
       { pubkey: signalPda, isSigner: false, isWritable: true },
-      { pubkey: args.persona, isSigner: false, isWritable: false },
-      { pubkey: personaState, isSigner: false, isWritable: false },
+      { pubkey: args.stream, isSigner: false, isWritable: false },
+      { pubkey: streamState, isSigner: false, isWritable: false },
       { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
@@ -527,8 +533,6 @@ export async function seedDemoData(options: SeedOptions = {}) {
   const userStore = new FileUserStore(path.resolve(backendRoot, "data", "users.json"));
   const botStore = new FileBotStore(path.resolve(backendRoot, "data", "bots.json"));
   const subscriptionStore = new FileSubscriptionStore(path.resolve(backendRoot, "data", "subscriptions.json"));
-  const socialPostStore = new FileSocialPostStore(path.resolve(backendRoot, "data", "social_posts.json"));
-  const personaStore = new FilePersonaStore(path.resolve(backendRoot, "data", "personas.json"));
 
   const seedOnchain = options.seedOnchain ?? true;
   const seedSocial = options.seedSocial ?? false;
@@ -536,9 +540,9 @@ export async function seedDemoData(options: SeedOptions = {}) {
   const makerWallets = Array.from({ length: 3 }).map(() => Keypair.generate());
   const listenerWallets = Array.from({ length: 10 }).map(() => Keypair.generate());
 
-  const personaProfiles = personaSpecs.map((spec, idx) => {
-    const tierConfig = personaTiers[spec.id];
-    const tiers: PersonaTier[] = [
+  const streamProfiles = streamSpecs.map((spec, idx) => {
+    const tierConfig = streamTiers[spec.id];
+    const tiers: StreamTier[] = [
       {
         tierId: tierConfig.tierId,
         pricingType: tierConfig.pricingType,
@@ -557,7 +561,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
   for (const [idx, maker] of makerWallets.entries()) {
     await userStore.upsertUser(maker.publicKey.toBase58(), {
       displayName: `Maker ${idx + 1}`,
-      bio: "Seeded maker persona for demo flows.",
+      bio: "Seeded maker stream for demo flows.",
     });
   }
 
@@ -569,20 +573,20 @@ export async function seedDemoData(options: SeedOptions = {}) {
   }
 
   const makerBots = await Promise.all(
-    personaProfiles.map((persona, idx) =>
+    streamProfiles.map((stream, idx) =>
       botStore.createBot({
         ownerWallet: makerWallets[idx % makerWallets.length].publicKey.toBase58(),
-        name: `${persona.id.replace("persona-", "")} Scout`,
+        name: `${stream.id.replace("stream-", "")} Scout`,
         role: "maker",
-        domain: persona.domain,
-        description: `Seeded maker bot for ${persona.id}.`,
-        evidence: persona.evidence as "trust" | "verifier",
+        domain: stream.domain,
+        description: `Seeded maker bot for ${stream.id}.`,
+        evidence: stream.evidence as "trust" | "verifier",
         tiers: [
           {
-            tierId: persona.tiers[0].tierId,
-            pricingType: persona.tiers[0].pricingType,
-            price: persona.tiers[0].price,
-            evidenceLevel: persona.tiers[0].evidenceLevel,
+            tierId: stream.tiers[0].tierId,
+            pricingType: stream.tiers[0].pricingType,
+            price: stream.tiers[0].price,
+            evidenceLevel: stream.tiers[0].evidenceLevel,
           },
         ],
       })
@@ -604,8 +608,8 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   for (const [idx, bot] of listenerBots.entries()) {
     const makerBot = makerBots[idx % makerBots.length];
-    const persona = personaProfiles[idx % personaProfiles.length];
-    const tier = personaTiers[persona.id];
+    const stream = streamProfiles[idx % streamProfiles.length];
+    const tier = streamTiers[stream.id];
     await subscriptionStore.createSubscription({
       listenerWallet: bot.ownerWallet,
       botId: makerBot.id,
@@ -617,24 +621,24 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   const subscriberKeys: DemoSummary["subscriberKeys"] = [];
   for (const [idx, listener] of listenerWallets.entries()) {
-    const persona = personaProfiles[idx % personaProfiles.length];
+    const stream = streamProfiles[idx % streamProfiles.length];
     const keys = generateX25519Keypair();
     const encPub = keys.publicKey.toString("base64");
     const subscriberId = subscriberIdFromPubkey(keys.publicKey);
     await subscribers.addSubscriber({
-      personaId: persona.id,
+      streamId: stream.id,
       subscriberId,
       encPubKeyDerBase64: encPub,
     });
     subscriberKeys.push({
-      personaId: persona.id,
+      streamId: stream.id,
       subscriberId,
       publicKeyBase64: encPub,
       privateKeyBase64: keys.privateKey.toString("base64"),
     });
   }
 
-  let personaMap: Record<string, string> | undefined;
+  let streamMap: Record<string, string> | undefined;
   const onchainSubscriptions: DemoSummary["onchainSubscriptions"] = [];
   let chainConnection: Connection | undefined;
   let chainProgramId: PublicKey | undefined;
@@ -644,15 +648,15 @@ export async function seedDemoData(options: SeedOptions = {}) {
   if (seedOnchain) {
     const rpcUrl = process.env.SOLANA_RPC_URL ?? "http://127.0.0.1:8899";
     const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
-    const personaRegistryProgramId = process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID;
+    const streamRegistryProgramId = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
 
-    if (!subscriptionProgramId || !personaRegistryProgramId) {
+    if (!subscriptionProgramId || !streamRegistryProgramId) {
       // eslint-disable-next-line no-console
-      console.warn("Missing SOLANA_SUBSCRIPTION_PROGRAM_ID or SOLANA_PERSONA_REGISTRY_PROGRAM_ID. Skipping on-chain seeding.");
+      console.warn("Missing SOLANA_SUBSCRIPTION_PROGRAM_ID or SOLANA_STREAM_REGISTRY_PROGRAM_ID. Skipping on-chain seeding.");
     } else {
       const connection = new Connection(rpcUrl, "confirmed");
       const programId = new PublicKey(subscriptionProgramId);
-      const registryProgramId = new PublicKey(personaRegistryProgramId);
+      const registryProgramId = new PublicKey(streamRegistryProgramId);
       const programAccount = await connection.getAccountInfo(programId);
       const registryAccount = await connection.getAccountInfo(registryProgramId);
       if (!programAccount || !registryAccount) {
@@ -663,24 +667,24 @@ export async function seedDemoData(options: SeedOptions = {}) {
         if (isLocalnet(rpcUrl)) {
           await ensureBalance(connection, authority.publicKey, 3);
         }
-        const coder = await loadPersonaRegistryCoder();
-        personaMap = {};
-        for (const persona of personaProfiles) {
-          const pda = await ensurePersonaConfig({
+        const coder = await loadStreamRegistryCoder();
+        streamMap = {};
+        for (const stream of streamProfiles) {
+          const pda = await ensureStreamConfig({
             connection,
             programId: registryProgramId,
             authority,
-            personaId: persona.id,
-            tiers: persona.tiers,
+            streamId: stream.id,
+            tiers: stream.tiers,
             coder,
           });
-          personaMap[persona.id] = pda.toBase58();
-          const tier = personaTiers[persona.id];
+          streamMap[stream.id] = pda.toBase58();
+          const tier = streamTiers[stream.id];
           await ensureTierConfig({
             connection,
             programId: registryProgramId,
             authority,
-            persona: pda,
+            stream: pda,
             tierId: tier.tierId,
             pricingType: PRICING_TYPE_MAP[tier.pricingType],
             evidenceLevel: EVIDENCE_LEVEL_MAP[tier.evidenceLevel],
@@ -698,18 +702,18 @@ export async function seedDemoData(options: SeedOptions = {}) {
           if (isLocalnet(rpcUrl)) {
             await ensureBalance(connection, listener.publicKey, 2);
           }
-          const persona = personaProfiles[idx % personaProfiles.length];
-          const tier = personaTiers[persona.id];
+          const stream = streamProfiles[idx % streamProfiles.length];
+          const tier = streamTiers[stream.id];
           try {
-            const personaPda = personaMap?.[persona.id];
-            if (!personaPda) {
-              throw new Error(`Missing persona PDA for ${persona.id}`);
+            const streamPda = streamMap?.[stream.id];
+            if (!streamPda) {
+              throw new Error(`Missing stream PDA for ${stream.id}`);
             }
             const signature = await sendSubscribeTx({
               connection,
               programId,
-              personaRegistryProgramId: registryProgramId,
-              persona: new PublicKey(personaPda),
+              streamRegistryProgramId: registryProgramId,
+              stream: new PublicKey(streamPda),
               subscriber: listener,
               maker: authority.publicKey,
               treasury: authority.publicKey,
@@ -720,7 +724,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
               quotaRemaining: tier.quota,
             });
             onchainSubscriptions.push({
-              personaId: persona.id,
+              streamId: stream.id,
               subscriber: listener.publicKey.toBase58(),
               signature,
             });
@@ -728,7 +732,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
             // eslint-disable-next-line no-console
             console.warn("On-chain subscribe failed", error);
             onchainSubscriptions.push({
-              personaId: persona.id,
+              streamId: stream.id,
               subscriber: listener.publicKey.toBase58(),
             });
           }
@@ -739,24 +743,25 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   const signalService = new SignalService(storage, metadata);
   const signals: DemoSummary["signals"] = [];
-  for (const persona of personaProfiles) {
-    const tier = personaTiers[persona.id];
-    const messages = signalTemplates[persona.id] ?? [];
-    const personaSubscribers = await subscribers.listSubscribers(persona.id);
+  for (const stream of streamProfiles) {
+    const tier = streamTiers[stream.id];
+    const messages = signalTemplates[stream.id] ?? [];
+    const streamSubscribers = await subscribers.listSubscribers(stream.id);
     for (const message of messages) {
       const publish = await signalService.publishSignal(
-        persona.id,
+        stream.id,
         tier.tierId,
         Buffer.from(message, "utf8"),
-        personaSubscribers.map((s) => ({ encPubKeyDerBase64: s.encPubKeyDerBase64 }))
+        streamSubscribers.map((s) => ({ encPubKeyDerBase64: s.encPubKeyDerBase64 })),
+        streamVisibility[stream.id] ?? "private"
       );
       let onchainTx: string | undefined;
-      if (seedOnchain && chainConnection && chainProgramId && chainAuthority && chainCoder && personaMap?.[persona.id]) {
+      if (seedOnchain && chainConnection && chainProgramId && chainAuthority && chainCoder && streamMap?.[stream.id]) {
         try {
           onchainTx = await recordSignalOnchain({
             connection: chainConnection,
             programId: chainProgramId,
-            persona: new PublicKey(personaMap[persona.id]),
+            stream: new PublicKey(streamMap[stream.id]),
             authority: chainAuthority,
             coder: chainCoder,
             signalHash: publish.metadata.signalHash,
@@ -770,60 +775,57 @@ export async function seedDemoData(options: SeedOptions = {}) {
         }
       }
       signals.push({
-        personaId: persona.id,
+        streamId: stream.id,
         signalHash: publish.metadata.signalHash,
         onchainTx: onchainTx ?? publish.metadata.onchainTx,
       });
     }
   }
 
-  const enableSocial = seedSocial && Boolean(process.env.TAPESTRY_API_KEY);
-  if (enableSocial) {
-    const client = getTapestryClient();
-    const tapestryPersonas = new TapestryPersonaService(
-      client,
-      process.env.TAPESTRY_REGISTRY_PROFILE_ID
-    );
-    for (const persona of personaProfiles) {
-      const onchainAddress = personaMap?.[persona.id];
-      const authority = chainAuthority?.publicKey.toBase58();
-      const dao = chainAuthority?.publicKey.toBase58();
-      let tapestryProfileId: string | undefined;
-      try {
-        tapestryProfileId = await tapestryPersonas.upsertPersona(
-          {
-            personaId: persona.id,
-            name: persona.name,
-            domain: persona.domain,
-            description: persona.description,
-            accuracy: persona.accuracy,
-            latency: persona.latency,
-            price: persona.price,
-            evidence: persona.evidence,
-            ownerWallet: persona.ownerWallet,
-            authority,
-            dao,
-            onchainAddress,
-          },
-          persona.tiers
-        );
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn(`Tapestry persona seed failed for ${persona.id}`, error);
-      }
-      await personaStore.upsertPersona({
-        ...persona,
-        ...(tapestryProfileId ? { tapestryProfileId } : {}),
-      });
-    }
+  if (!process.env.TAPESTRY_API_KEY) {
+    throw new Error("TAPESTRY_API_KEY is required to seed streams");
+  }
+  const client = getTapestryClient();
+  const tapestryStreams = new TapestryStreamService(
+    client,
+    process.env.TAPESTRY_REGISTRY_PROFILE_ID
+  );
+  for (const stream of streamProfiles) {
+    const onchainAddress = streamMap?.[stream.id];
+    const authority = chainAuthority?.publicKey.toBase58();
+    const dao = chainAuthority?.publicKey.toBase58();
     try {
-      const social = new SocialService(client, socialPostStore, userStore);
-      for (const persona of personaProfiles) {
+      await tapestryStreams.upsertStream(
+        {
+          streamId: stream.id,
+          name: stream.name,
+          domain: stream.domain,
+          description: stream.description,
+          accuracy: stream.accuracy,
+          latency: stream.latency,
+          price: stream.price,
+          evidence: stream.evidence,
+          ownerWallet: stream.ownerWallet,
+          authority,
+          dao,
+          onchainAddress,
+        },
+        stream.tiers
+      );
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn(`Tapestry stream seed failed for ${stream.id}`, error);
+    }
+  }
+  if (seedSocial) {
+    try {
+      const social = new SocialService(client, userStore);
+      for (const stream of streamProfiles) {
         const makerWallet = makerWallets[0]?.publicKey.toBase58();
         await social.createIntent({
           wallet: makerWallet,
-          content: `Looking for ${persona.id} live alerts`,
-          personaId: persona.id,
+          content: `Looking for ${stream.id} live alerts`,
+          streamId: stream.id,
           tags: ["seed", "intent"],
           displayName: "Seed Maker",
         });
@@ -831,7 +833,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
       await social.createSlashReport({
         wallet: makerWallets[0]?.publicKey.toBase58(),
         content: "Seeded slash report for demo review.",
-        personaId: "persona-eth",
+        streamId: "stream-eth",
         severity: "low",
         displayName: "Seed Validator",
       });
@@ -839,15 +841,11 @@ export async function seedDemoData(options: SeedOptions = {}) {
       // eslint-disable-next-line no-console
       console.warn("Social seeding failed", error);
     }
-  } else {
-    for (const persona of personaProfiles) {
-      await personaStore.upsertPersona(persona);
-    }
   }
 
   const summary: DemoSummary = {
     createdAt: Date.now(),
-    personas: personaProfiles.map((p) => ({ id: p.id, pda: personaMap?.[p.id] })),
+    streams: streamProfiles.map((p) => ({ id: p.id, pda: streamMap?.[p.id] })),
     makerWallets: makerWallets.map((w) => w.publicKey.toBase58()),
     listenerWallets: listenerWallets.map((w) => w.publicKey.toBase58()),
     subscriberKeys,

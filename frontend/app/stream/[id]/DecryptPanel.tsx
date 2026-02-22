@@ -4,16 +4,16 @@ import { useEffect, useState } from "react";
 import { fetchJson } from "../../lib/api";
 import { decryptAesGcm, deriveSharedKey, fromBase64, importX25519PrivateKey, importX25519PublicKey, subscriberIdFromPubkey } from "../../lib/crypto";
 
-const storageKey = (personaId: string) => `persona.keys.${personaId}`;
+const storageKey = (streamId: string) => `stream.keys.${streamId}`;
 
-export default function DecryptPanel({ personaId }: { personaId: string }) {
+export default function DecryptPanel({ streamId }: { streamId: string }) {
   const [pubKey, setPubKey] = useState("");
   const [privKey, setPrivKey] = useState("");
   const [plaintext, setPlaintext] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(storageKey(personaId));
+    const raw = localStorage.getItem(storageKey(streamId));
     if (!raw) return;
     try {
       const data = JSON.parse(raw);
@@ -22,31 +22,50 @@ export default function DecryptPanel({ personaId }: { personaId: string }) {
     } catch {
       // ignore
     }
-  }, [personaId]);
+  }, [streamId]);
 
   async function decrypt() {
     setStatus(null);
     setPlaintext(null);
     try {
-      const { signals } = await fetchJson<{ signals: Array<{ signalHash: string; keyboxPointer: string; signalPointer: string }> }>(`/signals?personaId=${personaId}`);
+      const { signals } = await fetchJson<{
+        signals: Array<{
+          signalHash: string;
+          signalPointer: string;
+          keyboxPointer?: string | null;
+          visibility?: "public" | "private";
+        }>;
+      }>(`/signals?streamId=${streamId}`);
       if (!signals.length) {
         setStatus("No signals available");
         return;
       }
       const latest = signals[signals.length - 1];
 
-      const keyboxSha = latest.keyboxPointer.split("/").pop();
-      const signalSha = latest.signalPointer.split("/").pop();
-
-      const keyboxRes = await fetchJson<{ payloadBase64: string }>(`/storage/keybox/${keyboxSha}`);
-      const keybox = JSON.parse(atob(keyboxRes.payloadBase64)) as Array<{ subscriberId: string; epk: string; encKey: string; iv: string; tag: string }>;
-
-      const subId = await subscriberIdFromPubkey(pubKey);
-      const entry = keybox.find((k) => k.subscriberId === subId);
-      if (!entry) {
-        setStatus("Subscriber key not found in keybox");
+      if (latest.visibility === "public") {
+        const signalSha = latest.signalPointer.split("/").pop();
+        const signalRes = await fetchJson<{ payload: { plaintext: string } }>(`/storage/public/${signalSha}`);
+        setPlaintext(atob(signalRes.payload.plaintext));
         return;
       }
+
+      if (!pubKey || !privKey) {
+        setStatus("Keys required for private signals");
+        return;
+      }
+
+      const keyboxSha = latest.keyboxPointer?.split("/").pop();
+      const signalSha = latest.signalPointer.split("/").pop();
+      if (!keyboxSha) {
+        setStatus("Missing keybox pointer for private signal");
+        return;
+      }
+
+      const subId = await subscriberIdFromPubkey(pubKey);
+      const keyboxRes = await fetchJson<{ entry: { subscriberId: string; epk: string; encKey: string; iv: string; tag: string } }>(
+        `/storage/keybox/${keyboxSha}?subscriberId=${encodeURIComponent(subId)}`
+      );
+      const entry = keyboxRes.entry;
 
       const priv = await importX25519PrivateKey(privKey);
       const epk = await importX25519PublicKey(entry.epk);
@@ -56,8 +75,10 @@ export default function DecryptPanel({ personaId }: { personaId: string }) {
       const tag = fromBase64(entry.tag);
       const symKeyRaw = await decryptAesGcm(shared, iv, encKey, tag);
 
-      const signalRes = await fetchJson<{ payloadBase64: string }>(`/storage/ciphertext/${signalSha}`);
-      const payload = JSON.parse(atob(signalRes.payloadBase64)) as { iv: string; tag: string; ciphertext: string };
+      const signalRes = await fetchJson<{ payload: { iv: string; tag: string; ciphertext: string } }>(
+        `/storage/ciphertext/${signalSha}`
+      );
+      const payload = signalRes.payload;
 
       const symKey = await crypto.subtle.importKey(
         "raw",
@@ -90,7 +111,7 @@ export default function DecryptPanel({ personaId }: { personaId: string }) {
         <label>Private Key (base64)</label>
         <textarea value={privKey} onChange={(e) => setPrivKey(e.target.value)} />
       </div>
-      <button className="button primary" onClick={decrypt} disabled={!pubKey || !privKey}>
+      <button className="button primary" onClick={decrypt}>
         Decrypt
       </button>
       {status && <p className="subtext">{status}</p>}

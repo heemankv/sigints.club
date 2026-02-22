@@ -6,7 +6,7 @@ import { SignalService } from "./SignalService";
 import { InMemorySubscriberDirectory } from "./InMemorySubscriberDirectory";
 import { FileSubscriberDirectory } from "./FileSubscriberDirectory";
 import { DiscoveryService } from "./DiscoveryService";
-import { PersonaRegistryClient } from "./PersonaRegistryClient";
+import { StreamRegistryClient } from "./StreamRegistryClient";
 import { ListenerService } from "./ListenerService";
 import { OnChainStub } from "./OnChainStub";
 import { OnChainAnchorRecorder } from "./OnChainAnchorRecorder";
@@ -18,43 +18,40 @@ import {
   InMemoryUserStore,
   InMemoryBotStore,
   InMemorySubscriptionStore,
-  FileSocialPostStore,
-  InMemorySocialPostStore,
 } from "../social";
 import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 import { getTapestryClient } from "../tapestry";
 import { SocialService } from "./SocialService";
-import { FilePersonaStore, InMemoryPersonaStore } from "../personas";
-import { TapestryPersonaService } from "./TapestryPersonaService";
+import { TapestryStreamService } from "./TapestryStreamService";
 
 const solanaProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
 const solanaKeypairPath = process.env.SOLANA_KEYPAIR;
 const solanaSecretKey = solanaKeypairPath ? undefined : process.env.SOLANA_PRIVATE_KEY;
 const solanaRpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const solanaIdlPath = process.env.SOLANA_IDL_PATH;
-const solanaPersonaMap = parsePersonaMap(process.env.SOLANA_PERSONA_MAP);
-const tapestryProfileMap = parsePersonaMap(process.env.TAPESTRY_PROFILE_MAP);
+const solanaStreamMap = parseStreamMap(process.env.SOLANA_STREAM_MAP);
+const tapestryProfileMap = parseStreamMap(process.env.TAPESTRY_PROFILE_MAP);
 const tapestryRegistryProfileId = process.env.TAPESTRY_REGISTRY_PROFILE_ID;
-const solanaPersonaDefault = process.env.SOLANA_PERSONA_DEFAULT;
-const solanaPersonaRegistryId = process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID;
+const solanaStreamDefault = process.env.SOLANA_STREAM_DEFAULT;
+const solanaStreamRegistryId = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
 
 const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : new BackendStorage();
 const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
 const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
 const subscribers = persist ? new FileSubscriberDirectory() : new InMemorySubscriberDirectory();
-const personaStoreInstance = persist ? new FilePersonaStore() : new InMemoryPersonaStore();
-const personaRegistryInstance = solanaPersonaRegistryId
-  ? new PersonaRegistryClient({
+const streamRegistryInstance = solanaStreamRegistryId
+  ? new StreamRegistryClient({
       rpcUrl: solanaRpcUrl,
-      programId: solanaPersonaRegistryId,
+      programId: solanaStreamRegistryId,
     })
   : undefined;
-let tapestryPersonaService: TapestryPersonaService | undefined;
 const listener = new ListenerService(storage);
 const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
 const botStore = persist ? new FileBotStore() : new InMemoryBotStore();
 const subscriptionStore = persist ? new FileSubscriptionStore() : new InMemorySubscriptionStore();
-const socialPostStore = persist ? new FileSocialPostStore() : new InMemorySocialPostStore();
+
+const client = getTapestryClient();
+const tapestryStreamService = new TapestryStreamService(client, tapestryRegistryProfileId);
 
 const onChainRecorder =
   solanaProgramId && (solanaKeypairPath || solanaSecretKey)
@@ -64,8 +61,8 @@ const onChainRecorder =
         secretKeyBase58: solanaSecretKey,
         programId: solanaProgramId,
         idlPath: solanaIdlPath,
-        personaMap: solanaPersonaMap,
-        personaDefault: solanaPersonaDefault,
+        streamMap: solanaStreamMap,
+        streamDefault: solanaStreamDefault,
       })
     : new OnChainStub();
 
@@ -76,50 +73,37 @@ const onChainSubscriptions =
         keypairPath: solanaKeypairPath,
         secretKeyBase58: solanaSecretKey,
         programId: solanaProgramId,
-        personaRegistryProgramId: solanaPersonaRegistryId,
-        personaMap: solanaPersonaMap,
-        personaDefault: solanaPersonaDefault,
+        streamRegistryProgramId: solanaStreamRegistryId,
+        streamMap: solanaStreamMap,
+        streamDefault: solanaStreamDefault,
       })
     : undefined;
 
-let socialPublisher: TapestryPublisher | undefined;
-let socialService: SocialService | undefined;
-if (process.env.TAPESTRY_API_KEY) {
-  const client = getTapestryClient();
-  socialPublisher = new TapestryPublisher(
-    client,
-    process.env.TAPESTRY_PROFILE_ID,
-    tapestryProfileMap,
-    personaStoreInstance
-  );
-  socialService = new SocialService(client, socialPostStore, userStore);
-  tapestryPersonaService = new TapestryPersonaService(client, tapestryRegistryProfileId);
-}
-
-const discovery = new DiscoveryService(
-  personaStoreInstance,
-  personaRegistryInstance,
+const socialPublisher = new TapestryPublisher(
+  client,
+  process.env.TAPESTRY_PROFILE_ID,
   tapestryProfileMap,
-  tapestryPersonaService
+  tapestryStreamService
 );
+const socialService = new SocialService(client, userStore);
+
+const discovery = new DiscoveryService(streamRegistryInstance, tapestryStreamService);
 
 export const signalService = new SignalService(storage, metadata, socialPublisher, onChainRecorder);
 export const metadataStore = metadata;
 export const subscriberDirectory = subscribers;
 export const discoveryService = discovery;
-export const personaStore = personaStoreInstance;
-export const personaRegistry = personaRegistryInstance;
+export const streamRegistry = streamRegistryInstance;
 export const listenerService = listener;
 export const storageProvider = storage;
 export const onChainSubscriptionClient = onChainSubscriptions;
 export const userProfileStore = userStore;
 export const botProfileStore = botStore;
 export const subscriptionProfileStore = subscriptionStore;
-export const socialPostStoreInstance = socialPostStore;
 export const socialServiceInstance = socialService;
-export const tapestryPersonaServiceInstance = tapestryPersonaService;
+export const tapestryStreamServiceInstance = tapestryStreamService;
 
-function parsePersonaMap(value?: string): Record<string, string> | undefined {
+function parseStreamMap(value?: string): Record<string, string> | undefined {
   if (!value) {
     return undefined;
   }
@@ -127,7 +111,7 @@ function parsePersonaMap(value?: string): Record<string, string> | undefined {
     return JSON.parse(value) as Record<string, string>;
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.warn("Invalid SOLANA_PERSONA_MAP JSON, ignoring.", error);
+    console.warn("Invalid SOLANA_STREAM_MAP JSON, ignoring.", error);
     return undefined;
   }
 }

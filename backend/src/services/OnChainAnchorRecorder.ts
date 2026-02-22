@@ -14,8 +14,8 @@ type AnchorRecorderConfig = {
   programId: string;
   idlPath?: string;
   commitment?: anchor.web3.Commitment;
-  personaMap?: Record<string, string>;
-  personaDefault?: string;
+  streamMap?: Record<string, string>;
+  streamDefault?: string;
 };
 
 export class OnChainAnchorRecorder implements OnChainRecorder {
@@ -29,21 +29,23 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
   async recordSignal(input: RecordSignalInput): Promise<string | undefined> {
     const { provider, coder } = await this.getClient();
     const walletPubkey = provider.wallet.publicKey;
-    const personaPubkey = this.resolvePersona(input.personaId, walletPubkey);
+    const streamPubkey = this.resolveStream(input.streamId, walletPubkey);
 
     const signalHashBytes = toBytes32(input.signalHash, "signalHash");
     const signalPointerHash = sha256Hex(Buffer.from(input.signalPointer));
-    const keyboxPointerHash = sha256Hex(Buffer.from(input.keyboxPointer));
     const signalPointerHashBytes = toBytes32(signalPointerHash, "signalPointerHash");
-    const keyboxHashBytes = toBytes32(input.keyboxHash, "keyboxHash");
-    const keyboxPointerHashBytes = toBytes32(keyboxPointerHash, "keyboxPointerHash");
+    const zero32 = new Uint8Array(32);
+    const keyboxHashBytes = input.keyboxHash ? toBytes32(input.keyboxHash, "keyboxHash") : zero32;
+    const keyboxPointerHashBytes = input.keyboxPointer
+      ? toBytes32(sha256Hex(Buffer.from(input.keyboxPointer)), "keyboxPointerHash")
+      : zero32;
 
     const [signalPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("signal"), personaPubkey.toBuffer(), Buffer.from(signalHashBytes)],
+      [Buffer.from("signal_latest"), streamPubkey.toBuffer()],
       this.programId
     );
-    const [personaState] = PublicKey.findProgramAddressSync(
-      [Buffer.from("persona_state"), personaPubkey.toBuffer()],
+    const [streamState] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stream_state"), streamPubkey.toBuffer()],
       this.programId
     );
 
@@ -58,8 +60,8 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
       programId: this.programId,
       keys: [
         { pubkey: signalPda, isSigner: false, isWritable: true },
-        { pubkey: personaPubkey, isSigner: false, isWritable: false },
-        { pubkey: personaState, isSigner: false, isWritable: false },
+        { pubkey: streamPubkey, isSigner: false, isWritable: false },
+        { pubkey: streamState, isSigner: false, isWritable: true },
         { pubkey: walletPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
@@ -73,8 +75,8 @@ export class OnChainAnchorRecorder implements OnChainRecorder {
     return signature;
   }
 
-  private resolvePersona(personaId: string, fallback: PublicKey): PublicKey {
-    const mapped = this.config.personaMap?.[personaId] ?? this.config.personaDefault;
+  private resolveStream(streamId: string, fallback: PublicKey): PublicKey {
+    const mapped = this.config.streamMap?.[streamId] ?? this.config.streamDefault;
     if (mapped) {
       return new PublicKey(mapped);
     }

@@ -1,12 +1,12 @@
 import { SignalMetadata } from "./MetadataStore";
 
 export type RecordSignalInput = {
-  personaId: string;
+  streamId: string;
   tierId: string;
   signalHash: string;
   signalPointer: string;
-  keyboxHash: string;
-  keyboxPointer: string;
+  keyboxHash?: string | null;
+  keyboxPointer?: string | null;
 };
 
 export interface OnChainRecorder {
@@ -15,7 +15,7 @@ export interface OnChainRecorder {
 
 export function toRecordSignalInput(meta: SignalMetadata): RecordSignalInput {
   return {
-    personaId: meta.personaId,
+    streamId: meta.streamId,
     tierId: meta.tierId,
     signalHash: meta.signalHash,
     signalPointer: meta.signalPointer,

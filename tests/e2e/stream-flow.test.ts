@@ -5,7 +5,7 @@ import { getAccount, getAssociatedTokenAddressSync, getMint } from "@solana/spl-
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { LoggingMessageNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { PersonaClient, __testing as sdkTesting, subscriberIdFromPubkey } from "../../sdk/src/index.ts";
+import { SigintsClient, __testing as sdkTesting, subscriberIdFromPubkey } from "../../sdk/src/index.ts";
 import { webcrypto } from "node:crypto";
 import { writeFileSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,7 +14,7 @@ import type { Server } from "node:http";
 import { createHash } from "node:crypto";
 import {
   decodeSubscriptionAccount,
-  derivePersonaState,
+  deriveStreamState,
   deriveSubscriptionMint,
   deriveSubscriptionPda,
 } from "../../frontend/app/lib/solana.ts";
@@ -31,26 +31,26 @@ const PROGRAM_ID = new PublicKey(
     process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID ??
     "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE"
 );
-const PERSONA_REGISTRY_PROGRAM_ID = new PublicKey(
-  process.env.E2E_PERSONA_REGISTRY_PROGRAM_ID ??
-    process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID ??
+const STREAM_REGISTRY_PROGRAM_ID = new PublicKey(
+  process.env.E2E_STREAM_REGISTRY_PROGRAM_ID ??
+    process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID ??
     "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi"
 );
 const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 const RUN_ID = `${Date.now().toString(36)}-${Math.floor(Math.random() * 1_000_000).toString(36)}`;
-const TEST_PERSONAS = [
+const TEST_STREAMS = [
   {
     key: "eth",
-    id: `persona-eth-${RUN_ID}`,
+    id: `stream-eth-${RUN_ID}`,
     tierId: "trust",
-    pricingType: 0,
+    pricingType: 1,
     evidenceLevel: 0,
     priceLamports: 50_000_000,
     quota: 0,
   },
   {
     key: "anime",
-    id: `persona-anime-${RUN_ID}`,
+    id: `stream-anime-${RUN_ID}`,
     tierId: "verifier",
     pricingType: 1,
     evidenceLevel: 1,
@@ -59,9 +59,9 @@ const TEST_PERSONAS = [
   },
   {
     key: "news",
-    id: `persona-news-${RUN_ID}`,
+    id: `stream-news-${RUN_ID}`,
     tierId: "trust",
-    pricingType: 2,
+    pricingType: 1,
     evidenceLevel: 0,
     priceLamports: 10_000_000,
     quota: 0,
@@ -110,9 +110,9 @@ async function ensureLocalnet() {
   if (!programInfo) {
     throw new Error("Program not deployed on localnet. Deploy subscription_royalty before running E2E.");
   }
-  const registryInfo = await connection.getAccountInfo(PERSONA_REGISTRY_PROGRAM_ID);
+  const registryInfo = await connection.getAccountInfo(STREAM_REGISTRY_PROGRAM_ID);
   if (!registryInfo) {
-    throw new Error("Persona registry not deployed on localnet. Deploy persona_registry before running E2E.");
+    throw new Error("Stream registry not deployed on localnet. Deploy stream_registry before running E2E.");
   }
 }
 
@@ -167,25 +167,25 @@ function loadSubscriptionCoder(): anchor.BorshAccountsCoder {
   return new anchor.BorshAccountsCoder(idl);
 }
 
-function loadPersonaRegistryCoder(): anchor.BorshInstructionCoder {
-  const idlPath = path.resolve(process.cwd(), "../backend/idl/persona_registry.json");
+function loadStreamRegistryCoder(): anchor.BorshInstructionCoder {
+  const idlPath = path.resolve(process.cwd(), "../backend/idl/stream_registry.json");
   const idlRaw = readFileSync(idlPath, "utf8");
   const idl = JSON.parse(idlRaw) as anchor.Idl;
   return new anchor.BorshInstructionCoder(idl);
 }
 
-async function ensurePersonaExists(args: {
-  personaId: string;
+async function ensureStreamExists(args: {
+  streamId: string;
   tiersSeed: string;
   authority: Keypair;
   coder: anchor.BorshInstructionCoder;
   dao?: PublicKey;
 }): Promise<PublicKey> {
-  const personaIdBytes = sha256Bytes(args.personaId);
+  const streamIdBytes = sha256Bytes(args.streamId);
   const tiersHashBytes = sha256Bytes(args.tiersSeed);
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("persona"), personaIdBytes],
-    PERSONA_REGISTRY_PROGRAM_ID
+    [Buffer.from("stream"), streamIdBytes],
+    STREAM_REGISTRY_PROGRAM_ID
   );
 
   const exists = await connection.getAccountInfo(pda);
@@ -193,14 +193,14 @@ async function ensurePersonaExists(args: {
     return pda;
   }
 
-  const data = args.coder.encode("create_persona", {
-    persona_id: Array.from(personaIdBytes),
+  const data = args.coder.encode("create_stream", {
+    stream_id: Array.from(streamIdBytes),
     tiers_hash: Array.from(tiersHashBytes),
     dao: args.dao ?? args.authority.publicKey,
   });
 
   const ix = new anchor.web3.TransactionInstruction({
-    programId: PERSONA_REGISTRY_PROGRAM_ID,
+    programId: STREAM_REGISTRY_PROGRAM_ID,
     keys: [
       { pubkey: pda, isSigner: false, isWritable: true },
       { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
@@ -215,7 +215,7 @@ async function ensurePersonaExists(args: {
 }
 
 async function ensureTierExists(args: {
-  persona: PublicKey;
+  stream: PublicKey;
   tierId: string;
   pricingType: number;
   evidenceLevel: number;
@@ -227,7 +227,7 @@ async function ensureTierExists(args: {
 }
 
 async function ensureTierWithStatus(args: {
-  persona: PublicKey;
+  stream: PublicKey;
   tierId: string;
   pricingType: number;
   evidenceLevel: number;
@@ -238,8 +238,8 @@ async function ensureTierWithStatus(args: {
 }) {
   const tierHash = sha256Bytes(args.tierId);
   const [tierPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("tier"), args.persona.toBuffer(), tierHash],
-    PERSONA_REGISTRY_PROGRAM_ID
+    [Buffer.from("tier"), args.stream.toBuffer(), tierHash],
+    STREAM_REGISTRY_PROGRAM_ID
   );
   const exists = await connection.getAccountInfo(tierPda);
   if (exists) return tierPda;
@@ -252,9 +252,9 @@ async function ensureTierWithStatus(args: {
     status: args.status,
   });
   const ix = new anchor.web3.TransactionInstruction({
-    programId: PERSONA_REGISTRY_PROGRAM_ID,
+    programId: STREAM_REGISTRY_PROGRAM_ID,
     keys: [
-      { pubkey: args.persona, isSigner: false, isWritable: true },
+      { pubkey: args.stream, isSigner: false, isWritable: true },
       { pubkey: tierPda, isSigner: false, isWritable: true },
       { pubkey: args.authority.publicKey, isSigner: true, isWritable: true },
       { pubkey: anchor.web3.SystemProgram.programId, isSigner: false, isWritable: false },
@@ -266,22 +266,22 @@ async function ensureTierWithStatus(args: {
   return tierPda;
 }
 
-async function setPersonaStatus(args: {
-  persona: PublicKey;
+async function setStreamStatus(args: {
+  stream: PublicKey;
   tiersSeed: string;
   status: number;
   authority: Keypair;
   coder: anchor.BorshInstructionCoder;
 }) {
   const tiersHashBytes = sha256Bytes(args.tiersSeed);
-  const data = args.coder.encode("update_persona", {
+  const data = args.coder.encode("update_stream", {
     tiers_hash: Array.from(tiersHashBytes),
     status: args.status,
   });
   const ix = new anchor.web3.TransactionInstruction({
-    programId: PERSONA_REGISTRY_PROGRAM_ID,
+    programId: STREAM_REGISTRY_PROGRAM_ID,
     keys: [
-      { pubkey: args.persona, isSigner: false, isWritable: true },
+      { pubkey: args.stream, isSigner: false, isWritable: true },
       { pubkey: args.authority.publicKey, isSigner: true, isWritable: false },
     ],
     data,
@@ -291,7 +291,7 @@ async function setPersonaStatus(args: {
 }
 
 async function sendSubscribeTx(args: {
-  persona: PublicKey;
+  stream: PublicKey;
   subscriber: Keypair;
   maker: PublicKey;
   treasury: PublicKey;
@@ -304,7 +304,7 @@ async function sendSubscribeTx(args: {
   const { buildSubscribeInstruction, defaultExpiryMs } = await import("../../frontend/app/lib/solana.ts");
   const ix = await buildSubscribeInstruction({
     programId: PROGRAM_ID,
-    persona: args.persona,
+    stream: args.stream,
     subscriber: args.subscriber.publicKey,
     tierId: args.tierId,
     pricingType: args.pricingType,
@@ -336,7 +336,7 @@ beforeAll(async () => {
     tempKeypairPath = authorityPath;
   } else {
     keypair = Keypair.generate();
-    const dir = mkdtempSync(path.join(tmpdir(), "persona-e2e-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "stream-e2e-"));
     tempKeypairPath = path.join(dir, "backend-keypair.json");
     writeFileSync(tempKeypairPath, JSON.stringify(Array.from(keypair.secretKey)));
   }
@@ -345,23 +345,23 @@ beforeAll(async () => {
   authorityKeypair = keypair;
   await airdrop(connection, keypair.publicKey, 5);
 
-  const coder = loadPersonaRegistryCoder();
-  const personaMap: Record<string, string> = {};
-  for (const persona of TEST_PERSONAS) {
-    const pda = await ensurePersonaExists({
-      personaId: persona.id,
-      tiersSeed: `tiers:${persona.id}`,
+  const coder = loadStreamRegistryCoder();
+  const streamMap: Record<string, string> = {};
+  for (const stream of TEST_STREAMS) {
+    const pda = await ensureStreamExists({
+      streamId: stream.id,
+      tiersSeed: `tiers:${stream.id}`,
       authority: keypair,
       coder,
     });
-    personaMap[persona.id] = pda.toBase58();
+    streamMap[stream.id] = pda.toBase58();
     await ensureTierExists({
-      persona: pda,
-      tierId: persona.tierId,
-      pricingType: persona.pricingType,
-      evidenceLevel: persona.evidenceLevel,
-      priceLamports: persona.priceLamports,
-      quota: persona.quota,
+      stream: pda,
+      tierId: stream.tierId,
+      pricingType: stream.pricingType,
+      evidenceLevel: stream.evidenceLevel,
+      priceLamports: stream.priceLamports,
+      quota: stream.quota,
       authority: keypair,
     });
   }
@@ -370,10 +370,10 @@ beforeAll(async () => {
   process.env.PERSIST = "false";
   process.env.SOLANA_RPC_URL = RPC_URL;
   process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID = PROGRAM_ID.toBase58();
-  process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID = PERSONA_REGISTRY_PROGRAM_ID.toBase58();
+  process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID = STREAM_REGISTRY_PROGRAM_ID.toBase58();
   process.env.SOLANA_KEYPAIR = tempKeypairPath;
   process.env.SOLANA_IDL_PATH = path.resolve(process.cwd(), "../backend/idl/subscription_royalty.json");
-  process.env.SOLANA_PERSONA_MAP = JSON.stringify(personaMap);
+  process.env.SOLANA_STREAM_MAP = JSON.stringify(streamMap);
 
   const { createApp } = await import("../../backend/src/app.ts");
   const app = createApp();
@@ -395,23 +395,23 @@ afterAll(async () => {
 
 describe("E2E maker/taker flow", () => {
   it("delivers ticks to SDK and MCP listeners with strict validation", async () => {
-    const personas = TEST_PERSONAS.map((persona) => ({
-      id: persona.id,
-      tier: persona.tierId,
-      pricingType: persona.pricingType,
-      evidenceLevel: persona.evidenceLevel,
-      priceLamports: persona.priceLamports,
-      quota: persona.quota,
+    const streams = TEST_STREAMS.map((stream) => ({
+      id: stream.id,
+      tier: stream.tierId,
+      pricingType: stream.pricingType,
+      evidenceLevel: stream.evidenceLevel,
+      priceLamports: stream.priceLamports,
+      quota: stream.quota,
     }));
 
-    const personaMap = JSON.parse(process.env.SOLANA_PERSONA_MAP ?? "{}") as Record<string, string>;
-    const personaPubkeys = Object.fromEntries(
-      personas.map((p) => [p.id, new PublicKey(personaMap[p.id])])
+    const streamMap = JSON.parse(process.env.SOLANA_STREAM_MAP ?? "{}") as Record<string, string>;
+    const streamPubkeys = Object.fromEntries(
+      streams.map((p) => [p.id, new PublicKey(streamMap[p.id])])
     ) as Record<string, PublicKey>;
 
     const takers = Array.from({ length: 10 }).map(() => ({
       wallet: Keypair.generate(),
-      keys: PersonaClient.generateKeys(),
+      keys: SigintsClient.generateKeys(),
     }));
 
     // Fund takers and register encryption keys
@@ -421,34 +421,34 @@ describe("E2E maker/taker flow", () => {
 
     // On-chain subscription NFTs
     for (const [idx, taker] of takers.entries()) {
-      const persona = personas[idx % personas.length];
-      const personaPubkey = personaPubkeys[persona.id];
+      const stream = streams[idx % streams.length];
+      const streamPubkey = streamPubkeys[stream.id];
       await sendSubscribeTx({
-        persona: personaPubkey,
+        stream: streamPubkey,
         subscriber: taker.wallet,
         maker: authorityKeypair.publicKey,
         treasury: authorityKeypair.publicKey,
-        tierId: persona.tier,
-        pricingType: persona.pricingType,
-        evidenceLevel: persona.evidenceLevel,
-        priceLamports: persona.priceLamports,
-        quotaRemaining: persona.quota,
+        tierId: stream.tier,
+        pricingType: stream.pricingType,
+        evidenceLevel: stream.evidenceLevel,
+        priceLamports: stream.priceLamports,
+        quotaRemaining: stream.quota,
       });
 
-      const subscriptionPda = deriveSubscriptionPda(PROGRAM_ID, personaPubkey, taker.wallet.publicKey);
-      const subscriptionMint = deriveSubscriptionMint(PROGRAM_ID, personaPubkey, taker.wallet.publicKey);
+      const subscriptionPda = deriveSubscriptionPda(PROGRAM_ID, streamPubkey, taker.wallet.publicKey);
+      const subscriptionMint = deriveSubscriptionMint(PROGRAM_ID, streamPubkey, taker.wallet.publicKey);
       const account = await connection.getAccountInfo(subscriptionPda, "confirmed");
       expect(account).not.toBeNull();
       const decoded = decodeSubscriptionAccount(subscriptionPda, account!.data);
       expect(decoded).not.toBeNull();
       expect(decoded!.subscriber).toBe(taker.wallet.publicKey.toBase58());
-      expect(decoded!.persona).toBe(personaPubkey.toBase58());
-      expect(decoded!.pricingType).toBe(persona.pricingType);
-      expect(decoded!.evidenceLevel).toBe(persona.evidenceLevel);
+      expect(decoded!.stream).toBe(streamPubkey.toBase58());
+      expect(decoded!.pricingType).toBe(stream.pricingType);
+      expect(decoded!.evidenceLevel).toBe(stream.evidenceLevel);
       expect(decoded!.quotaRemaining).toBe(0);
       expect(decoded!.status).toBe(0);
       expect(decoded!.nftMint).toBe(subscriptionMint.toBase58());
-      const expectedTierHash = sha256Hex(Buffer.from(persona.tier, "utf8"));
+      const expectedTierHash = sha256Hex(Buffer.from(stream.tier, "utf8"));
       expect(decoded!.tierIdHex).toBe(expectedTierHash);
 
       const mint = await getMint(connection, subscriptionMint);
@@ -463,12 +463,12 @@ describe("E2E maker/taker flow", () => {
     }
 
     for (const [idx, taker] of takers.entries()) {
-      const personaId = personas[idx % personas.length].id;
+      const streamId = streams[idx % streams.length].id;
       const res = await fetch(`${baseUrl}/subscribe`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          personaId,
+          streamId,
           encPubKeyDerBase64: taker.keys.publicKeyDerBase64,
           subscriberWallet: taker.wallet.publicKey.toBase58(),
         }),
@@ -480,42 +480,42 @@ describe("E2E maker/taker flow", () => {
     }
 
     const subscriptionCoder = loadSubscriptionCoder();
-    for (const persona of personas) {
-      const personaPubkey = personaPubkeys[persona.id];
-      const personaState = derivePersonaState(PROGRAM_ID, personaPubkey);
-      const account = await connection.getAccountInfo(personaState, "confirmed");
+    for (const stream of streams) {
+      const streamPubkey = streamPubkeys[stream.id];
+      const streamState = deriveStreamState(PROGRAM_ID, streamPubkey);
+      const account = await connection.getAccountInfo(streamState, "confirmed");
       expect(account).not.toBeNull();
-      const decoded = subscriptionCoder.decode("PersonaState", account!.data) as {
-        persona: PublicKey;
+      const decoded = subscriptionCoder.decode("StreamState", account!.data) as {
+        stream: PublicKey;
         subscriptionCount?: anchor.BN;
         subscription_count?: anchor.BN;
         bump: number;
       };
       const subscriptionCount = decoded.subscriptionCount ?? decoded.subscription_count;
-      const expectedCount = takers.filter((_, idx) => personas[idx % personas.length].id === persona.id).length;
-      expect(decoded.persona.toBase58()).toBe(personaPubkey.toBase58());
+      const expectedCount = takers.filter((_, idx) => streams[idx % streams.length].id === stream.id).length;
+      expect(decoded.stream.toBase58()).toBe(streamPubkey.toBase58());
       expect(subscriptionCount?.toNumber()).toBe(expectedCount);
       expect(decoded.bump).toBeGreaterThanOrEqual(0);
     }
 
     const actions: string[] = [];
-    const receivedByTaker = new Map<string, { personaId: string; plaintext: string }>();
+    const receivedByTaker = new Map<string, { streamId: string; plaintext: string }>();
     const listenerErrors: string[] = [];
     const duplicateSignals: string[] = [];
     const tickStats: Array<{ createdAt: number; receivedAt: number }> = [];
     const listeners: Array<() => void> = [];
 
     for (const [idx, taker] of takers.entries()) {
-      const persona = personas[idx % personas.length];
-      const client = new PersonaClient({
+      const stream = streams[idx % streams.length];
+      const client = new SigintsClient({
         rpcUrl: RPC_URL,
         backendUrl: baseUrl,
         programId: PROGRAM_ID.toBase58(),
       });
 
       const stop = await client.listenForSignals({
-        personaId: persona.id,
-        personaPubkey: personaMap[persona.id],
+        streamId: stream.id,
+        streamPubkey: streamMap[stream.id],
         subscriberKeys: {
           publicKeyDerBase64: taker.keys.publicKeyDerBase64,
           privateKeyDerBase64: taker.keys.privateKeyDerBase64,
@@ -524,13 +524,13 @@ describe("E2E maker/taker flow", () => {
         includeBlockTime: true,
         onSignal: (tick) => {
           const takerId = taker.wallet.publicKey.toBase58();
-          const expectedPlaintext = `${persona.id}-tick`;
+          const expectedPlaintext = `${stream.id}-tick`;
           if (receivedByTaker.has(takerId)) {
             duplicateSignals.push(tick.signalHash);
             return;
           }
-          if (tick.metadata.personaId !== persona.id) {
-            listenerErrors.push(`persona mismatch for ${takerId}`);
+          if (tick.metadata.streamId !== stream.id) {
+            listenerErrors.push(`stream mismatch for ${takerId}`);
           }
           if (tick.plaintext !== expectedPlaintext) {
             listenerErrors.push(`plaintext mismatch for ${takerId}`);
@@ -542,7 +542,7 @@ describe("E2E maker/taker flow", () => {
             listenerErrors.push(`receivedAt before createdAt for ${takerId}`);
           }
           actions.push(`sdk:${takerId}:${tick.plaintext}`);
-          receivedByTaker.set(takerId, { personaId: tick.metadata.personaId, plaintext: tick.plaintext });
+          receivedByTaker.set(takerId, { streamId: tick.metadata.streamId, plaintext: tick.plaintext });
           tickStats.push({ createdAt: tick.createdAt, receivedAt: tick.receivedAt });
         },
       });
@@ -551,7 +551,7 @@ describe("E2E maker/taker flow", () => {
 
     // MCP listener
     const { createServer } = await import("../../mcp-server/src/server.ts");
-    const serverInstance = createServer((cfg) => new PersonaClient(cfg));
+    const serverInstance = createServer((cfg) => new SigintsClient(cfg));
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const mcpClient = new Client(
       { name: "e2e-client", version: "0.1.0" },
@@ -570,10 +570,10 @@ describe("E2E maker/taker flow", () => {
     });
 
     await mcpClient.callTool({
-      name: "listen_persona_ticks",
+      name: "listen_stream_ticks",
       arguments: {
-        personaId: personas[0].id,
-        personaPubkey: personaMap[personas[0].id],
+        streamId: streams[0].id,
+        streamPubkey: streamMap[streams[0].id],
         subscriberPublicKeyBase64: takers[0].keys.publicKeyDerBase64,
         subscriberPrivateKeyBase64: takers[0].keys.privateKeyDerBase64,
         backendUrl: baseUrl,
@@ -584,13 +584,13 @@ describe("E2E maker/taker flow", () => {
     });
 
     // Makers publish signals
-    const published: Array<{ personaId: string; metadata: any }> = [];
-    for (const persona of personas) {
-      const payload = Buffer.from(`${persona.id}-tick`, "utf8").toString("base64");
+    const published: Array<{ streamId: string; metadata: any }> = [];
+    for (const stream of streams) {
+      const payload = Buffer.from(`${stream.id}-tick`, "utf8").toString("base64");
       const res = await fetch(`${baseUrl}/signals`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personaId: persona.id, tierId: persona.tier, plaintextBase64: payload }),
+        body: JSON.stringify({ streamId: stream.id, tierId: stream.tier, plaintextBase64: payload }),
       });
       expect(res.ok).toBe(true);
       const body = (await res.json()) as { metadata: any };
@@ -600,7 +600,7 @@ describe("E2E maker/taker flow", () => {
       expect(body.metadata.signalPointer).toBe(`backend://ciphertext/${body.metadata.signalHash}`);
       expect(body.metadata.keyboxPointer).toBe(`backend://keybox/${body.metadata.keyboxHash}`);
       expect(body.metadata.onchainTx).toBeTruthy();
-      published.push({ personaId: persona.id, metadata: body.metadata });
+      published.push({ streamId: stream.id, metadata: body.metadata });
     }
 
     await waitFor(() => receivedByTaker.size >= takers.length, 15_000, 300);
@@ -608,7 +608,7 @@ describe("E2E maker/taker flow", () => {
 
     for (const item of published) {
       const meta = item.metadata;
-      const latestRes = await fetch(`${baseUrl}/signals/latest?personaId=${encodeURIComponent(item.personaId)}`);
+      const latestRes = await fetch(`${baseUrl}/signals/latest?streamId=${encodeURIComponent(item.streamId)}`);
       expect(latestRes.ok).toBe(true);
       const latestBody = (await latestRes.json()) as { signal: any };
       expect(latestBody.signal.signalHash).toBe(meta.signalHash);
@@ -625,7 +625,7 @@ describe("E2E maker/taker flow", () => {
       const keyboxHash = sha256Hex(Buffer.from(JSON.stringify(keyboxBody.keybox)));
       expect(keyboxHash).toBe(meta.keyboxHash);
 
-      const matchingTakers = takers.filter((_, idx) => personas[idx % personas.length].id === item.personaId);
+      const matchingTakers = takers.filter((_, idx) => streams[idx % streams.length].id === item.streamId);
       for (const taker of matchingTakers) {
         const subscriberId = subscriberIdFromPubkey(taker.keys.publicKeyDerBase64);
         const entryRes = await fetch(
@@ -634,17 +634,16 @@ describe("E2E maker/taker flow", () => {
         expect(entryRes.ok).toBe(true);
       }
 
-      const personaPubkey = personaPubkeys[item.personaId];
-      const signalHashBytes = Buffer.from(meta.signalHash, "hex");
+      const streamPubkey = streamPubkeys[item.streamId];
       const [signalPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("signal"), personaPubkey.toBuffer(), Buffer.from(signalHashBytes)],
+        [Buffer.from("signal_latest"), streamPubkey.toBuffer()],
         PROGRAM_ID
       );
       const signalAccount = await connection.getAccountInfo(signalPda, "confirmed");
       expect(signalAccount).not.toBeNull();
       const decoded = sdkTesting.decodeSignalRecord(signalAccount!.data);
       expect(decoded).not.toBeNull();
-      expect(decoded!.persona).toBe(personaPubkey.toBase58());
+      expect(decoded!.stream).toBe(streamPubkey.toBase58());
       expect(decoded!.signalHash).toBe(meta.signalHash);
       expect(decoded!.keyboxHash).toBe(meta.keyboxHash);
       const signalPointerHash = sha256Hex(meta.signalPointer);
@@ -655,10 +654,10 @@ describe("E2E maker/taker flow", () => {
     }
 
     const mcpResult = await mcpClient.callTool({
-      name: "check_persona_tick",
+      name: "check_stream_tick",
       arguments: {
-        personaId: personas[0].id,
-        personaPubkey: personaMap[personas[0].id],
+        streamId: streams[0].id,
+        streamPubkey: streamMap[streams[0].id],
         subscriberPublicKeyBase64: takers[0].keys.publicKeyDerBase64,
         subscriberPrivateKeyBase64: takers[0].keys.privateKeyDerBase64,
         backendUrl: baseUrl,
@@ -669,8 +668,8 @@ describe("E2E maker/taker flow", () => {
     });
     const contentText = mcpResult.content?.[0]?.type === "text" ? mcpResult.content[0].text : "";
     const parsed = contentText.startsWith("{") ? JSON.parse(contentText) : null;
-    expect(parsed?.personaId).toBe(personas[0].id);
-    expect(parsed?.plaintext).toBe(`${personas[0].id}-tick`);
+    expect(parsed?.streamId).toBe(streams[0].id);
+    expect(parsed?.plaintext).toBe(`${streams[0].id}-tick`);
 
     listeners.forEach((stop) => stop());
 
@@ -680,14 +679,14 @@ describe("E2E maker/taker flow", () => {
     expect(duplicateSignals).toEqual([]);
     expect(tickStats.some((t) => t.receivedAt - t.createdAt < 60_000)).toBe(true);
     expect(mcpReceived).toBe(true);
-    expect(mcpPayload?.personaId).toBe(personas[0].id);
-    expect(mcpPayload?.plaintext).toBe(`${personas[0].id}-tick`);
+    expect(mcpPayload?.streamId).toBe(streams[0].id);
+    expect(mcpPayload?.plaintext).toBe(`${streams[0].id}-tick`);
   });
 });
 
 describe("Subscription enforcement", () => {
   async function expectSubscribeFailure(args: {
-    persona: PublicKey;
+    stream: PublicKey;
     subscriber: Keypair;
     maker: PublicKey;
     treasury: PublicKey;
@@ -699,7 +698,7 @@ describe("Subscription enforcement", () => {
   }) {
     const subscriptionPda = deriveSubscriptionPda(
       PROGRAM_ID,
-      args.persona,
+      args.stream,
       args.subscriber.publicKey
     );
     await expect(sendSubscribeTx(args)).rejects.toThrow();
@@ -708,25 +707,25 @@ describe("Subscription enforcement", () => {
   }
 
   it("charges subscriber and splits fee/maker payouts", async () => {
-    const coder = loadPersonaRegistryCoder();
+    const coder = loadStreamRegistryCoder();
     const treasury = Keypair.generate();
     await airdrop(connection, treasury.publicKey, 1);
-    const personaId = `persona-payment-${treasury.publicKey.toBase58().slice(0, 6)}`;
-    const tiersSeed = `tiers:${personaId}`;
-    const persona = await ensurePersonaExists({
-      personaId,
+    const streamId = `stream-payment-${treasury.publicKey.toBase58().slice(0, 6)}`;
+    const tiersSeed = `tiers:${streamId}`;
+    const stream = await ensureStreamExists({
+      streamId,
       tiersSeed,
       authority: authorityKeypair,
       coder,
       dao: treasury.publicKey,
     });
     const tierId = "pro";
-    const pricingType = 0;
+    const pricingType = 1;
     const evidenceLevel = 0;
     const priceLamports = 1_000_000;
     const quota = 0;
     await ensureTierExists({
-      persona,
+      stream,
       tierId,
       pricingType,
       evidenceLevel,
@@ -742,7 +741,7 @@ describe("Subscription enforcement", () => {
     const treasuryBefore = await connection.getBalance(treasury.publicKey, "confirmed");
 
     await sendSubscribeTx({
-      persona,
+      stream,
       subscriber,
       maker: authorityKeypair.publicKey,
       treasury: treasury.publicKey,
@@ -764,22 +763,22 @@ describe("Subscription enforcement", () => {
   });
 
   it("rejects price and tier mismatches", async () => {
-    const coder = loadPersonaRegistryCoder();
-    const personaId = "persona-enforce";
-    const tiersSeed = "tiers:persona-enforce";
-    const persona = await ensurePersonaExists({
-      personaId,
+    const coder = loadStreamRegistryCoder();
+    const streamId = "stream-enforce";
+    const tiersSeed = "tiers:stream-enforce";
+    const stream = await ensureStreamExists({
+      streamId,
       tiersSeed,
       authority: authorityKeypair,
       coder,
     });
     const tierId = "gold";
-    const pricingType = 0;
+    const pricingType = 1;
     const evidenceLevel = 0;
     const priceLamports = 1_000_000;
     const quota = 0;
     await ensureTierExists({
-      persona,
+      stream,
       tierId,
       pricingType,
       evidenceLevel,
@@ -790,7 +789,7 @@ describe("Subscription enforcement", () => {
 
     const cases = [
       { label: "price mismatch", overrides: { priceLamports: priceLamports - 1 } },
-      { label: "pricing type mismatch", overrides: { pricingType: 1 } },
+      { label: "pricing type mismatch", overrides: { pricingType: 0 } },
       { label: "evidence mismatch", overrides: { evidenceLevel: 1 } },
       { label: "quota mismatch", overrides: { quotaRemaining: 5 } },
     ];
@@ -799,7 +798,7 @@ describe("Subscription enforcement", () => {
       const subscriber = Keypair.generate();
       await airdrop(connection, subscriber.publicKey, 2);
       await expectSubscribeFailure({
-        persona,
+        stream,
         subscriber,
         maker: authorityKeypair.publicKey,
         treasury: authorityKeypair.publicKey,
@@ -814,22 +813,22 @@ describe("Subscription enforcement", () => {
   });
 
   it("rejects wrong maker/treasury", async () => {
-    const coder = loadPersonaRegistryCoder();
-    const personaId = "persona-enforce-auth";
-    const tiersSeed = "tiers:persona-enforce-auth";
-    const persona = await ensurePersonaExists({
-      personaId,
+    const coder = loadStreamRegistryCoder();
+    const streamId = "stream-enforce-auth";
+    const tiersSeed = "tiers:stream-enforce-auth";
+    const stream = await ensureStreamExists({
+      streamId,
       tiersSeed,
       authority: authorityKeypair,
       coder,
     });
     const tierId = "basic";
-    const pricingType = 0;
+    const pricingType = 1;
     const evidenceLevel = 0;
     const priceLamports = 2_000_000;
     const quota = 0;
     await ensureTierExists({
-      persona,
+      stream,
       tierId,
       pricingType,
       evidenceLevel,
@@ -842,7 +841,7 @@ describe("Subscription enforcement", () => {
     await airdrop(connection, subscriber.publicKey, 2);
 
     await expectSubscribeFailure({
-      persona,
+      stream,
       subscriber,
       maker: Keypair.generate().publicKey,
       treasury: authorityKeypair.publicKey,
@@ -856,7 +855,7 @@ describe("Subscription enforcement", () => {
     const subscriber2 = Keypair.generate();
     await airdrop(connection, subscriber2.publicKey, 2);
     await expectSubscribeFailure({
-      persona,
+      stream,
       subscriber: subscriber2,
       maker: authorityKeypair.publicKey,
       treasury: Keypair.generate().publicKey,
@@ -868,60 +867,60 @@ describe("Subscription enforcement", () => {
     });
   });
 
-  it("rejects inactive persona and inactive tier", async () => {
-    const coder = loadPersonaRegistryCoder();
+  it("rejects inactive stream and inactive tier", async () => {
+    const coder = loadStreamRegistryCoder();
 
-    const inactivePersonaId = "persona-inactive";
-    const inactivePersonaSeed = "tiers:persona-inactive";
-    const inactivePersona = await ensurePersonaExists({
-      personaId: inactivePersonaId,
-      tiersSeed: inactivePersonaSeed,
+    const inactiveStreamId = "stream-inactive";
+    const inactiveStreamSeed = "tiers:stream-inactive";
+    const inactiveStream = await ensureStreamExists({
+      streamId: inactiveStreamId,
+      tiersSeed: inactiveStreamSeed,
       authority: authorityKeypair,
       coder,
     });
     await ensureTierExists({
-      persona: inactivePersona,
+      stream: inactiveStream,
       tierId: "active",
-      pricingType: 0,
+      pricingType: 1,
       evidenceLevel: 0,
       priceLamports: 500_000,
       quota: 0,
       authority: authorityKeypair,
     });
-    await setPersonaStatus({
-      persona: inactivePersona,
-      tiersSeed: inactivePersonaSeed,
+    await setStreamStatus({
+      stream: inactiveStream,
+      tiersSeed: inactiveStreamSeed,
       status: 0,
       authority: authorityKeypair,
       coder,
     });
 
-    const inactivePersonaSubscriber = Keypair.generate();
-    await airdrop(connection, inactivePersonaSubscriber.publicKey, 2);
+    const inactiveStreamSubscriber = Keypair.generate();
+    await airdrop(connection, inactiveStreamSubscriber.publicKey, 2);
     await expectSubscribeFailure({
-      persona: inactivePersona,
-      subscriber: inactivePersonaSubscriber,
+      stream: inactiveStream,
+      subscriber: inactiveStreamSubscriber,
       maker: authorityKeypair.publicKey,
       treasury: authorityKeypair.publicKey,
       tierId: "active",
-      pricingType: 0,
+      pricingType: 1,
       evidenceLevel: 0,
       priceLamports: 500_000,
       quotaRemaining: 0,
     });
 
-    const tierInactivePersonaId = "persona-tierinactive";
-    const tierInactiveSeed = "tiers:persona-tierinactive";
-    const tierInactivePersona = await ensurePersonaExists({
-      personaId: tierInactivePersonaId,
+    const tierInactiveStreamId = "stream-tierinactive";
+    const tierInactiveSeed = "tiers:stream-tierinactive";
+    const tierInactiveStream = await ensureStreamExists({
+      streamId: tierInactiveStreamId,
       tiersSeed: tierInactiveSeed,
       authority: authorityKeypair,
       coder,
     });
     await ensureTierWithStatus({
-      persona: tierInactivePersona,
+      stream: tierInactiveStream,
       tierId: "sleep",
-      pricingType: 0,
+      pricingType: 1,
       evidenceLevel: 0,
       priceLamports: 400_000,
       quota: 0,
@@ -932,12 +931,12 @@ describe("Subscription enforcement", () => {
     const inactiveTierSubscriber = Keypair.generate();
     await airdrop(connection, inactiveTierSubscriber.publicKey, 2);
     await expectSubscribeFailure({
-      persona: tierInactivePersona,
+      stream: tierInactiveStream,
       subscriber: inactiveTierSubscriber,
       maker: authorityKeypair.publicKey,
       treasury: authorityKeypair.publicKey,
       tierId: "sleep",
-      pricingType: 0,
+      pricingType: 1,
       evidenceLevel: 0,
       priceLamports: 400_000,
       quotaRemaining: 0,

@@ -14,4 +14,7 @@ export interface StorageProvider {
 
   putKeybox(payload: Uint8Array, sha256: string): Promise<StoreResult>;
   getKeybox(pointer: StoragePointer): Promise<Uint8Array>;
+
+  putPublic(payload: Uint8Array, sha256: string): Promise<StoreResult>;
+  getPublic(pointer: StoragePointer): Promise<Uint8Array>;
 }

@@ -8,7 +8,7 @@ export type BotProfile = {
   evidence: "trust" | "verifier" | "hybrid";
   tiers?: Array<{
     tierId: string;
-    pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal";
+    pricingType: "subscription_unlimited";
     price: string;
     quota?: string;
     evidenceLevel: "trust" | "verifier";

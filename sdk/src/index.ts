@@ -7,7 +7,7 @@ import {
   WrappedKey,
 } from "./crypto";
 
-export type PersonaSdkConfig = {
+export type StreamSdkConfig = {
   rpcUrl: string;
   backendUrl: string;
   programId: string;
@@ -19,12 +19,13 @@ export type SubscriberKeys = {
 };
 
 export type SignalMetadata = {
-  personaId: string;
+  streamId: string;
   tierId: string;
   signalHash: string;
   signalPointer: string;
-  keyboxHash: string;
-  keyboxPointer: string;
+  keyboxHash?: string | null;
+  keyboxPointer?: string | null;
+  visibility?: "public" | "private";
   createdAt: number;
   onchainTx?: string;
 };
@@ -33,6 +34,10 @@ export type SignalPayload = {
   iv: string;
   tag: string;
   ciphertext: string;
+};
+
+export type PublicSignalPayload = {
+  plaintext: string;
 };
 
 export type SignalTick = {
@@ -47,22 +52,22 @@ export type SignalTick = {
 };
 
 export type ListenOptions = {
-  personaPubkey: string;
-  personaId: string;
-  subscriberKeys: SubscriberKeys;
+  streamPubkey: string;
+  streamId: string;
+  subscriberKeys?: SubscriberKeys;
   onSignal: (tick: SignalTick) => void | Promise<void>;
   onError?: (error: Error) => void;
   maxAgeMs?: number;
   includeBlockTime?: boolean;
 };
 
-export class PersonaClient {
+export class SigintsClient {
   private connection: Connection;
   private programId: PublicKey;
   private backendUrl: string;
   private seenSignals = new Set<string>();
 
-  constructor(cfg: PersonaSdkConfig) {
+  constructor(cfg: StreamSdkConfig) {
     this.connection = new Connection(cfg.rpcUrl, "confirmed");
     this.programId = new PublicKey(cfg.programId);
     this.backendUrl = cfg.backendUrl.replace(/\/$/, "");
@@ -73,7 +78,7 @@ export class PersonaClient {
   }
 
   async registerEncryptionKey(
-    personaId: string,
+    streamId: string,
     publicKeyDerBase64: string,
     subscriberWallet?: string
   ): Promise<string> {
@@ -84,7 +89,7 @@ export class PersonaClient {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        personaId,
+        streamId,
         encPubKeyDerBase64: publicKeyDerBase64,
         subscriberWallet,
       }),
@@ -96,8 +101,8 @@ export class PersonaClient {
     return data.subscriberId;
   }
 
-  async fetchLatestSignal(personaId: string): Promise<SignalMetadata | null> {
-    const res = await fetch(`${this.backendUrl}/signals/latest?personaId=${encodeURIComponent(personaId)}`);
+  async fetchLatestSignal(streamId: string): Promise<SignalMetadata | null> {
+    const res = await fetch(`${this.backendUrl}/signals/latest?streamId=${encodeURIComponent(streamId)}`);
     if (res.status === 404) {
       return null;
     }
@@ -105,7 +110,7 @@ export class PersonaClient {
       throw new Error(`backend latest signal failed (${res.status})`);
     }
     const data = (await res.json()) as { signal: SignalMetadata };
-    return data.signal;
+    return normalizeMetadata(data.signal);
   }
 
   async fetchSignalByHash(signalHash: string): Promise<SignalMetadata> {
@@ -114,7 +119,7 @@ export class PersonaClient {
       throw new Error(`backend signal lookup failed (${res.status})`);
     }
     const data = (await res.json()) as { signal: SignalMetadata };
-    return data.signal;
+    return normalizeMetadata(data.signal);
   }
 
   async fetchCiphertext(pointer: string): Promise<SignalPayload> {
@@ -127,6 +132,19 @@ export class PersonaClient {
       throw new Error(`ciphertext fetch failed (${res.status})`);
     }
     const data = (await res.json()) as { payload: SignalPayload };
+    return data.payload;
+  }
+
+  async fetchPublic(pointer: string): Promise<PublicSignalPayload> {
+    const sha = pointer.split("/").pop();
+    if (!sha) {
+      throw new Error("invalid public signal pointer");
+    }
+    const res = await fetch(`${this.backendUrl}/storage/public/${sha}`);
+    if (!res.ok) {
+      throw new Error(`public payload fetch failed (${res.status})`);
+    }
+    const data = (await res.json()) as { payload: PublicSignalPayload };
     return data.payload;
   }
 
@@ -145,7 +163,18 @@ export class PersonaClient {
     return data.entry;
   }
 
-  async decryptSignal(meta: SignalMetadata, keys: SubscriberKeys): Promise<string> {
+  async decryptSignal(meta: SignalMetadata, keys?: SubscriberKeys): Promise<string> {
+    const visibility = meta.visibility ?? "private";
+    if (visibility === "public") {
+      const payload = await this.fetchPublic(meta.signalPointer);
+      return Buffer.from(payload.plaintext, "base64").toString("utf8");
+    }
+    if (!keys) {
+      throw new Error("subscriber keys required for private signals");
+    }
+    if (!meta.keyboxPointer) {
+      throw new Error("keybox pointer missing for private signal");
+    }
     const subscriberId = subscriberIdFromPubkey(keys.publicKeyDerBase64);
     const wrapped = await this.fetchKeyboxEntry(meta.keyboxPointer, subscriberId);
     const symKey = unwrapKeyForSubscriber(keys.privateKeyDerBase64, wrapped);
@@ -155,20 +184,22 @@ export class PersonaClient {
   }
 
   async listenForSignals(options: ListenOptions): Promise<() => void> {
-    const persona = new PublicKey(options.personaPubkey);
-    const filters = [
-      { memcmp: { offset: 8, bytes: persona.toBase58() } },
-    ];
+    const stream = new PublicKey(options.streamPubkey);
+    const [signalPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("signal_latest"), stream.toBuffer()],
+      this.programId
+    );
 
-    const subId = this.connection.onProgramAccountChange(
-      this.programId,
+    const subId = this.connection.onAccountChange(
+      signalPda,
       async (accountInfo, ctx) => {
         try {
-          const decoded = decodeSignalRecord(accountInfo.accountInfo.data);
+          const decoded = decodeSignalRecord(accountInfo.data);
           if (!decoded) return;
-          if (decoded.persona !== persona.toBase58()) return;
-          if (this.seenSignals.has(decoded.signalHash)) return;
-          this.seenSignals.add(decoded.signalHash);
+          if (decoded.stream !== stream.toBase58()) return;
+          const dedupeKey = `${decoded.stream}:${decoded.signalHash}:${decoded.createdAt}`;
+          if (this.seenSignals.has(dedupeKey)) return;
+          this.seenSignals.add(dedupeKey);
 
           const meta = await this.waitForMetadata(decoded.signalHash);
           if (!meta) return;
@@ -200,8 +231,7 @@ export class PersonaClient {
           }
         }
       },
-      "confirmed",
-      filters
+      "confirmed"
     );
 
     return () => {
@@ -209,11 +239,10 @@ export class PersonaClient {
     };
   }
 
-  async fetchSignalRecordCreatedAt(personaPubkey: string, signalHash: string): Promise<number | null> {
-    const persona = new PublicKey(personaPubkey);
-    const signalHashBytes = hexToBytes(signalHash, "signalHash");
+  async fetchSignalRecordCreatedAt(streamPubkey: string, _signalHash: string): Promise<number | null> {
+    const stream = new PublicKey(streamPubkey);
     const [signalPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("signal"), persona.toBuffer(), Buffer.from(signalHashBytes)],
+      [Buffer.from("signal_latest"), stream.toBuffer()],
       this.programId
     );
     const account = await this.connection.getAccountInfo(signalPda, "confirmed");
@@ -237,7 +266,7 @@ export class PersonaClient {
 }
 
 type DecodedSignalRecord = {
-  persona: string;
+  stream: string;
   signalHash: string;
   signalPointerHash: string;
   keyboxHash: string;
@@ -251,7 +280,7 @@ function decodeSignalRecord(data: Buffer): DecodedSignalRecord | null {
     return null;
   }
   let offset = 8;
-  const persona = new PublicKey(data.subarray(offset, offset + 32));
+  const stream = new PublicKey(data.subarray(offset, offset + 32));
   offset += 32;
   const signalHash = data.subarray(offset, offset + 32);
   offset += 32;
@@ -266,7 +295,7 @@ function decodeSignalRecord(data: Buffer): DecodedSignalRecord | null {
   const bump = data.readUInt8(offset);
 
   return {
-    persona: persona.toBase58(),
+    stream: stream.toBase58(),
     signalHash: signalHash.toString("hex"),
     signalPointerHash: signalPointerHash.toString("hex"),
     keyboxHash: keyboxHash.toString("hex"),
@@ -281,6 +310,16 @@ function normalizeCreatedAt(createdAt: number): number {
     return createdAt * 1000;
   }
   return createdAt;
+}
+
+function normalizeMetadata(meta: SignalMetadata): SignalMetadata {
+  const visibility = meta.visibility === "public" ? "public" : "private";
+  return {
+    ...meta,
+    visibility,
+    keyboxHash: meta.keyboxHash ?? null,
+    keyboxPointer: meta.keyboxPointer ?? null,
+  };
 }
 
 function hexToBytes(input: string, label: string): Uint8Array {
@@ -300,5 +339,6 @@ export { generateX25519Keypair, subscriberIdFromPubkey, WrappedKey };
 export const __testing = {
   decodeSignalRecord,
   normalizeCreatedAt,
+  normalizeMetadata,
   hexToBytes,
 };

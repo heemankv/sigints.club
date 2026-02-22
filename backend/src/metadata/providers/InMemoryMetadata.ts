@@ -7,8 +7,8 @@ export class InMemoryMetadata implements MetadataStore {
     this.signals.push(meta);
   }
 
-  async listSignals(personaId: string): Promise<SignalMetadata[]> {
-    return this.signals.filter((s) => s.personaId === personaId);
+  async listSignals(streamId: string): Promise<SignalMetadata[]> {
+    return this.signals.filter((s) => s.streamId === streamId);
   }
 
   async listAllSignals(): Promise<SignalMetadata[]> {

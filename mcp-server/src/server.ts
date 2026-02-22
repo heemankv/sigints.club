@@ -1,4 +1,4 @@
-import { PersonaClient, subscriberIdFromPubkey } from "@personafun/sdk";
+import { SigintsClient, subscriberIdFromPubkey } from "@sigints/sdk";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -9,10 +9,10 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 export type TickArgs = {
-  personaId: string;
-  personaPubkey: string;
-  subscriberPublicKeyBase64: string;
-  subscriberPrivateKeyBase64: string;
+  streamId: string;
+  streamPubkey: string;
+  subscriberPublicKeyBase64?: string;
+  subscriberPrivateKeyBase64?: string;
   backendUrl: string;
   rpcUrl: string;
   programId: string;
@@ -20,19 +20,17 @@ export type TickArgs = {
   maxAgeMs?: number;
 };
 
-export type ListenArgs = TickArgs & {
-  streamId?: string;
-};
+export type ListenArgs = TickArgs;
 
-type ClientFactory = (cfg: { rpcUrl: string; backendUrl: string; programId: string }) => PersonaClient;
+type ClientFactory = (cfg: { rpcUrl: string; backendUrl: string; programId: string }) => SigintsClient;
 
-export function createServer(clientFactory: ClientFactory = (cfg) => new PersonaClient(cfg)) {
+export function createServer(clientFactory: ClientFactory = (cfg) => new SigintsClient(cfg)) {
   const lastSeen = new Map<string, string>();
   const activeStreams = new Map<string, () => void>();
 
   const server = new Server(
     {
-      name: "persona-fun-tick-server",
+      name: "sigints-tick-server",
       version: "0.1.0",
     },
     {
@@ -47,14 +45,14 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
     return {
       tools: [
         {
-          name: "check_persona_tick",
+          name: "check_stream_tick",
           description:
-            "Check for the latest signal tick for a persona, decrypt it for the subscriber, and return plaintext if new.",
+            "Check for the latest signal tick for a stream. Decrypts private signals for a subscriber; public signals require no keys.",
           inputSchema: {
             type: "object",
             properties: {
-              personaId: { type: "string" },
-              personaPubkey: { type: "string" },
+              streamId: { type: "string" },
+              streamPubkey: { type: "string" },
               subscriberPublicKeyBase64: { type: "string" },
               subscriberPrivateKeyBase64: { type: "string" },
               backendUrl: { type: "string" },
@@ -64,10 +62,8 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
               maxAgeMs: { type: "number" },
             },
             required: [
-              "personaId",
-              "personaPubkey",
-              "subscriberPublicKeyBase64",
-              "subscriberPrivateKeyBase64",
+              "streamId",
+              "streamPubkey",
               "backendUrl",
               "rpcUrl",
               "programId",
@@ -75,15 +71,14 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
           },
         },
         {
-          name: "listen_persona_ticks",
+          name: "listen_stream_ticks",
           description:
-            "Start a long-running tick stream. The server will emit notifications/message with tick payloads.",
+            "Start a long-running tick stream. Private signals require subscriber keys; public signals do not.",
           inputSchema: {
             type: "object",
             properties: {
               streamId: { type: "string" },
-              personaId: { type: "string" },
-              personaPubkey: { type: "string" },
+              streamPubkey: { type: "string" },
               subscriberPublicKeyBase64: { type: "string" },
               subscriberPrivateKeyBase64: { type: "string" },
               backendUrl: { type: "string" },
@@ -92,10 +87,8 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
               maxAgeMs: { type: "number" },
             },
             required: [
-              "personaId",
-              "personaPubkey",
-              "subscriberPublicKeyBase64",
-              "subscriberPrivateKeyBase64",
+              "streamId",
+              "streamPubkey",
               "backendUrl",
               "rpcUrl",
               "programId",
@@ -103,7 +96,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
           },
         },
         {
-          name: "stop_persona_ticks",
+          name: "stop_stream_ticks",
           description: "Stop a previously started tick stream by streamId.",
           inputSchema: {
             type: "object",
@@ -119,13 +112,13 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    if (name !== "check_persona_tick") {
-      if (name === "listen_persona_ticks") {
+    if (name !== "check_stream_tick") {
+      if (name === "listen_stream_ticks") {
         const input = args as ListenArgs;
-        const streamId = input.streamId ?? randomUUID();
-        if (activeStreams.has(streamId)) {
+        const listenId = input.streamId ?? randomUUID();
+        if (activeStreams.has(listenId)) {
           return {
-            content: [{ type: "text", text: `Stream already active: ${streamId}` }],
+            content: [{ type: "text", text: `Stream already active: ${listenId}` }],
           };
         }
         const client = clientFactory({
@@ -133,24 +126,29 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
           backendUrl: input.backendUrl,
           programId: input.programId,
         });
+        const subscriberKeys =
+          input.subscriberPublicKeyBase64 && input.subscriberPrivateKeyBase64
+            ? {
+                publicKeyDerBase64: input.subscriberPublicKeyBase64,
+                privateKeyDerBase64: input.subscriberPrivateKeyBase64,
+              }
+            : undefined;
         const stop = await client.listenForSignals({
-          personaId: input.personaId,
-          personaPubkey: input.personaPubkey,
-          subscriberKeys: {
-            publicKeyDerBase64: input.subscriberPublicKeyBase64,
-            privateKeyDerBase64: input.subscriberPrivateKeyBase64,
-          },
+          streamId: input.streamId,
+          streamPubkey: input.streamPubkey,
+          subscriberKeys,
           maxAgeMs: input.maxAgeMs,
           includeBlockTime: true,
           onSignal: async (tick) => {
             await server.sendLoggingMessage({
               level: "info",
-              logger: "persona-ticks",
+              logger: "stream-ticks",
               data: {
-                streamId,
+                listenId,
                 signalHash: tick.signalHash,
-                personaId: tick.metadata.personaId,
+                streamId: tick.metadata.streamId,
                 tierId: tick.metadata.tierId,
+                visibility: tick.metadata.visibility ?? "private",
                 createdAt: tick.createdAt,
                 receivedAt: tick.receivedAt,
                 ageMs: tick.ageMs,
@@ -163,18 +161,18 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
           onError: async (err) => {
             await server.sendLoggingMessage({
               level: "error",
-              logger: "persona-ticks",
-              data: { streamId, error: err.message },
+              logger: "stream-ticks",
+              data: { listenId, error: err.message },
             });
           },
         });
-        activeStreams.set(streamId, stop);
+        activeStreams.set(listenId, stop);
         return {
-          content: [{ type: "text", text: JSON.stringify({ streamId }, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify({ streamId: listenId }, null, 2) }],
         };
       }
 
-      if (name === "stop_persona_ticks") {
+      if (name === "stop_stream_ticks") {
         const input = args as { streamId: string };
         const stop = activeStreams.get(input.streamId);
         if (stop) {
@@ -194,7 +192,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
       programId: input.programId,
     });
 
-    const meta = await client.fetchLatestSignal(input.personaId);
+    const meta = await client.fetchLatestSignal(input.streamId);
     if (!meta) {
       return {
         content: [
@@ -206,8 +204,22 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
       };
     }
 
-    const subscriberId = subscriberIdFromPubkey(input.subscriberPublicKeyBase64);
-    const key = `${input.personaId}:${subscriberId}`;
+    const visibility = meta.visibility ?? "private";
+    let key = `${input.streamId}:public`;
+    let subscriberKeys:
+      | { publicKeyDerBase64: string; privateKeyDerBase64: string }
+      | undefined = undefined;
+    if (visibility === "private") {
+      if (!input.subscriberPublicKeyBase64 || !input.subscriberPrivateKeyBase64) {
+        throw new Error("subscriber keys required for private signals");
+      }
+      const subscriberId = subscriberIdFromPubkey(input.subscriberPublicKeyBase64);
+      key = `${input.streamId}:${subscriberId}`;
+      subscriberKeys = {
+        publicKeyDerBase64: input.subscriberPublicKeyBase64,
+        privateKeyDerBase64: input.subscriberPrivateKeyBase64,
+      };
+    }
     if (!input.force && lastSeen.get(key) === meta.signalHash) {
       return {
         content: [
@@ -219,15 +231,12 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
       };
     }
 
-    const plaintext = await client.decryptSignal(meta, {
-      publicKeyDerBase64: input.subscriberPublicKeyBase64,
-      privateKeyDerBase64: input.subscriberPrivateKeyBase64,
-    });
+    const plaintext = await client.decryptSignal(meta, subscriberKeys);
 
     lastSeen.set(key, meta.signalHash);
     const receivedAt = Date.now();
     const onchainCreatedAt =
-      input.personaPubkey ? await client.fetchSignalRecordCreatedAt(input.personaPubkey, meta.signalHash) : null;
+      input.streamPubkey ? await client.fetchSignalRecordCreatedAt(input.streamPubkey, meta.signalHash) : null;
     const createdAt = onchainCreatedAt ?? meta.createdAt;
     const ageMs = receivedAt - createdAt;
     if (input.maxAgeMs && ageMs > input.maxAgeMs) {
@@ -247,7 +256,7 @@ export function createServer(clientFactory: ClientFactory = (cfg) => new Persona
           text: JSON.stringify(
             {
               signalHash: meta.signalHash,
-              personaId: meta.personaId,
+              streamId: meta.streamId,
               tierId: meta.tierId,
               createdAt,
               receivedAt,

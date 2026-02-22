@@ -1,7 +1,7 @@
 {
-  "name": "@personafun/sdk",
+  "name": "@sigints/sdk",
   "version": "0.1.0",
-  "description": "Persona.fun agent SDK (Solana + backend storage) for listening to signal ticks.",
+  "description": "sigints.club agent SDK (Solana + backend storage) for listening to signal ticks.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

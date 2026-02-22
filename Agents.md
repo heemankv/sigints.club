@@ -14,14 +14,14 @@ Document Index
 - documents/Business_Deep_Dive.md: Business model, pricing anchors, and monetization strategy.
 - documents/Technical_High_Level_Architecture.md: System architecture, Solana and Tapestry mapping, and diagrams.
 - documents/Technical_Low_Level_Architecture.md: Low-level MVP architecture, stack decisions, and component interfaces.
+- documents/Key_Changes_Impact.md: Gap analysis + implementation plan for sigints.club protocol changes.
 - documents/E2E_Website_Flow.md: Detailed end-to-end website flow with 3 makers and 10 listeners.
 - documents/Protocol_Spec_v0.1.md: MVP protocol decisions for low-level implementation.
 - documents/Hybrid_Encryption_Delivery.md: Hybrid encryption delivery design and sequence diagram.
 - documents/current_progress_and_sdk.md: Current progress + SDK/MCP summary from latest planning.
 - documents/MVP_Achievements.md: What has been built so far across on-chain, backend, and frontend.
 - documents/Evidence_Storage_Research.md: Storage options and MVP decision for evidence artifacts.
-- documents/Tapestry_Protocol_Understanding.md: Tapestry protocol capabilities and usage for Persona.fun.
-- documents/Graveyard_hackathon.md: Placeholder for hackathon details.
+- documents/Tapestry_Protocol_Understanding.md: Tapestry protocol capabilities and usage for sigints.club.
 - documents/Local_Solana_Testing.md: How to run a local Solana validator, create accounts, and test programs.
 - documents/Testing_Architecture.md: Testing plan for unit, integration, and end-to-end suites across all components.
 - documents/Sequence_Diagrams.md: End-to-end sequence diagrams for onboarding, maker/taker flows, and agent listening paths.
@@ -32,6 +32,7 @@ Orchestration Notes
 - /Users/heemankverma/Work/graveyard/imp.md: Canonical list of key decisions and discoveries. Update whenever a decision changes.
 - /Users/heemankverma/Work/graveyard/todo.md: Backlog of tasks to complete for MVP.
 - /Users/heemankverma/Work/graveyard/task.md: Current task progress and next actions.
+- /Users/heemankverma/Work/graveyard/tasks.md: Mirror of current task progress (requested alias).
 - /Users/heemankverma/Work/graveyard/documents: All long-form specs, architecture, and research notes.
 
 Engineering Practices

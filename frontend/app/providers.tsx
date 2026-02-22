@@ -26,7 +26,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <UnifiedWalletProvider
         wallets={wallets}
         config={{
-          autoConnect: true,
+          autoConnect: false,
           env: "devnet",
           metadata: {
             name: "sigints.club",

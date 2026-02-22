@@ -31,9 +31,10 @@ backend/data/social_posts.json
 backend/data/subscribers.json
 backend/data/subscriptions.json
 backend/data/users.json
-backend/data/personas.json
+backend/data/streams.json
 tests/storage/
 .solana-test-ledger/
 validator.log
 
 .localnet-ledger*
+accounts

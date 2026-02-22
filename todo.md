@@ -3,9 +3,9 @@
 Open
 1. Define exact tier object fields and defaults in on-chain schema.
 2. Finalize PDA account layouts and sizes for each program.
-3. Draft instruction arguments for create_persona, subscribe, open_challenge, slash.
+3. Draft instruction arguments for create_stream, subscribe, open_challenge, slash.
 4. Evaluate DA layer swap for evidence storage (future).
-5. Redeploy updated subscription_royalty program (persona registry enforcement + manual mint/ATA creation).
+5. Redeploy updated subscription_royalty program (stream registry enforcement + manual mint/ATA creation).
 6. Reset localnet and redeploy programs to fix on-chain demo seeding (AccountNotSigner).
 
 Completed
@@ -14,7 +14,7 @@ Completed
 3. Implement provider agent MVP for ETH best price signal.
 4. Implement listener agent polling flow.
 5. Build Tapestry integration for profiles, requests, and signal posts.
-6. Create end-to-end demo flow with one Persona and two subscribers.
+6. Create end-to-end demo flow with one Stream and two subscribers.
 7. Verify record_signal on devnet from publish flow and capture tx.
 8. UI redesign to match introduction site and wallet login/profile pages.
 9. Subscription now mints an on-chain 1-of-1 NFT and profile reads subscriptions from chain.
@@ -23,3 +23,7 @@ Completed
 12. Tapestry social feed + intent/slash posts integrated into UI.
 13. Auto-create Tapestry profiles on login (when API key present).
 14. Demo data seeding with backend + optional localnet on-chain seed flag.
+15. Align codebase with sigints.club protocol: branding (non-landing pages), public vs private signals, monthly-only pricing, intent-first UX, SDK/MCP parity.
+16. Add public signal path (no keybox) + on-chain allow record without subscribers for public.
+17. Remove per-signal and limited tiers from UI/backend validation.
+18. Update tests to cover public signals and monthly-only subscriptions.

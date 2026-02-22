@@ -18,7 +18,7 @@ describe("sdk parsing", () => {
   });
 
   it("decodes signal record layout", () => {
-    const persona = new PublicKey("11111111111111111111111111111111");
+    const stream = new PublicKey("11111111111111111111111111111111");
     const signalHash = Buffer.alloc(32, 1);
     const signalPointerHash = Buffer.alloc(32, 2);
     const keyboxHash = Buffer.alloc(32, 3);
@@ -28,7 +28,7 @@ describe("sdk parsing", () => {
 
     const data = Buffer.alloc(8 + 32 + 32 + 32 + 32 + 32 + 8 + 1);
     let offset = 8; // discriminator ignored
-    persona.toBuffer().copy(data, offset);
+    stream.toBuffer().copy(data, offset);
     offset += 32;
     signalHash.copy(data, offset);
     offset += 32;
@@ -44,7 +44,7 @@ describe("sdk parsing", () => {
 
     const decoded = __testing.decodeSignalRecord(data);
     expect(decoded).not.toBeNull();
-    expect(decoded?.persona).toBe(persona.toBase58());
+    expect(decoded?.stream).toBe(stream.toBase58());
     expect(decoded?.createdAt).toBe(Number(createdAtMs));
   });
 });

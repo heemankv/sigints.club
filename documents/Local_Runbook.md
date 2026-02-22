@@ -1,4 +1,4 @@
-# Local Runbook (Persona.fun)
+# Local Runbook (sigints.club)
 Date: 2026-02-22
 
 This is the **single source** for running the full stack locally: Solana localnet, fresh deploy, backend, frontend, and demo data.
@@ -53,9 +53,10 @@ cd /Users/heemankverma/Work/graveyard/backend
 
 export SOLANA_RPC_URL=http://127.0.0.1:8899
 export SOLANA_SUBSCRIPTION_PROGRAM_ID=BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE
-export SOLANA_PERSONA_REGISTRY_PROGRAM_ID=5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi
+export SOLANA_STREAM_REGISTRY_PROGRAM_ID=5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi
 export SOLANA_KEYPAIR=/Users/heemankverma/Work/graveyard/.keys/localnet.json
 export SOLANA_IDL_PATH=/Users/heemankverma/Work/graveyard/backend/idl/subscription_royalty.json
+export TAPESTRY_API_KEY=your_key_here
 
 # Optional demo seed data (recommended for UI testing)
 export SEED_DEMO_DATA=true
@@ -75,7 +76,7 @@ cd /Users/heemankverma/Work/graveyard/frontend
 export NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:3001
 export NEXT_PUBLIC_SOLANA_RPC_URL=http://127.0.0.1:8899
 export NEXT_PUBLIC_SUBSCRIPTION_PROGRAM_ID=BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE
-export NEXT_PUBLIC_PERSONA_REGISTRY_PROGRAM_ID=5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi
+export NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID=5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi
 
 npm run dev
 ```
@@ -98,7 +99,13 @@ solana airdrop 5 -u http://127.0.0.1:8899 $(solana-keygen pubkey /tmp/listener.j
 ## 7) E2E Tests (Localnet)
 ```bash
 cd /Users/heemankverma/Work/graveyard/tests
-TAPESTRY_API_KEY= npm run test:e2e
+TAPESTRY_API_KEY=your_key_here npm run test:e2e
+```
+
+### Using the Tapestry mock client (tests only)
+If you want to run tests without hitting Tapestry, you can force the in-memory mock client:
+```bash
+TAPESTRY_MOCK=true npm run test:e2e
 ```
 
 ---

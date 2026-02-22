@@ -37,7 +37,21 @@ export class BackendStorage implements StorageProvider {
     return fs.readFile(filePath);
   }
 
-  private extractSha(pointerId: string, kind: "ciphertext" | "keybox"): string {
+  async putPublic(payload: Uint8Array, sha256: string): Promise<StoreResult> {
+    const dir = path.join(this.baseDir, "public");
+    await fs.mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, `${sha256}.bin`);
+    await fs.writeFile(filePath, payload);
+    return { pointer: { id: `backend://public/${sha256}`, sha256 } };
+  }
+
+  async getPublic(pointer: StoragePointer): Promise<Uint8Array> {
+    const sha = this.extractSha(pointer.id, "public");
+    const filePath = path.join(this.baseDir, "public", `${sha}.bin`);
+    return fs.readFile(filePath);
+  }
+
+  private extractSha(pointerId: string, kind: "ciphertext" | "keybox" | "public"): string {
     const prefix = `backend://${kind}/`;
     if (!pointerId.startsWith(prefix)) {
       throw new Error(`Invalid pointer id: ${pointerId}`);

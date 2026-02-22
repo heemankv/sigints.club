@@ -16,4 +16,12 @@ export class DAStorage implements StorageProvider {
   async getKeybox(_pointer: StoragePointer): Promise<Uint8Array> {
     throw new Error("Not implemented");
   }
+
+  async putPublic(_payload: Uint8Array, sha256: string): Promise<StoreResult> {
+    return { pointer: { id: "da://public/TODO", sha256 } };
+  }
+
+  async getPublic(_pointer: StoragePointer): Promise<Uint8Array> {
+    throw new Error("Not implemented");
+  }
 }

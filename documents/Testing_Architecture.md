@@ -16,8 +16,9 @@ Testing is both a **pyramid** (speed vs realism) and a **contract chain** (who p
 ---
 
 ## Scope Map (Current Coverage)
-- **Programs**: subscription + persona registry behavior validated in E2E.
+- **Programs**: subscription + stream registry behavior validated in E2E.
 - **Backend**: storage, encryption, signal publishing, API endpoints.
+- **Backend**: public signal path (`/storage/public`) covered in integration tests.
 - **SDK**: listen + decrypt + on-chain `createdAt` path (E2E).
 - **MCP**: streaming + check tool (E2E).
 - **Frontend**: build passes; UI integration tests pending.
@@ -40,11 +41,11 @@ Testing is both a **pyramid** (speed vs realism) and a **contract chain** (who p
 ---
 
 ## E2E Scenario (Implemented)
-Scenario: **3 personas + 10 listeners** on localnet.
+Scenario: **3 streams + 10 listeners** on localnet.
 
 Flow tested:
 1. Localnet + programs deployed.
-2. Personas + tiers registered on-chain.
+2. Streams + tiers registered on-chain.
 3. Takers subscribe (NFT minted).
 4. Signals published, ciphertext + keybox stored.
 5. `record_signal` written on-chain.
@@ -53,7 +54,7 @@ Flow tested:
 
 Assertions:
 - NFT minted per subscriber.
-- On-chain persona state updated.
+- On-chain stream state updated.
 - Signal record created with on-chain `createdAt`.
 - SDK + MCP both decrypt correctly.
 

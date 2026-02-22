@@ -33,16 +33,38 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Landing page: dark cinematic */
+html:has(.hero-fullscreen) {
   background: #05091A;
+}
+
+/* Inner pages: light, welcoming */
+html:not(:has(.hero-fullscreen)) {
+  background: #EBF1FA;
 }
 
 body {
   margin: 0;
   font-family: "Sora", sans-serif;
-  background: #060D1F;
   color: var(--ink);
   line-height: 1.6;
   overflow-x: hidden;
+}
+
+body:has(.hero-fullscreen) {
+  background: #060D1F;
+}
+
+body:not(:has(.hero-fullscreen)) {
+  background: #EBF1FA;
+  --bg: #EBF1FA;
+  --stroke: #C6D5EE;
+  --glass: rgba(255, 255, 255, 0.88);
+  --glass-strong: rgba(255, 255, 255, 0.97);
+  --shadow-soft: 0 8px 28px rgba(10, 25, 60, 0.07);
+  --shadow-strong: 0 20px 56px rgba(10, 25, 60, 0.11);
 }
 
 a {
@@ -70,13 +92,64 @@ a {
   right: 0;
   width: 100%;
   backdrop-filter: blur(24px);
+  z-index: 20;
+}
+
+/* Landing page: dark cinematic nav */
+body:has(.hero-fullscreen) .nav {
   background: rgba(6, 13, 31, 0.84);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  z-index: 20;
+}
+
+/* Inner pages: frosted glass nav */
+body:not(:has(.hero-fullscreen)) .nav {
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid rgba(10, 25, 60, 0.08);
+}
+
+body:not(:has(.hero-fullscreen)) .nav::after {
+  display: none;
+}
+
+body:not(:has(.hero-fullscreen)) .logo {
+  color: #0B1A36;
+}
+
+body:not(:has(.hero-fullscreen)) .tag {
+  color: rgba(11, 26, 54, 0.42);
+}
+
+body:not(:has(.hero-fullscreen)) .nav-links {
+  color: rgba(11, 26, 54, 0.52);
+}
+
+body:not(:has(.hero-fullscreen)) .nav-links a:hover {
+  color: #0B1A36;
+}
+
+body:not(:has(.hero-fullscreen)) .nav-search {
+  border-color: rgba(10, 25, 60, 0.12);
+  background: rgba(255, 255, 255, 0.6);
+  color: #0B1A36;
+}
+
+body:not(:has(.hero-fullscreen)) .nav-search::placeholder {
+  color: rgba(11, 26, 54, 0.3);
+}
+
+body:not(:has(.hero-fullscreen)) .nav-search--placeholder {
+  border-color: rgba(10, 25, 60, 0.12);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 main {
   padding-top: var(--nav-h);
+}
+
+/* Inner pages: fill viewport so footer stays at bottom */
+main:not(:has(.hero-fullscreen)) {
+  padding-bottom: 64px;
+  min-height: calc(100vh - var(--nav-h));
 }
 
 .nav::after {
@@ -159,6 +232,26 @@ main {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.tapestry-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(155, 135, 245, 0.35);
+  background: rgba(155, 135, 245, 0.08);
+  color: rgba(155, 135, 245, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.tapestry-badge:hover {
+  border-color: rgba(155, 135, 245, 0.65);
+  background: rgba(155, 135, 245, 0.14);
 }
 
 .wallet-shell {
@@ -1009,6 +1102,7 @@ textarea {
   grid-template-columns: minmax(220px, 0.9fr) minmax(0, 2.2fr) minmax(240px, 1fr);
   gap: 24px;
   align-items: start;
+  padding-top: 28px;
 }
 
 .social-rail {
@@ -1498,7 +1592,8 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 20px;
   padding: 36px;
-  min-height: 320px;
+  height: 420px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

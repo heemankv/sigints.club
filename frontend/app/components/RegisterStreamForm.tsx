@@ -5,15 +5,15 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Transaction } from "@solana/web3.js";
 import { postJson } from "../lib/api";
 import {
-  buildCreatePersonaInstruction,
+  buildCreateStreamInstruction,
   buildUpsertTierInstruction,
-  derivePersonaPda,
-  resolvePersonaRegistryProgramId,
-} from "../lib/personaRegistry";
+  deriveStreamPda,
+  resolveStreamRegistryProgramId,
+} from "../lib/streamRegistry";
 import { TierInput } from "../lib/tiersHash";
 import { parseSolLamports } from "../lib/pricing";
 
-type PersonaPayload = {
+type StreamPayload = {
   id: string;
   name: string;
   domain: string;
@@ -28,18 +28,18 @@ type PersonaPayload = {
 
 const DEFAULT_TIER: TierInput = {
   tierId: "tier-basic",
-  pricingType: "subscription_limited",
+  pricingType: "subscription_unlimited",
   price: "0.05 SOL/mo",
   quota: "100 signals",
   evidenceLevel: "trust",
 };
 
-export default function RegisterPersonaForm() {
+export default function RegisterStreamForm() {
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [personaId, setPersonaId] = useState("persona-");
+  const [streamId, setStreamId] = useState("stream-");
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [description, setDescription] = useState("");
@@ -67,22 +67,22 @@ export default function RegisterPersonaForm() {
       setStatus("Connect your wallet first.");
       return;
     }
-    if (!personaId || !name) {
-      setStatus("Persona ID and name are required.");
+    if (!streamId || !name) {
+      setStatus("Stream ID and name are required.");
       return;
     }
     setLoading(true);
     setStatus(null);
     try {
-      const programId = resolvePersonaRegistryProgramId();
-      const personaPda = await derivePersonaPda(programId, personaId);
-      const existing = await connection.getAccountInfo(personaPda);
+      const programId = resolveStreamRegistryProgramId();
+      const streamPda = await deriveStreamPda(programId, streamId);
+      const existing = await connection.getAccountInfo(streamPda);
       let signature: string | null = null;
       if (!existing) {
-        const { instruction } = await buildCreatePersonaInstruction({
+        const { instruction } = await buildCreateStreamInstruction({
           programId,
           authority: publicKey,
-          personaId,
+          streamId,
           tiers,
           dao: dao || undefined,
         });
@@ -99,7 +99,7 @@ export default function RegisterPersonaForm() {
           const ix = await buildUpsertTierInstruction({
             programId,
             authority: publicKey,
-            persona: personaPda,
+            stream: streamPda,
             tier,
             priceLamports: parseSolLamports(tier.price),
             quota,
@@ -112,8 +112,8 @@ export default function RegisterPersonaForm() {
         tierTx.recentBlockhash = blockhash;
         await sendTransaction(tierTx, connection);
       }
-      const payload: PersonaPayload = {
-        id: personaId,
+      const payload: StreamPayload = {
+        id: streamId,
         name,
         domain,
         description,
@@ -124,14 +124,14 @@ export default function RegisterPersonaForm() {
         ownerWallet: publicKey.toBase58(),
         tiers,
       };
-      await postJson("/personas", payload);
+      await postJson("/streams", payload);
       if (signature) {
-        setStatus(`Persona registered on-chain. Tx ${signature.slice(0, 10)}…`);
+        setStatus(`Stream registered on-chain. Tx ${signature.slice(0, 10)}…`);
       } else {
-        setStatus("On-chain persona already exists. Listing published.");
+        setStatus("On-chain stream already exists. Listing published.");
       }
     } catch (err: any) {
-      setStatus(err.message ?? "Failed to register persona");
+      setStatus(err.message ?? "Failed to register stream");
     } finally {
       setLoading(false);
     }
@@ -140,18 +140,18 @@ export default function RegisterPersonaForm() {
   return (
     <div className="module accent-teal">
       <div className="hud-corners" />
-      <h3>Register Persona (On-chain enforced)</h3>
+      <h3>Register Stream (On-chain enforced)</h3>
       <p className="subtext">
-        Create the on-chain persona registry entry, then publish metadata so it appears in Explore.
+        Create the on-chain stream registry entry, then publish metadata so it appears in Explore.
       </p>
       <div className="form-grid">
         <input
           className="input"
-          value={personaId}
-          onChange={(e) => setPersonaId(e.target.value)}
-          placeholder="persona-id"
+          value={streamId}
+          onChange={(e) => setStreamId(e.target.value)}
+          placeholder="stream-id"
         />
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Persona name" />
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Stream name" />
         <input className="input" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Domain" />
         <input className="input" value={accuracy} onChange={(e) => setAccuracy(e.target.value)} placeholder="Accuracy" />
         <input className="input" value={latency} onChange={(e) => setLatency(e.target.value)} placeholder="Latency" />
@@ -179,9 +179,7 @@ export default function RegisterPersonaForm() {
               value={tier.pricingType}
               onChange={(e) => updateTier(idx, { pricingType: e.target.value as TierInput["pricingType"] })}
             >
-              <option value="subscription_limited">subscription_limited</option>
               <option value="subscription_unlimited">subscription_unlimited</option>
-              <option value="per_signal">per_signal</option>
             </select>
             <input
               className="input"
@@ -216,7 +214,7 @@ export default function RegisterPersonaForm() {
       </div>
 
       <button className="button primary" onClick={submit} disabled={loading}>
-        {loading ? "Registering…" : "Register Persona"}
+        {loading ? "Registering…" : "Register Stream"}
       </button>
       {status && <p className="subtext">{status}</p>}
     </div>

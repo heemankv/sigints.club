@@ -1,6 +1,6 @@
 [workspace]
 members = [
-  "programs/persona_registry",
+  "programs/stream_registry",
   "programs/subscription_royalty",
   "programs/challenge_slashing",
 ]

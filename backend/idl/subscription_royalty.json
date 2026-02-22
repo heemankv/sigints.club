@@ -24,20 +24,19 @@
           "writable": true
         },
         {
-          "name": "persona_state",
+          "name": "stream_state",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  101,
-                  114,
                   115,
-                  111,
-                  110,
+                  116,
+                  114,
+                  101,
                   97,
+                  109,
                   95,
                   115,
                   116,
@@ -48,7 +47,7 @@
               },
               {
                 "kind": "account",
-                "path": "subscription.persona",
+                "path": "subscription.stream",
                 "account": "Subscription"
               }
             ]
@@ -95,7 +94,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               },
               {
                 "kind": "arg",
@@ -105,22 +104,21 @@
           }
         },
         {
-          "name": "persona"
+          "name": "stream"
         },
         {
-          "name": "persona_state",
+          "name": "stream_state",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  101,
-                  114,
                   115,
-                  111,
-                  110,
+                  116,
+                  114,
+                  101,
                   97,
+                  109,
                   95,
                   115,
                   116,
@@ -131,7 +129,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               }
             ]
           }
@@ -338,20 +336,19 @@
           "writable": true
         },
         {
-          "name": "persona_state",
+          "name": "stream_state",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  101,
-                  114,
                   115,
-                  111,
-                  110,
+                  116,
+                  114,
+                  101,
                   97,
+                  109,
                   95,
                   115,
                   116,
@@ -362,7 +359,7 @@
               },
               {
                 "kind": "account",
-                "path": "subscription.persona",
+                "path": "subscription.stream",
                 "account": "Subscription"
               }
             ]
@@ -424,7 +421,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               },
               {
                 "kind": "account",
@@ -462,7 +459,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               },
               {
                 "kind": "account",
@@ -472,20 +469,19 @@
           }
         },
         {
-          "name": "persona_state",
+          "name": "stream_state",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  101,
-                  114,
                   115,
-                  111,
-                  110,
+                  116,
+                  114,
+                  101,
                   97,
+                  109,
                   95,
                   115,
                   116,
@@ -496,7 +492,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               }
             ]
           }
@@ -506,7 +502,7 @@
           "writable": true
         },
         {
-          "name": "persona"
+          "name": "stream"
         },
         {
           "name": "tier_config"
@@ -576,7 +572,7 @@
   ],
   "accounts": [
     {
-      "name": "PersonaState",
+      "name": "StreamState",
       "discriminator": [
         55,
         103,
@@ -644,18 +640,18 @@
   "errors": [
     {
       "code": 6000,
-      "name": "InvalidPersona",
-      "msg": "Persona account is invalid or not registered"
+      "name": "InvalidStream",
+      "msg": "Stream account is invalid or not registered"
     },
     {
       "code": 6001,
-      "name": "PersonaInactive",
-      "msg": "Persona is not active"
+      "name": "StreamInactive",
+      "msg": "Stream is not active"
     },
     {
       "code": 6002,
-      "name": "UnauthorizedPersona",
-      "msg": "Signer is not the persona authority"
+      "name": "UnauthorizedStream",
+      "msg": "Signer is not the stream authority"
     },
     {
       "code": 6003,
@@ -680,12 +676,12 @@
     {
       "code": 6007,
       "name": "InvalidTreasury",
-      "msg": "Treasury account does not match persona registry"
+      "msg": "Treasury account does not match stream registry"
     },
     {
       "code": 6008,
       "name": "NoSubscribers",
-      "msg": "No subscribers exist for this persona"
+      "msg": "No subscribers exist for this stream"
     },
     {
       "code": 6009,
@@ -700,12 +696,12 @@
   ],
   "types": [
     {
-      "name": "PersonaState",
+      "name": "StreamState",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "persona",
+            "name": "stream",
             "type": "pubkey"
           },
           {
@@ -725,7 +721,7 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "persona",
+            "name": "stream",
             "type": "pubkey"
           },
           {
@@ -785,7 +781,7 @@
             "type": "pubkey"
           },
           {
-            "name": "persona",
+            "name": "stream",
             "type": "pubkey"
           },
           {
@@ -822,7 +818,7 @@
             "type": "pubkey"
           },
           {
-            "name": "persona",
+            "name": "stream",
             "type": "pubkey"
           },
           {

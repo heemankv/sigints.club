@@ -1,9 +1,25 @@
 import { fetchJson } from "../lib/api";
 
 export default async function SignalsPage() {
-  let signals: Array<{ personaId: string; signalHash: string; createdAt: number; tierId: string; onchainTx?: string }> = [];
+  let signals: Array<{
+    streamId: string;
+    signalHash: string;
+    createdAt: number;
+    tierId: string;
+    visibility?: "public" | "private";
+    onchainTx?: string;
+  }> = [];
   try {
-    const data = await fetchJson<{ signals: Array<{ personaId: string; signalHash: string; createdAt: number; tierId: string; onchainTx?: string }> }>("/signals?personaId=persona-eth");
+    const data = await fetchJson<{
+      signals: Array<{
+        streamId: string;
+        signalHash: string;
+        createdAt: number;
+        tierId: string;
+        visibility?: "public" | "private";
+        onchainTx?: string;
+      }>;
+    }>("/signals?streamId=stream-eth");
     signals = data.signals;
   } catch {
   }
@@ -19,9 +35,10 @@ export default async function SignalsPage() {
         {signals.map((s) => (
           <div className="stream-item" key={s.signalHash}>
             <div>
-              <strong>{s.personaId}</strong>
+              <strong>{s.streamId}</strong>
               <div className="subtext">Signal hash {s.signalHash.slice(0, 10)}…</div>
               <div className="subtext">Tier: {s.tierId}</div>
+              <div className="subtext">Visibility: {s.visibility ?? "private"}</div>
               {s.onchainTx && (
                 <div className="subtext">
                   On-chain tx{" "}

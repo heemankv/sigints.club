@@ -16,7 +16,26 @@ export type SubscriberKeys = {
 export class ListenerService {
   constructor(private storage: StorageProvider) {}
 
-  async decryptLatestSignal(meta: SignalMetadata, keys: SubscriberKeys): Promise<Buffer> {
+  async decryptLatestSignal(meta: SignalMetadata, keys?: SubscriberKeys): Promise<Buffer> {
+    if (meta.visibility === "public") {
+      const signalPointer = this.pointerFromId(meta.signalPointer);
+      const signalBytes = await this.storage.getPublic(signalPointer);
+      if (sha256Hex(signalBytes) !== meta.signalHash) {
+        throw new Error("signal hash mismatch");
+      }
+      const payload = JSON.parse(Buffer.from(signalBytes).toString("utf8")) as {
+        plaintext: string;
+      };
+      return Buffer.from(payload.plaintext, "base64");
+    }
+
+    if (!keys) {
+      throw new Error("subscriber keys required for private signals");
+    }
+    if (!meta.keyboxPointer) {
+      throw new Error("keybox pointer missing for private signal");
+    }
+
     const keyboxPointer = this.pointerFromId(meta.keyboxPointer);
     const keyboxBytes = await this.storage.getKeybox(keyboxPointer);
     const parsed = JSON.parse(Buffer.from(keyboxBytes).toString("utf8")) as

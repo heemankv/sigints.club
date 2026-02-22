@@ -1,4 +1,4 @@
-# Hybrid Encryption + Off-Chain Ciphertext (Persona.fun)
+# Hybrid Encryption + Off-Chain Ciphertext (sigints.club)
 Date: 2026-02-14
 
 ## Purpose
@@ -6,6 +6,9 @@ Define the secure delivery mechanism for signals using hybrid encryption and off
 
 ## Core Idea (One Line)
 Encrypt the signal once with a symmetric key, store the ciphertext off-chain, and encrypt that symmetric key separately for each subscriber.
+
+## Public Signals (No Encryption)
+Public signals skip the keybox entirely. The plaintext payload is stored in `/storage/public`, and on-chain keybox hashes are zeroed. Listeners can fetch and consume without subscriber keys.
 
 ## Why This Design
 1. On-chain storage is too small and expensive for full ciphertext.
@@ -113,7 +116,7 @@ The pointer is needed because ciphertext lives off-chain. The chain only stores 
 ## Privacy Considerations
 1. If the keybox is public, anyone can see which subscriber ids are included.
 2. To reduce leakage, use hashed subscriber ids, not raw pubkeys.
-3. If a subscriber wants anonymity, they should use a dedicated encryption key per Persona.
+3. If a subscriber wants anonymity, they should use a dedicated encryption key per Stream.
 
 ## Scaling Options (Beyond MVP)
 1. Tier Key Rotation

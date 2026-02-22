@@ -1,44 +1,43 @@
 {
   "address": "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi",
   "metadata": {
-    "name": "persona_registry",
+    "name": "stream_registry",
     "version": "0.1.0",
     "spec": "0.1.0"
   },
   "instructions": [
     {
-      "name": "create_persona",
+      "name": "create_stream",
       "discriminator": [
-        113,
-        243,
-        215,
-        104,
-        47,
-        230,
-        240,
-        41
+        71,
+        188,
+        111,
+        127,
+        108,
+        40,
+        229,
+        158
       ],
       "accounts": [
         {
-          "name": "persona",
+          "name": "stream",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  101,
-                  114,
                   115,
-                  111,
-                  110,
-                  97
+                  116,
+                  114,
+                  101,
+                  97,
+                  109
                 ]
               },
               {
                 "kind": "arg",
-                "path": "persona_id"
+                "path": "stream_id"
               }
             ]
           }
@@ -55,7 +54,7 @@
       ],
       "args": [
         {
-          "name": "persona_id",
+          "name": "stream_id",
           "type": {
             "array": [
               "u8",
@@ -92,14 +91,14 @@
       ],
       "accounts": [
         {
-          "name": "persona",
+          "name": "stream",
           "writable": true
         },
         {
           "name": "authority",
           "signer": true,
           "relations": [
-            "persona"
+            "stream"
           ]
         }
       ],
@@ -116,27 +115,27 @@
       ]
     },
     {
-      "name": "update_persona",
+      "name": "update_stream",
       "discriminator": [
-        144,
-        120,
-        188,
-        255,
-        120,
-        138,
-        127,
-        175
+        132,
+        239,
+        118,
+        208,
+        84,
+        153,
+        47,
+        100
       ],
       "accounts": [
         {
-          "name": "persona",
+          "name": "stream",
           "writable": true
         },
         {
           "name": "authority",
           "signer": true,
           "relations": [
-            "persona"
+            "stream"
           ]
         }
       ],
@@ -170,7 +169,7 @@
       ],
       "accounts": [
         {
-          "name": "persona",
+          "name": "stream",
           "writable": true
         },
         {
@@ -189,7 +188,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               },
               {
                 "kind": "arg",
@@ -203,7 +202,7 @@
           "writable": true,
           "signer": true,
           "relations": [
-            "persona"
+            "stream"
           ]
         },
         {
@@ -246,7 +245,7 @@
   ],
   "accounts": [
     {
-      "name": "PersonaConfig",
+      "name": "StreamConfig",
       "discriminator": [
         149,
         130,
@@ -274,12 +273,12 @@
   ],
   "types": [
     {
-      "name": "PersonaConfig",
+      "name": "StreamConfig",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "persona_id",
+            "name": "stream_id",
             "type": {
               "array": [
                 "u8",
@@ -321,7 +320,7 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "persona",
+            "name": "stream",
             "type": "pubkey"
           },
           {

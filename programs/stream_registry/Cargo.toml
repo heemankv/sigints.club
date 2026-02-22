@@ -1,5 +1,5 @@
 [package]
-name = "persona_registry"
+name = "stream_registry"
 version = "0.1.0"
 edition = "2021"
 

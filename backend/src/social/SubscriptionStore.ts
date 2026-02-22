@@ -3,7 +3,7 @@ export type SubscriptionRecord = {
   listenerWallet: string;
   botId: string;
   tierId: string;
-  pricingType: string;
+  pricingType: "subscription_unlimited";
   evidenceLevel: string;
   createdAt: number;
   onchainTx?: string;

@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { Keypair } from "@solana/web3.js";
-import { PersonaClient } from "../../sdk/src/index.ts";
+import { SigintsClient } from "../../sdk/src/index.ts";
 import type { Server } from "node:http";
 
 let server: Server;
@@ -30,30 +30,57 @@ afterAll(async () => {
 
 describe("SDK + backend integration", () => {
   it("registers subscriber, publishes signal, and decrypts", async () => {
-    const client = new PersonaClient({
+    const client = new SigintsClient({
       rpcUrl: "http://127.0.0.1:8899",
       backendUrl: baseUrl,
       programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
     });
 
-    const keys = PersonaClient.generateKeys();
+    const keys = SigintsClient.generateKeys();
     const subscriberWallet = Keypair.generate().publicKey.toBase58();
-    await client.registerEncryptionKey("persona-eth", keys.publicKeyDerBase64, subscriberWallet);
+    await client.registerEncryptionKey("stream-eth", keys.publicKeyDerBase64, subscriberWallet);
 
     const payload = Buffer.from("integration-signal", "utf8").toString("base64");
     const resp = await fetch(`${baseUrl}/signals`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ personaId: "persona-eth", tierId: "trust", plaintextBase64: payload }),
+      body: JSON.stringify({ streamId: "stream-eth", tierId: "trust", plaintextBase64: payload }),
     });
     expect(resp.ok).toBe(true);
 
-    const meta = await client.fetchLatestSignal("persona-eth");
+    const meta = await client.fetchLatestSignal("stream-eth");
     expect(meta).not.toBeNull();
     const plaintext = await client.decryptSignal(meta!, {
       publicKeyDerBase64: keys.publicKeyDerBase64,
       privateKeyDerBase64: keys.privateKeyDerBase64,
     });
     expect(plaintext).toBe("integration-signal");
+  });
+
+  it("handles public signals without subscriber keys", async () => {
+    const client = new SigintsClient({
+      rpcUrl: "http://127.0.0.1:8899",
+      backendUrl: baseUrl,
+      programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
+    });
+
+    const payload = Buffer.from("public-integration", "utf8").toString("base64");
+    const resp = await fetch(`${baseUrl}/signals`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        streamId: "stream-public",
+        tierId: "tier-public",
+        plaintextBase64: payload,
+        visibility: "public",
+      }),
+    });
+    expect(resp.ok).toBe(true);
+
+    const meta = await client.fetchLatestSignal("stream-public");
+    expect(meta).not.toBeNull();
+    expect(meta?.visibility).toBe("public");
+    const plaintext = await client.decryptSignal(meta!);
+    expect(plaintext).toBe("public-integration");
   });
 });

@@ -9,9 +9,7 @@ const REGISTER_KEY_DISCRIMINATOR = new Uint8Array([56, 8, 67, 97, 128, 122, 80, 
 const REGISTER_WALLET_KEY_DISCRIMINATOR = new Uint8Array([245, 147, 210, 179, 245, 73, 184, 9]);
 
 const PRICING_TYPE_MAP: Record<string, number> = {
-  subscription_limited: 0,
   subscription_unlimited: 1,
-  per_signal: 2,
 };
 
 const EVIDENCE_LEVEL_MAP: Record<string, number> = {
@@ -24,16 +22,16 @@ export function resolveProgramId(): PublicKey {
   return new PublicKey(programId);
 }
 
-export function resolvePersonaRegistryId(): PublicKey {
+export function resolveStreamRegistryId(): PublicKey {
   const programId =
-    process.env.NEXT_PUBLIC_PERSONA_REGISTRY_PROGRAM_ID ??
+    process.env.NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID ??
     "5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi";
   return new PublicKey(programId);
 }
 
-export function resolvePersonaPubkey(input?: string): PublicKey {
+export function resolveStreamPubkey(input?: string): PublicKey {
   if (!input) {
-    throw new Error("Missing persona on-chain address");
+    throw new Error("Missing stream on-chain address");
   }
   return new PublicKey(input);
 }
@@ -101,17 +99,17 @@ export async function encodeSubscribeData(params: {
   return data;
 }
 
-export function deriveSubscriptionPda(programId: PublicKey, persona: PublicKey, subscriber: PublicKey): PublicKey {
+export function deriveSubscriptionPda(programId: PublicKey, stream: PublicKey, subscriber: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("subscription"), persona.toBuffer(), subscriber.toBuffer()],
+    [Buffer.from("subscription"), stream.toBuffer(), subscriber.toBuffer()],
     programId
   );
   return pda;
 }
 
-export function deriveSubscriptionMint(programId: PublicKey, persona: PublicKey, subscriber: PublicKey): PublicKey {
+export function deriveSubscriptionMint(programId: PublicKey, stream: PublicKey, subscriber: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("subscription_mint"), persona.toBuffer(), subscriber.toBuffer()],
+    [Buffer.from("subscription_mint"), stream.toBuffer(), subscriber.toBuffer()],
     programId
   );
   return pda;
@@ -134,20 +132,20 @@ export function deriveWalletKeyPda(programId: PublicKey, subscriber: PublicKey):
 }
 
 export function deriveTierConfigPda(
-  personaRegistryProgramId: PublicKey,
-  persona: PublicKey,
+  streamRegistryProgramId: PublicKey,
+  stream: PublicKey,
   tierHash: Uint8Array
 ): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("tier"), persona.toBuffer(), Buffer.from(tierHash)],
-    personaRegistryProgramId
+    [Buffer.from("tier"), stream.toBuffer(), Buffer.from(tierHash)],
+    streamRegistryProgramId
   );
   return pda;
 }
 
-export function derivePersonaState(programId: PublicKey, persona: PublicKey): PublicKey {
+export function deriveStreamState(programId: PublicKey, stream: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("persona_state"), persona.toBuffer()],
+    [Buffer.from("stream_state"), stream.toBuffer()],
     programId
   );
   return pda;
@@ -155,7 +153,7 @@ export function derivePersonaState(programId: PublicKey, persona: PublicKey): Pu
 
 export function buildSubscribeInstruction(params: {
   programId: PublicKey;
-  persona: PublicKey;
+  stream: PublicKey;
   subscriber: PublicKey;
   tierId: string;
   pricingType: number;
@@ -167,20 +165,20 @@ export function buildSubscribeInstruction(params: {
   treasury: PublicKey;
 }): Promise<TransactionInstruction> {
   return encodeSubscribeData(params).then(async (data) => {
-    const subscription = deriveSubscriptionPda(params.programId, params.persona, params.subscriber);
-    const subscriptionMint = deriveSubscriptionMint(params.programId, params.persona, params.subscriber);
-    const personaState = derivePersonaState(params.programId, params.persona);
+    const subscription = deriveSubscriptionPda(params.programId, params.stream, params.subscriber);
+    const subscriptionMint = deriveSubscriptionMint(params.programId, params.stream, params.subscriber);
+    const streamState = deriveStreamState(params.programId, params.stream);
     const subscriberAta = getAssociatedTokenAddressSync(subscriptionMint, params.subscriber);
     const tierHash = await sha256Bytes(params.tierId);
-    const tierConfig = deriveTierConfigPda(resolvePersonaRegistryId(), params.persona, tierHash);
+    const tierConfig = deriveTierConfigPda(resolveStreamRegistryId(), params.stream, tierHash);
     return new TransactionInstruction({
       programId: params.programId,
       keys: [
         { pubkey: subscription, isSigner: false, isWritable: true },
         { pubkey: subscriptionMint, isSigner: false, isWritable: true },
-        { pubkey: personaState, isSigner: false, isWritable: true },
+        { pubkey: streamState, isSigner: false, isWritable: true },
         { pubkey: subscriberAta, isSigner: false, isWritable: true },
-        { pubkey: params.persona, isSigner: false, isWritable: false },
+        { pubkey: params.stream, isSigner: false, isWritable: false },
         { pubkey: tierConfig, isSigner: false, isWritable: false },
         { pubkey: params.subscriber, isSigner: true, isWritable: true },
         { pubkey: params.maker, isSigner: false, isWritable: true },
@@ -197,11 +195,11 @@ export function buildSubscribeInstruction(params: {
 
 export function buildRegisterKeyInstruction(params: {
   programId: PublicKey;
-  persona: PublicKey;
+  stream: PublicKey;
   subscriber: PublicKey;
   encPubKeyBase64: string;
 }): TransactionInstruction {
-  const subscription = deriveSubscriptionPda(params.programId, params.persona, params.subscriber);
+  const subscription = deriveSubscriptionPda(params.programId, params.stream, params.subscriber);
   const subscriberKey = deriveSubscriberKeyPda(params.programId, subscription);
   const keyBytes = Buffer.from(params.encPubKeyBase64, "base64");
   if (keyBytes.length !== 32) {
@@ -255,7 +253,7 @@ function toHex(bytes: Uint8Array): string {
 export type DecodedSubscription = {
   subscription: string;
   subscriber: string;
-  persona: string;
+  stream: string;
   tierIdHex: string;
   pricingType: number;
   evidenceLevel: number;
@@ -272,7 +270,7 @@ export function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): Deco
   let offset = 8;
   const subscriber = new PublicKey(data.slice(offset, offset + 32));
   offset += 32;
-  const persona = new PublicKey(data.slice(offset, offset + 32));
+  const stream = new PublicKey(data.slice(offset, offset + 32));
   offset += 32;
   const tierId = data.slice(offset, offset + 32);
   offset += 32;
@@ -290,7 +288,7 @@ export function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): Deco
   return {
     subscription: pubkey.toBase58(),
     subscriber: subscriber.toBase58(),
-    persona: persona.toBase58(),
+    stream: stream.toBase58(),
     tierIdHex: toHex(tierId),
     pricingType,
     evidenceLevel,

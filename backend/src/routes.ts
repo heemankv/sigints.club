@@ -12,12 +12,11 @@ import {
   botProfileStore,
   subscriptionProfileStore,
   socialServiceInstance,
-  personaStore,
-  personaRegistry,
-  tapestryPersonaServiceInstance,
+  streamRegistry,
+  tapestryStreamServiceInstance,
 } from "./services/ServiceContainer";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
-import { hashTiersHex } from "./personas/tiersHash";
+import { hashTiersHex } from "./streams/tiersHash";
 
 const router = Router();
 
@@ -31,9 +30,10 @@ const storeSchema = z.object({
 });
 
 const signalSchema = z.object({
-  personaId: z.string(),
+  streamId: z.string(),
   tierId: z.string(),
   plaintextBase64: z.string(),
+  visibility: z.enum(["public", "private"]).optional(),
 });
 
 router.post("/signals", async (req, res) => {
@@ -41,31 +41,34 @@ router.post("/signals", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const subscribers = await subscriberDirectory.listSubscribers(parsed.data.personaId);
+  const visibility = parsed.data.visibility ?? "private";
+  const subscribers =
+    visibility === "public" ? [] : await subscriberDirectory.listSubscribers(parsed.data.streamId);
   const publish = await signalService.publishSignal(
-    parsed.data.personaId,
+    parsed.data.streamId,
     parsed.data.tierId,
     Buffer.from(parsed.data.plaintextBase64, "base64"),
-    subscribers.map((s) => ({ encPubKeyDerBase64: s.encPubKeyDerBase64 }))
+    subscribers.map((s) => ({ encPubKeyDerBase64: s.encPubKeyDerBase64 })),
+    visibility
   );
   return res.json({ metadata: publish.metadata });
 });
 
 router.get("/signals", async (req, res) => {
-  const personaId = req.query.personaId;
-  if (!personaId || typeof personaId !== "string") {
-    return res.status(400).json({ error: "personaId required" });
+  const streamId = req.query.streamId;
+  if (!streamId || typeof streamId !== "string") {
+    return res.status(400).json({ error: "streamId required" });
   }
-  const signals = await metadataStore.listSignals(personaId);
+  const signals = await metadataStore.listSignals(streamId);
   return res.json({ signals });
 });
 
 router.get("/signals/latest", async (req, res) => {
-  const personaId = req.query.personaId;
-  if (!personaId || typeof personaId !== "string") {
-    return res.status(400).json({ error: "personaId required" });
+  const streamId = req.query.streamId;
+  if (!streamId || typeof streamId !== "string") {
+    return res.status(400).json({ error: "streamId required" });
   }
-  const signals = await metadataStore.listSignals(personaId);
+  const signals = await metadataStore.listSignals(streamId);
   const latest = signals.sort((a, b) => b.createdAt - a.createdAt)[0];
   if (!latest) {
     return res.status(404).json({ error: "no signals" });
@@ -92,6 +95,18 @@ router.get("/storage/ciphertext/:sha", async (req, res) => {
     return res.json({ payload });
   } catch (error: any) {
     return res.status(404).json({ error: error.message ?? "ciphertext not found" });
+  }
+});
+
+router.get("/storage/public/:sha", async (req, res) => {
+  const sha = req.params.sha;
+  try {
+    const pointer = { id: `backend://public/${sha}`, sha256: sha };
+    const bytes = await storageProvider.getPublic(pointer);
+    const payload = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    return res.json({ payload });
+  } catch (error: any) {
+    return res.status(404).json({ error: error.message ?? "public payload not found" });
   }
 });
 
@@ -122,13 +137,14 @@ router.get("/feed", async (_req, res) => {
   const feed = [];
   const recent = signals.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
   for (const signal of recent) {
-    const persona = await discoveryService.getPersona(signal.personaId);
+    const stream = await discoveryService.getStream(signal.streamId);
     feed.push({
       id: signal.signalHash,
       type: "signal",
-      personaId: signal.personaId,
-      personaName: persona?.name ?? signal.personaId,
+      streamId: signal.streamId,
+      streamName: stream?.name ?? signal.streamId,
       tierId: signal.tierId,
+      visibility: signal.visibility ?? "private",
       createdAt: signal.createdAt,
       onchainTx: signal.onchainTx,
     });
@@ -136,34 +152,40 @@ router.get("/feed", async (_req, res) => {
   return res.json({ feed });
 });
 
-router.get("/personas", async (req, res) => {
+router.get("/streams", async (req, res) => {
   const includeTiers =
     req.query.includeTiers === "true" || req.query.includeTiers === "1";
-  if (includeTiers) {
-    const personas = await discoveryService.listPersonaDetails();
-    return res.json({ personas });
+  if (!tapestryStreamServiceInstance) {
+    return res.status(503).json({ error: "Tapestry is required for stream discovery" });
   }
-  const personas = await discoveryService.listPersonas();
-  return res.json({ personas });
+  if (includeTiers) {
+    const streams = await discoveryService.listStreamDetails();
+    return res.json({ streams });
+  }
+  const streams = await discoveryService.listStreams();
+  return res.json({ streams });
 });
 
-router.get("/personas/:id", async (req, res) => {
-  const persona = await discoveryService.getPersona(req.params.id);
-  if (!persona) {
-    return res.status(404).json({ error: "persona not found" });
+router.get("/streams/:id", async (req, res) => {
+  if (!tapestryStreamServiceInstance) {
+    return res.status(503).json({ error: "Tapestry is required for stream discovery" });
   }
-  return res.json({ persona });
+  const stream = await discoveryService.getStream(req.params.id);
+  if (!stream) {
+    return res.status(404).json({ error: "stream not found" });
+  }
+  return res.json({ stream });
 });
 
 const tierSchema = z.object({
   tierId: z.string(),
-  pricingType: z.enum(["subscription_limited", "subscription_unlimited", "per_signal"]),
+  pricingType: z.literal("subscription_unlimited"),
   price: z.string(),
   quota: z.string().optional(),
   evidenceLevel: z.enum(["trust", "verifier"]),
 });
 
-const personaSchema = z.object({
+const streamSchema = z.object({
   id: z.string(),
   name: z.string(),
   domain: z.string(),
@@ -176,61 +198,58 @@ const personaSchema = z.object({
   tiers: z.array(tierSchema).min(1),
 });
 
-router.post("/personas", async (req, res) => {
-  if (!personaRegistry) {
-    return res.status(503).json({ error: "persona registry not configured" });
+router.post("/streams", async (req, res) => {
+  if (!streamRegistry) {
+    return res.status(503).json({ error: "stream registry not configured" });
   }
-  const parsed = personaSchema.safeParse(req.body);
+  if (!tapestryStreamServiceInstance) {
+    return res.status(503).json({ error: "Tapestry is required for stream discovery" });
+  }
+  const parsed = streamSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   const tiersHash = hashTiersHex(parsed.data.tiers);
-  const onchain = await personaRegistry.getPersonaConfig(parsed.data.id);
+  const onchain = await streamRegistry.getStreamConfig(parsed.data.id);
   if (!onchain) {
-    return res.status(400).json({ error: "persona not registered on-chain" });
+    return res.status(400).json({ error: "stream not registered on-chain" });
   }
   if (onchain.status !== 1) {
-    return res.status(400).json({ error: "persona is not active" });
+    return res.status(400).json({ error: "stream is not active" });
   }
   if (onchain.authority !== parsed.data.ownerWallet) {
-    return res.status(403).json({ error: "wallet is not persona authority" });
+    return res.status(403).json({ error: "wallet is not stream authority" });
   }
   if (onchain.tiersHashHex !== tiersHash) {
     return res.status(400).json({ error: "tiers hash mismatch with on-chain" });
   }
-  let tapestryProfileId: string | undefined;
-  if (tapestryPersonaServiceInstance) {
-    try {
-      tapestryProfileId = await tapestryPersonaServiceInstance.upsertPersona(
-        {
-          personaId: parsed.data.id,
-          name: parsed.data.name,
-          domain: parsed.data.domain,
-          description: parsed.data.description,
-          accuracy: parsed.data.accuracy,
-          latency: parsed.data.latency,
-          price: parsed.data.price,
-          evidence: parsed.data.evidence,
-          ownerWallet: parsed.data.ownerWallet,
-          authority: onchain.authority,
-          dao: onchain.dao,
-          onchainAddress: onchain.pda,
-        },
-        parsed.data.tiers
-      );
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message ?? "Tapestry persona sync failed" });
-    }
+  let tapestryProfileId: string;
+  try {
+    tapestryProfileId = await tapestryStreamServiceInstance.upsertStream(
+      {
+        streamId: parsed.data.id,
+        name: parsed.data.name,
+        domain: parsed.data.domain,
+        description: parsed.data.description,
+        accuracy: parsed.data.accuracy,
+        latency: parsed.data.latency,
+        price: parsed.data.price,
+        evidence: parsed.data.evidence,
+        ownerWallet: parsed.data.ownerWallet,
+        authority: onchain.authority,
+        dao: onchain.dao,
+        onchainAddress: onchain.pda,
+      },
+      parsed.data.tiers
+    );
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "Tapestry stream sync failed" });
   }
-  const stored = await personaStore.upsertPersona({
-    ...parsed.data,
-    ...(tapestryProfileId ? { tapestryProfileId } : {}),
-  });
   return res.json({
-    persona: {
-      ...stored,
+    stream: {
+      ...parsed.data,
       onchainAddress: onchain.pda,
-      tapestryProfileId: tapestryProfileId ?? stored.tapestryProfileId,
+      tapestryProfileId,
     },
   });
 });
@@ -255,17 +274,15 @@ router.post("/users/login", async (req, res) => {
     displayName: parsed.data.displayName,
     bio: parsed.data.bio,
   });
-  if (socialServiceInstance) {
-    try {
-      await socialServiceInstance.ensureProfile(parsed.data.wallet, parsed.data.displayName);
-      const refreshed = await userProfileStore.getUser(parsed.data.wallet);
-      if (refreshed) {
-        profile = refreshed;
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn("Tapestry profile creation failed", error);
+  try {
+    await socialServiceInstance.ensureProfile(parsed.data.wallet, parsed.data.displayName);
+    const refreshed = await userProfileStore.getUser(parsed.data.wallet);
+    if (refreshed) {
+      profile = refreshed;
     }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("Tapestry profile creation failed", error);
   }
   return res.json({ user: profile });
 });
@@ -306,7 +323,7 @@ const botSchema = z.object({
     .array(
       z.object({
         tierId: z.string(),
-        pricingType: z.enum(["subscription_limited", "subscription_unlimited", "per_signal"]),
+        pricingType: z.literal("subscription_unlimited"),
         price: z.string(),
         quota: z.string().optional(),
         evidenceLevel: z.enum(["trust", "verifier"]),
@@ -344,7 +361,7 @@ const subscriptionSchema = z.object({
   listenerWallet: z.string(),
   botId: z.string(),
   tierId: z.string(),
-  pricingType: z.string(),
+  pricingType: z.literal("subscription_unlimited"),
   evidenceLevel: z.string(),
   onchainTx: z.string().optional(),
 });
@@ -368,31 +385,22 @@ router.get("/subscriptions", async (req, res) => {
   return res.json({ subscriptions });
 });
 
-function requireSocial(res: any) {
-  if (!socialServiceInstance) {
-    res.status(501).json({ error: "Tapestry not configured" });
-    return false;
-  }
-  return true;
-}
-
 const intentSchema = z.object({
   wallet: z.string(),
   content: z.string(),
-  personaId: z.string().optional(),
+  streamId: z.string().optional(),
   tags: z.array(z.string()).optional(),
   topic: z.string().optional(),
   displayName: z.string().optional(),
 });
 
 router.post("/social/intents", async (req, res) => {
-  if (!requireSocial(res)) return;
   const parsed = intentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const post = await socialServiceInstance!.createIntent(parsed.data);
+    const post = await socialServiceInstance.createIntent(parsed.data);
     return res.json({ post });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "intent post failed" });
@@ -402,7 +410,7 @@ router.post("/social/intents", async (req, res) => {
 const slashSchema = z.object({
   wallet: z.string(),
   content: z.string(),
-  personaId: z.string().optional(),
+  streamId: z.string().optional(),
   makerWallet: z.string().optional(),
   challengeTx: z.string().optional(),
   severity: z.string().optional(),
@@ -410,13 +418,12 @@ const slashSchema = z.object({
 });
 
 router.post("/social/slash", async (req, res) => {
-  if (!requireSocial(res)) return;
   const parsed = slashSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const post = await socialServiceInstance!.createSlashReport(parsed.data);
+    const post = await socialServiceInstance.createSlashReport(parsed.data);
     return res.json({ post });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "slash post failed" });
@@ -424,7 +431,6 @@ router.post("/social/slash", async (req, res) => {
 });
 
 router.get("/social/feed", async (req, res) => {
-  if (!requireSocial(res)) return;
   const type = typeof req.query.type === "string" ? req.query.type : undefined;
   const scope = typeof req.query.scope === "string" ? req.query.scope : undefined;
   const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
@@ -435,7 +441,7 @@ router.get("/social/feed", async (req, res) => {
       return res.status(400).json({ error: "wallet required for following feed" });
     }
     try {
-      const result = await socialServiceInstance!.listFollowingPosts({
+      const result = await socialServiceInstance.listFollowingPosts({
         wallet,
         type: type as any,
         page,
@@ -446,7 +452,7 @@ router.get("/social/feed", async (req, res) => {
       return res.status(500).json({ error: error.message ?? "following feed failed" });
     }
   }
-  const result = await socialServiceInstance!.listPostsWithCounts(type as any, pageSize ?? 50);
+  const result = await socialServiceInstance.listPostsWithCounts(type as any, pageSize ?? 50);
   return res.json(result);
 });
 
@@ -457,13 +463,12 @@ const likeSchema = z.object({
 });
 
 router.post("/social/likes", async (req, res) => {
-  if (!requireSocial(res)) return;
   const parsed = likeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const result = await socialServiceInstance!.like(
+    const result = await socialServiceInstance.like(
       parsed.data.wallet,
       parsed.data.contentId,
       parsed.data.displayName
@@ -475,13 +480,12 @@ router.post("/social/likes", async (req, res) => {
 });
 
 router.delete("/social/likes", async (req, res) => {
-  if (!requireSocial(res)) return;
   const parsed = likeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const result = await socialServiceInstance!.unlike(
+    const result = await socialServiceInstance.unlike(
       parsed.data.wallet,
       parsed.data.contentId,
       parsed.data.displayName
@@ -493,13 +497,12 @@ router.delete("/social/likes", async (req, res) => {
 });
 
 router.get("/social/likes", async (req, res) => {
-  if (!requireSocial(res)) return;
   const contentId = typeof req.query.contentId === "string" ? req.query.contentId : undefined;
   if (!contentId) {
     return res.status(400).json({ error: "contentId required" });
   }
   try {
-    const count = await socialServiceInstance!.getLikes(contentId);
+    const count = await socialServiceInstance.getLikes(contentId);
     return res.json({ count });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "likes lookup failed" });
@@ -520,13 +523,12 @@ const followSchema = z.object({
 });
 
 router.post("/social/comments", async (req, res) => {
-  if (!requireSocial(res)) return;
   const parsed = commentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const result = await socialServiceInstance!.addComment(
+    const result = await socialServiceInstance.addComment(
       parsed.data.wallet,
       parsed.data.contentId,
       parsed.data.comment,
@@ -539,7 +541,6 @@ router.post("/social/comments", async (req, res) => {
 });
 
 router.get("/social/comments", async (req, res) => {
-  if (!requireSocial(res)) return;
   const contentId = typeof req.query.contentId === "string" ? req.query.contentId : undefined;
   if (!contentId) {
     return res.status(400).json({ error: "contentId required" });
@@ -547,7 +548,7 @@ router.get("/social/comments", async (req, res) => {
   const page = typeof req.query.page === "string" ? Number(req.query.page) : undefined;
   const pageSize = typeof req.query.pageSize === "string" ? Number(req.query.pageSize) : undefined;
   try {
-    const raw = await socialServiceInstance!.getComments(contentId);
+    const raw = await socialServiceInstance.getComments(contentId);
     const comments = extractList(raw, "comments");
     if (page && pageSize) {
       const safePage = Math.max(1, page);
@@ -563,13 +564,12 @@ router.get("/social/comments", async (req, res) => {
 });
 
 router.post("/social/follow", async (req, res) => {
-  if (!requireSocial(res)) return;
   const parsed = followSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
   try {
-    const result = await socialServiceInstance!.follow(
+    const result = await socialServiceInstance.follow(
       parsed.data.wallet,
       parsed.data.targetProfileId,
       parsed.data.displayName
@@ -581,9 +581,8 @@ router.post("/social/follow", async (req, res) => {
 });
 
 router.get("/social/feed/trending", async (req, res) => {
-  if (!requireSocial(res)) return;
   const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
-  const { posts, likeCounts, commentCounts } = await socialServiceInstance!.listPostsWithCounts(undefined, limit ?? 50);
+  const { posts, likeCounts, commentCounts } = await socialServiceInstance.listPostsWithCounts(undefined, limit ?? 50);
   const sorted = [...posts].sort((a, b) => {
     const aLikes = likeCounts[a.contentId] ?? 0;
     const bLikes = likeCounts[b.contentId] ?? 0;
@@ -614,7 +613,7 @@ function decodeWalletKey(data: Buffer): { encPubkey: Uint8Array } | null {
 }
 
 const subscribeSchema = z.object({
-  personaId: z.string(),
+  streamId: z.string(),
   encPubKeyDerBase64: z.string().optional(),
   subscriberWallet: z.string(),
 });
@@ -631,14 +630,14 @@ router.post("/subscribe", async (req, res) => {
     const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pub);
     await subscriberDirectory.addSubscriber({
-      personaId: parsed.data.personaId,
+      streamId: parsed.data.streamId,
       subscriberId,
       encPubKeyDerBase64: parsed.data.encPubKeyDerBase64,
     });
     return res.json({ subscriberId, bypass: true });
   }
-  if (!personaRegistry) {
-    return res.status(503).json({ error: "persona registry not configured" });
+  if (!streamRegistry) {
+    return res.status(503).json({ error: "stream registry not configured" });
   }
   const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
   const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
@@ -647,9 +646,9 @@ router.post("/subscribe", async (req, res) => {
   }
   try {
     const subscriberPubkey = new PublicKey(parsed.data.subscriberWallet);
-    const personaPda = personaRegistry.derivePersonaPda(parsed.data.personaId);
+    const streamPda = streamRegistry.deriveStreamPda(parsed.data.streamId);
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("subscription"), personaPda.toBuffer(), subscriberPubkey.toBuffer()],
+      [Buffer.from("subscription"), streamPda.toBuffer(), subscriberPubkey.toBuffer()],
       new PublicKey(subscriptionProgramId)
     );
     const connection = new Connection(rpcUrl, "confirmed");
@@ -676,7 +675,7 @@ router.post("/subscribe", async (req, res) => {
     const pub = Buffer.from(encPubKeyBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pub);
     await subscriberDirectory.addSubscriber({
-      personaId: parsed.data.personaId,
+      streamId: parsed.data.streamId,
       subscriberId,
       encPubKeyDerBase64: encPubKeyBase64,
     });
@@ -687,9 +686,9 @@ router.post("/subscribe", async (req, res) => {
 });
 
 const onchainSubscribeSchema = z.object({
-  personaId: z.string(),
+  streamId: z.string(),
   tierId: z.string(),
-  pricingType: z.union([z.enum(["subscription_limited", "subscription_unlimited", "per_signal"]), z.number().int()]),
+  pricingType: z.union([z.literal("subscription_unlimited"), z.literal(1)]),
   evidenceLevel: z.union([z.enum(["trust", "verifier"]), z.number().int()]),
   priceLamports: z.number().int().nonnegative().optional(),
   expiresAt: z.number().optional(),
@@ -709,8 +708,8 @@ router.post("/subscribe/onchain", async (req, res) => {
   }
   try {
     let payload = parsed.data;
-    if (personaRegistry && (!payload.makerPubkey || !payload.treasuryPubkey)) {
-      const config = await personaRegistry.getPersonaConfig(payload.personaId);
+    if (streamRegistry && (!payload.makerPubkey || !payload.treasuryPubkey)) {
+      const config = await streamRegistry.getStreamConfig(payload.streamId);
       if (config) {
         payload = {
           ...payload,
@@ -743,7 +742,7 @@ router.get("/subscriptions/onchain", async (req, res) => {
 });
 
 const onchainRenewSchema = z.object({
-  personaId: z.string(),
+  streamId: z.string(),
   expiresAt: z.number().optional(),
   quotaRemaining: z.number().int().optional(),
   subscriberPubkey: z.string().optional(),
@@ -766,7 +765,7 @@ router.post("/subscribe/onchain/renew", async (req, res) => {
 });
 
 const onchainCancelSchema = z.object({
-  personaId: z.string(),
+  streamId: z.string(),
   subscriberPubkey: z.string().optional(),
 });
 

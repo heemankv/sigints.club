@@ -6,18 +6,18 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const PERSONAS = [
-  { id: "persona-eth", tiersSeed: "tiers:persona-eth" },
-  { id: "persona-amazon", tiersSeed: "tiers:persona-amazon" },
-  { id: "persona-anime", tiersSeed: "tiers:persona-anime" },
+const STREAMS = [
+  { id: "stream-eth", tiersSeed: "tiers:stream-eth" },
+  { id: "stream-amazon", tiersSeed: "tiers:stream-amazon" },
+  { id: "stream-anime", tiersSeed: "tiers:stream-anime" },
 ];
 
 const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 
-const PERSONA_TIERS: Record<string, { tierId: string; pricingType: number; evidenceLevel: number; priceLamports: number; quota: number }> = {
-  "persona-eth": { tierId: "tier-eth-trust", pricingType: 0, evidenceLevel: 0, priceLamports: 50_000_000, quota: 200 },
-  "persona-amazon": { tierId: "tier-amz-trust", pricingType: 1, evidenceLevel: 0, priceLamports: 80_000_000, quota: 0 },
-  "persona-anime": { tierId: "tier-anime-verifier", pricingType: 2, evidenceLevel: 1, priceLamports: 20_000_000, quota: 0 },
+const STREAM_TIERS: Record<string, { tierId: string; pricingType: number; evidenceLevel: number; priceLamports: number; quota: number }> = {
+  "stream-eth": { tierId: "tier-eth-trust", pricingType: 1, evidenceLevel: 0, priceLamports: 50_000_000, quota: 0 },
+  "stream-amazon": { tierId: "tier-amz-trust", pricingType: 1, evidenceLevel: 0, priceLamports: 80_000_000, quota: 0 },
+  "stream-anime": { tierId: "tier-anime-verifier", pricingType: 1, evidenceLevel: 1, priceLamports: 20_000_000, quota: 0 },
 };
 
 dotenv.config({ path: path.resolve(process.cwd(), "..", ".env") });
@@ -81,13 +81,13 @@ async function loadKeypair(): Promise<Keypair> {
 }
 
 async function loadCoder(): Promise<anchor.BorshInstructionCoder> {
-  const idlPath = path.resolve(process.cwd(), "idl", "persona_registry.json");
+  const idlPath = path.resolve(process.cwd(), "idl", "stream_registry.json");
   const idlRaw = await fs.readFile(idlPath, "utf8");
   const idl = JSON.parse(idlRaw) as anchor.Idl;
   return new anchor.BorshInstructionCoder(idl);
 }
 
-async function updateEnvPersonaMap(map: Record<string, string>) {
+async function updateEnvStreamMap(map: Record<string, string>) {
   const envPath = path.resolve(process.cwd(), "..", ".env");
   let env = "";
   try {
@@ -95,9 +95,9 @@ async function updateEnvPersonaMap(map: Record<string, string>) {
   } catch {
     env = "";
   }
-  const line = `SOLANA_PERSONA_MAP=${JSON.stringify(map)}`;
-  if (env.includes("SOLANA_PERSONA_MAP=")) {
-    env = env.replace(/^SOLANA_PERSONA_MAP=.*$/m, line);
+  const line = `SOLANA_STREAM_MAP=${JSON.stringify(map)}`;
+  if (env.includes("SOLANA_STREAM_MAP=")) {
+    env = env.replace(/^SOLANA_STREAM_MAP=.*$/m, line);
   } else {
     env = env.trimEnd() + "\n" + line + "\n";
   }
@@ -106,9 +106,9 @@ async function updateEnvPersonaMap(map: Record<string, string>) {
 
 async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
-  const programIdStr = process.env.SOLANA_PERSONA_REGISTRY_PROGRAM_ID;
+  const programIdStr = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
   if (!programIdStr) {
-    throw new Error("SOLANA_PERSONA_REGISTRY_PROGRAM_ID missing in .env");
+    throw new Error("SOLANA_STREAM_REGISTRY_PROGRAM_ID missing in .env");
   }
   const programId = new PublicKey(programIdStr);
   const keypair = await loadKeypair();
@@ -120,23 +120,23 @@ async function main() {
     ? new PublicKey(process.env.SOLANA_TREASURY_ADDRESS)
     : wallet.publicKey;
 
-  const personaMap: Record<string, string> = {};
+  const streamMap: Record<string, string> = {};
 
-  for (const persona of PERSONAS) {
-    const personaIdBytes = sha256Bytes(persona.id);
-    const tiersHashBytes = sha256Bytes(persona.tiersSeed);
+  for (const stream of STREAMS) {
+    const streamIdBytes = sha256Bytes(stream.id);
+    const tiersHashBytes = sha256Bytes(stream.tiersSeed);
     const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("persona"), personaIdBytes],
+      [Buffer.from("stream"), streamIdBytes],
       programId
     );
 
-    personaMap[persona.id] = pda.toBase58();
+    streamMap[stream.id] = pda.toBase58();
     const exists = await connection.getAccountInfo(pda);
     if (exists) {
-      console.log(`Persona exists: ${persona.id} -> ${pda.toBase58()}`);
+      console.log(`Stream exists: ${stream.id} -> ${pda.toBase58()}`);
     } else {
-      const data = coder.encode("create_persona", {
-        persona_id: Array.from(personaIdBytes),
+      const data = coder.encode("create_stream", {
+        stream_id: Array.from(streamIdBytes),
         tiers_hash: Array.from(tiersHashBytes),
         dao: treasury,
       });
@@ -154,9 +154,9 @@ async function main() {
       const tx = new anchor.web3.Transaction().add(ix);
       await provider.sendAndConfirm(tx);
 
-      console.log(`Created persona: ${persona.id} -> ${pda.toBase58()}`);
+      console.log(`Created stream: ${stream.id} -> ${pda.toBase58()}`);
     }
-    const tier = PERSONA_TIERS[persona.id];
+    const tier = STREAM_TIERS[stream.id];
     if (tier) {
       const tierHash = sha256Bytes(tier.tierId);
       const [tierPda] = PublicKey.findProgramAddressSync(
@@ -185,13 +185,13 @@ async function main() {
         });
         const tierTx = new anchor.web3.Transaction().add(tierIx);
         await provider.sendAndConfirm(tierTx);
-        console.log(`Created tier: ${persona.id} -> ${tier.tierId}`);
+        console.log(`Created tier: ${stream.id} -> ${tier.tierId}`);
       }
     }
   }
 
-  await updateEnvPersonaMap(personaMap);
-  console.log("Updated SOLANA_PERSONA_MAP in .env");
+  await updateEnvStreamMap(streamMap);
+  console.log("Updated SOLANA_STREAM_MAP in .env");
 }
 
 main().catch((err) => {

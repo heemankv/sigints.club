@@ -1,7 +1,7 @@
 import { SignalMetadata } from "./MetadataStore";
 
 export type SocialPublishInput = {
-  personaId: string;
+  streamId: string;
   content: string;
   metadata: SignalMetadata;
 };

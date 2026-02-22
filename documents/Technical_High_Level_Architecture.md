@@ -1,12 +1,12 @@
 # Technical High-Level Architecture
-Project: Persona.fun
+Project: sigints.club
 Date: 2026-02-14
 
 ## Purpose
-This document describes a high-level system architecture for Persona.fun, mapping Solana features and Tapestry social protocol capabilities to the product requirements. It explains how components connect and how data flows through the system.
+This document describes a high-level system architecture for sigints.club, mapping Solana features and Tapestry social protocol capabilities to the product requirements. It explains how components connect and how data flows through the system.
 
 ## Architecture Summary (One Paragraph)
-Persona.fun is a dual-layer system: Tapestry provides the social graph layer (profiles, follows, content, discovery), while Solana provides the financial and accountability layer (staking, subscriptions, royalties, challenges, slashing, and Actions). Off-chain agents produce intelligence signals and evidence, which are referenced in Tapestry content and monetized through Solana programs. A discovery index aggregates social and economic signals so users and agents can choose between providers.
+sigints.club is a dual-layer system: Tapestry provides the social graph layer (profiles, follows, content, discovery), while Solana provides the financial and accountability layer (staking, subscriptions, royalties, challenges, slashing, and Actions). Off-chain agents produce intelligence signals and evidence, which are referenced in Tapestry content and monetized through Solana programs. Public signals are free and open; private signals are encrypted and sold via monthly subscriptions. Discovery and social feeds are Tapestry-first; the backend is a thin gateway over Tapestry (no fallback social store).
 
 ## Core Components
 1. Client Apps
@@ -16,7 +16,7 @@ Persona.fun is a dual-layer system: Tapestry provides the social graph layer (pr
 - Profiles, follows, content posts, likes, comments, and discovery queries.
 
 3. Solana Programs (On-Chain)
-- Persona Registry Program
+- Stream Registry Program
 - Subscription and Royalty Program
 - Challenge and Slashing Program
 - Treasury and Governance Program
@@ -33,12 +33,12 @@ Persona.fun is a dual-layer system: Tapestry provides the social graph layer (pr
 
 ## Solana Features Used (Mapping)
 1. Programs
-- Registry program to register Personas, assign managers, and store configuration.
+- Registry program to register Streams, assign managers, and store configuration.
 - Subscription program to store maker-defined pricing menus, tier selection, and entitlements.
 - Slashing program to enforce accountability when challenges succeed.
 
 2. PDAs
-- Deterministic accounts for Persona state, staking vaults, and subscription escrow.
+- Deterministic accounts for Stream state, staking vaults, and subscription escrow.
 
 3. SPL Tokens and Token-2022
 - Subscription payment tokens and optional governance token.
@@ -48,7 +48,7 @@ Persona.fun is a dual-layer system: Tapestry provides the social graph layer (pr
 - Signals become executable posts with one-click payment, swap, or subscribe.
 
 5. Multisig and DAO Governance
-- Squads or Realms used to govern Persona treasuries and decision-making.
+- Squads or Realms used to govern Stream treasuries and decision-making.
 
 6. RPC Subscriptions and Webhooks
 - Listener agents react to on-chain events and new signals in real time.
@@ -58,7 +58,7 @@ Persona.fun is a dual-layer system: Tapestry provides the social graph layer (pr
 
 ## Tapestry Features Used (Mapping)
 1. Profiles
-- Each Persona is a Tapestry profile tied to a wallet under an app namespace.
+- Each Stream is a Tapestry profile tied to a wallet under an app namespace.
 
 2. Follows
 - Followers represent subscribers or interested users, enabling feed curation.
@@ -75,14 +75,17 @@ Persona.fun is a dual-layer system: Tapestry provides the social graph layer (pr
 6. Execution Methods
 - Use faster modes for likes or follows and confirmed modes for reputation-critical writes.
 
+## Backend Role (Tapestry Gateway)
+The backend is a thin gateway over Tapestry for all social content. There is **no fallback social store**; if Tapestry is unavailable, social + discovery are unavailable.
+
 ## High-Level Data Flow
 1. Request Posting
 - A human or agent posts a subscription request in Tapestry.
 - The discovery index aggregates requests and ranks demand.
 
-2. Persona Creation
-- Managers stake SOL and create a Persona in the registry program.
-- A Tapestry profile is created for the Persona.
+2. Stream Creation
+- Managers stake SOL and create a Stream in the registry program.
+- A Tapestry profile is created for the Stream.
 
 3. Signal Generation
 - Provider agent scans sources, produces a signal, and uploads evidence.
@@ -108,7 +111,7 @@ flowchart LR
   B --> C["Tapestry Social Layer"]
   B --> D["Solana Actions (Blinks)"]
   C --> E["Discovery Index"]
-  E --> F["Persona Registry Program"]
+  E --> F["Stream Registry Program"]
   F --> G["Staking Vaults (PDAs)"]
   F --> H["Treasury Governance (Squads/Realms)"]
   C --> I["Signal Posts + Metadata"]
@@ -123,9 +126,9 @@ flowchart LR
 ## On-Chain Accounts And PDA Diagram
 ```mermaid
 flowchart TB
-  A["Persona Registry Program"] --> B["Persona PDA (config, managers)"]
+  A["Stream Registry Program"] --> B["Stream PDA (config, managers)"]
   B --> C["Stake Vault PDA"]
-  B --> D["Persona Treasury PDA"]
+  B --> D["Stream Treasury PDA"]
   E["Subscription Program"] --> F["Subscription Config PDA"]
   F --> G["Subscriber Entitlement PDA"]
   H["Royalty Split PDA"] --> D
@@ -150,8 +153,8 @@ flowchart TB
 - Tapestry profile queries and ranking based on follows, likes, and comments.
 
 3. Pricing Menu
-- Maker defines available tiers such as subscription-limited, subscription-unlimited, and per-signal.
-- Taker selects a tier at subscription time.
+- Maker defines monthly subscription tiers (subscription-unlimited only for MVP).
+- Public signals are free and open; private signals require a tier.
 
 4. Trust vs Verifier Evidence Levels
 - On-chain entitlements map to different evidence access levels.
@@ -189,7 +192,7 @@ flowchart TB
 - Separate Trust and Verifier tiers so users can choose speed vs proof.
 
 ## MVP Architecture (Minimal)
-1. One Persona registry program.
+1. One Stream registry program.
 2. One subscription program with Trust and Verifier tiers.
 3. One Tapestry namespace with profiles and content.
 4. One discovery index with basic ranking.

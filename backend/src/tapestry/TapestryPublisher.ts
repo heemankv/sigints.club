@@ -1,20 +1,20 @@
 import { TapestryClient } from "./TapestryClient";
 import { SocialPublishInput, SocialPublisher } from "../services/SocialPublisher";
-import { PersonaStore } from "../personas";
+import { TapestryStreamService } from "../services/TapestryStreamService";
 
 export class TapestryPublisher implements SocialPublisher {
   constructor(
     private client: TapestryClient,
     private defaultProfileId?: string,
     private profileMap?: Record<string, string>,
-    private personaStore?: PersonaStore
+    private tapestryStreams?: TapestryStreamService
   ) {}
 
   async publishSignal(input: SocialPublishInput): Promise<void> {
-    let profileId = this.profileMap?.[input.personaId] ?? this.defaultProfileId;
-    if (!profileId && this.personaStore) {
-      const persona = await this.personaStore.getPersona(input.personaId);
-      profileId = persona?.tapestryProfileId;
+    let profileId = this.profileMap?.[input.streamId] ?? this.defaultProfileId;
+    if (!profileId && this.tapestryStreams) {
+      const stream = await this.tapestryStreams.getStream(input.streamId);
+      profileId = stream?.tapestryProfileId;
     }
     if (!profileId) {
       return;
@@ -23,11 +23,12 @@ export class TapestryPublisher implements SocialPublisher {
     const properties = [
       { key: "type", value: "signal" },
       { key: "text", value: input.content },
-      { key: "personaId", value: input.personaId },
+      { key: "streamId", value: input.streamId },
       { key: "tierId", value: input.metadata.tierId },
+      { key: "visibility", value: input.metadata.visibility },
       { key: "signalHash", value: input.metadata.signalHash },
       { key: "signalPointer", value: input.metadata.signalPointer },
-      { key: "keyboxHash", value: input.metadata.keyboxHash },
+      ...(input.metadata.keyboxHash ? [{ key: "keyboxHash", value: input.metadata.keyboxHash }] : []),
     ];
 
     await this.client.createContent({

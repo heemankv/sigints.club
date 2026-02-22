@@ -16,7 +16,7 @@ export type Subscriber = {
 
 export type PublishResult = {
   metadata: SignalMetadata;
-  keybox: Record<string, WrappedKey>;
+  keybox?: Record<string, WrappedKey>;
 };
 
 export class SignalService {
@@ -28,11 +28,52 @@ export class SignalService {
   ) {}
 
   async publishSignal(
-    personaId: string,
+    streamId: string,
     tierId: string,
     plaintext: Buffer,
-    subscribers: Subscriber[]
+    subscribers: Subscriber[],
+    visibility: "public" | "private" = "private"
   ): Promise<PublishResult> {
+    if (visibility === "public") {
+      const payload = Buffer.from(
+        JSON.stringify({
+          plaintext: plaintext.toString("base64"),
+        })
+      );
+      const signalHash = sha256Hex(payload);
+      const { pointer: signalPointer } = await this.storage.putPublic(payload, signalHash);
+      const meta: SignalMetadata = {
+        streamId,
+        tierId,
+        signalHash,
+        signalPointer: signalPointer.id,
+        keyboxHash: null,
+        keyboxPointer: null,
+        visibility,
+        createdAt: Date.now(),
+      };
+      if (this.onChainRecorder) {
+        try {
+          const signature = await this.onChainRecorder.recordSignal(toRecordSignalInput(meta));
+          if (signature) {
+            meta.onchainTx = signature;
+          }
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn("on-chain record_signal failed", error);
+        }
+      }
+      await this.metadata.addSignal(meta);
+      if (this.socialPublisher) {
+        await this.socialPublisher.publishSignal({
+          streamId,
+          content: plaintext.toString("utf8"),
+          metadata: meta,
+        });
+      }
+      return { metadata: meta };
+    }
+
     const symKey = generateSymmetricKey();
     const { ciphertext, iv, tag } = encryptSignal(plaintext, symKey);
 
@@ -72,12 +113,13 @@ export class SignalService {
     );
 
     const meta: SignalMetadata = {
-      personaId,
+      streamId,
       tierId,
       signalHash,
       signalPointer: signalPointer.id,
       keyboxHash,
       keyboxPointer: keyboxPointer.id,
+      visibility,
       createdAt: Date.now(),
     };
     if (this.onChainRecorder) {
@@ -96,7 +138,7 @@ export class SignalService {
 
     if (this.socialPublisher) {
       await this.socialPublisher.publishSignal({
-        personaId,
+        streamId,
         content: plaintext.toString("utf8"),
         metadata: meta,
       });

@@ -44,7 +44,7 @@ export default function RequestsClient() {
   const [intentTags, setIntentTags] = useState("");
 
   const [slashText, setSlashText] = useState("");
-  const [slashPersona, setSlashPersona] = useState("");
+  const [slashStream, setSlashStream] = useState("");
   const [slashMakerWallet, setSlashMakerWallet] = useState("");
   const [slashTx, setSlashTx] = useState("");
 
@@ -116,12 +116,12 @@ export default function RequestsClient() {
       await postJson("/social/slash", {
         wallet,
         content: slashText,
-        personaId: slashPersona || undefined,
+        streamId: slashStream || undefined,
         makerWallet: slashMakerWallet || undefined,
         challengeTx: slashTx || undefined,
       });
       setSlashText("");
-      setSlashPersona("");
+      setSlashStream("");
       setSlashMakerWallet("");
       setSlashTx("");
       await loadFeed();
@@ -246,8 +246,8 @@ export default function RequestsClient() {
             placeholder="Describe why this maker should be slashed..."
           />
           <div className="field">
-            <label>Persona</label>
-            <input value={slashPersona} onChange={(e) => setSlashPersona(e.target.value)} placeholder="persona-eth" />
+            <label>Stream</label>
+            <input value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="stream-eth" />
           </div>
           <div className="field">
             <label>Maker Wallet</label>
@@ -295,8 +295,8 @@ export default function RequestsClient() {
                   {new Date(post.createdAt).toLocaleString()} · {post.authorWallet.slice(0, 10)}…
                 </div>
                 <p>{post.content}</p>
-                {post.customProperties?.personaId && (
-                  <div className="subtext">Persona: {post.customProperties.personaId}</div>
+                {post.customProperties?.streamId && (
+                  <div className="subtext">Stream: {post.customProperties.streamId}</div>
                 )}
                 {post.customProperties?.tags && (
                   <div className="subtext">Tags: {post.customProperties.tags}</div>

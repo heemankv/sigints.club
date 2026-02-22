@@ -16,7 +16,7 @@ const TEST_ICON =
 
 export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   name = TEST_WALLET_NAME;
-  url = "https://personafun.local/test-wallet";
+  url = "https://sigints.local/test-wallet";
   icon = TEST_ICON;
   readyState = WalletReadyState.Installed;
   supportedTransactionVersions: ReadonlySet<TransactionVersion> | null = null;

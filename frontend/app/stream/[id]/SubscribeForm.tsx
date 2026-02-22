@@ -8,32 +8,32 @@ import {
   buildSubscribeInstruction,
   defaultExpiryMs,
   resolveEvidenceLevel,
-  resolvePersonaPubkey,
+  resolveStreamPubkey,
   resolvePricingType,
   resolveProgramId,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
 
 export default function SubscribeForm({
-  personaId,
+  streamId,
   tierId,
   pricingType,
   evidenceLevel,
   price,
   quota,
-  personaOnchainAddress,
-  personaAuthority,
-  personaDao,
+  streamOnchainAddress,
+  streamAuthority,
+  streamDao,
 }: {
-  personaId: string;
+  streamId: string;
   tierId: string;
   pricingType: string;
   evidenceLevel: string;
   price: string;
   quota?: string;
-  personaOnchainAddress?: string;
-  personaAuthority?: string;
-  personaDao?: string;
+  streamOnchainAddress?: string;
+  streamAuthority?: string;
+  streamDao?: string;
 }) {
   const [pubKey, setPubKey] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function SubscribeForm({
         throw new Error("Connect your wallet first.");
       }
       const data = await postJson<{ subscriberId: string }>("/subscribe", {
-        personaId,
+        streamId,
         ...(pubKey ? { encPubKeyDerBase64: pubKey } : {}),
         subscriberWallet: publicKey.toBase58(),
       });
@@ -78,14 +78,14 @@ export default function SubscribeForm({
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
       }
-      if (!personaOnchainAddress || !personaAuthority || !personaDao) {
-        throw new Error("On-chain persona or payout accounts not configured.");
+      if (!streamOnchainAddress || !streamAuthority || !streamDao) {
+        throw new Error("On-chain stream or payout accounts not configured.");
       }
       const programId = resolveProgramId();
-      const personaPubkey = resolvePersonaPubkey(personaOnchainAddress);
+      const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
       const ix = await buildSubscribeInstruction({
         programId,
-        persona: personaPubkey,
+        stream: streamPubkey,
         subscriber: publicKey,
         tierId,
         pricingType: resolvePricingType(pricingType),
@@ -93,8 +93,8 @@ export default function SubscribeForm({
         expiresAtMs: defaultExpiryMs(),
         quotaRemaining: parseQuota(quota) ?? 0,
         priceLamports: parseSolLamports(price),
-        maker: new PublicKey(personaAuthority),
-        treasury: new PublicKey(personaDao),
+        maker: new PublicKey(streamAuthority),
+        treasury: new PublicKey(streamDao),
       });
       const tx = new Transaction().add(ix);
       tx.feePayer = publicKey;
@@ -132,12 +132,12 @@ export default function SubscribeForm({
       <button
         className="button ghost"
         onClick={submitOnchain}
-        disabled={loading || !personaOnchainAddress || !personaAuthority || !personaDao}
+        disabled={loading || !streamOnchainAddress || !streamAuthority || !streamDao}
       >
         {loading ? "Submitting…" : "Subscribe on-chain"}
       </button>
-      {(!personaOnchainAddress || !personaAuthority || !personaDao) && (
-        <p className="subtext">On-chain persona or payout accounts not configured.</p>
+      {(!streamOnchainAddress || !streamAuthority || !streamDao) && (
+        <p className="subtext">On-chain stream or payout accounts not configured.</p>
       )}
       {chainStatus && <p className="subtext">{chainStatus}</p>}
       {chainTx && (

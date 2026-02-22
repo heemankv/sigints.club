@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteJson, fetchJson, postJson } from "../lib/api";
 import { useWallet } from "@solana/wallet-adapter-react";
-import SubscribeForm from "../persona/[id]/SubscribeForm";
+import SubscribeForm from "../stream/[id]/SubscribeForm";
 
 type SocialPost = {
   id: string;
@@ -25,7 +25,7 @@ type BotProfile = {
   evidence: string;
 };
 
-type PersonaDetail = {
+type StreamDetail = {
   id: string;
   name: string;
   domain: string;
@@ -75,7 +75,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   const wallet = publicKey?.toBase58() ?? process.env.NEXT_PUBLIC_TEST_WALLET;
   const [feed, setFeed] = useState<SocialPost[]>([]);
   const [trending, setTrending] = useState<SocialPost[]>([]);
-  const [personas, setPersonas] = useState<PersonaDetail[]>([]);
+  const [streams, setStreams] = useState<StreamDetail[]>([]);
   const [bots, setBots] = useState<BotProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedScope, setFeedScope] = useState<"all" | "following">("all");
@@ -89,7 +89,7 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
-  const [subscribePersonaId, setSubscribePersonaId] = useState<string | null>(null);
+  const [subscribeStreamId, setSubscribeStreamId] = useState<string | null>(null);
   const [subscribeTierId, setSubscribeTierId] = useState<string | null>(null);
 
   const [composerMode, setComposerMode] = useState<"intent" | "slash">("intent");
@@ -97,19 +97,19 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
   const [intentTopic, setIntentTopic] = useState("");
   const [intentTags, setIntentTags] = useState("");
   const [slashText, setSlashText] = useState("");
-  const [slashPersona, setSlashPersona] = useState("");
+  const [slashStream, setSlashStream] = useState("");
   const [slashMakerWallet, setSlashMakerWallet] = useState("");
   const [slashTx, setSlashTx] = useState("");
 
   const searchLabel = useMemo(() => searchQuery.trim(), [searchQuery]);
-  const personaById = useMemo(
-    () => new Map(personas.map((persona) => [persona.id, persona])),
-    [personas]
+  const streamById = useMemo(
+    () => new Map(streams.map((stream) => [stream.id, stream])),
+    [streams]
   );
-  const activePersona = subscribePersonaId ? personaById.get(subscribePersonaId) : undefined;
+  const activeStream = subscribeStreamId ? streamById.get(subscribeStreamId) : undefined;
   const activeTier =
-    activePersona?.tiers.find((tier) => tier.tierId === subscribeTierId) ??
-    activePersona?.tiers?.[0];
+    activeStream?.tiers.find((tier) => tier.tierId === subscribeTierId) ??
+    activeStream?.tiers?.[0];
 
   useEffect(() => {
     void loadFeed();
@@ -155,10 +155,10 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       setTrending([]);
     }
     try {
-      const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
-      setPersonas(data.personas ?? []);
+      const data = await fetchJson<{ streams: StreamDetail[] }>("/streams?includeTiers=true");
+      setStreams(data.streams ?? []);
     } catch {
-      setPersonas([]);
+      setStreams([]);
     }
   }
 
@@ -230,12 +230,12 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       await postJson("/social/slash", {
         wallet,
         content: slashText,
-        personaId: slashPersona || undefined,
+        streamId: slashStream || undefined,
         makerWallet: slashMakerWallet || undefined,
         challengeTx: slashTx || undefined,
       });
       setSlashText("");
-      setSlashPersona("");
+      setSlashStream("");
       setSlashMakerWallet("");
       setSlashTx("");
       await loadFeed();
@@ -355,14 +355,14 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
       .filter(Boolean);
   }
 
-  function openSubscribe(personaId: string) {
-    const persona = personaById.get(personaId);
-    setSubscribePersonaId(personaId);
-    setSubscribeTierId(persona?.tiers?.[0]?.tierId ?? null);
+  function openSubscribe(streamId: string) {
+    const stream = streamById.get(streamId);
+    setSubscribeStreamId(streamId);
+    setSubscribeTierId(stream?.tiers?.[0]?.tierId ?? null);
   }
 
   function closeSubscribe() {
-    setSubscribePersonaId(null);
+    setSubscribeStreamId(null);
     setSubscribeTierId(null);
   }
 
@@ -373,18 +373,18 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
           <div className="hud-corners" />
           <span className="kicker">Trendline</span>
           <h3>Top makers</h3>
-          <p className="subtext">The most subscribed personas this week.</p>
+          <p className="subtext">The most subscribed streams this week.</p>
           <div className="list">
-            {personas.slice(0, 4).map((persona) => (
-              <div className="row" key={persona.id}>
+            {streams.slice(0, 4).map((stream) => (
+              <div className="row" key={stream.id}>
                 <div>
-                  <strong>{persona.name}</strong>
-                  <div className="subtext">{persona.domain}</div>
+                  <strong>{stream.name}</strong>
+                  <div className="subtext">{stream.domain}</div>
                 </div>
-                <span className="badge">{persona.evidence}</span>
+                <span className="badge">{stream.evidence}</span>
               </div>
             ))}
-            {!personas.length && <div className="subtext">No persona data yet.</div>}
+            {!streams.length && <div className="subtext">No stream data yet.</div>}
           </div>
           <div className="divider" />
           <a className="button ghost" href="/">
@@ -459,12 +459,12 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
               />
               <div className="composer-grid">
                 <div className="field">
-                  <label>Persona ID</label>
+                  <label>Stream ID</label>
                   <input
                     className="input"
-                    value={slashPersona}
-                    onChange={(e) => setSlashPersona(e.target.value)}
-                    placeholder="persona-eth"
+                    value={slashStream}
+                    onChange={(e) => setSlashStream(e.target.value)}
+                    placeholder="stream-eth"
                   />
                 </div>
                 <div className="field">
@@ -549,11 +549,11 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
           )}
           {feed.map((post) => {
             const tags = resolveTags(post);
-            const personaId = post.customProperties?.personaId;
+            const streamId = post.customProperties?.streamId;
             const makerWallet = post.customProperties?.makerWallet;
             const challengeTx = post.customProperties?.challengeTx;
             const topic = post.customProperties?.topic;
-            const personaDetails = personaId ? personaById.get(personaId) : undefined;
+            const streamDetails = streamId ? streamById.get(streamId) : undefined;
             const isOpen = openComments[post.contentId] ?? false;
             const totalComments = commentTotals[post.contentId] ?? comments[post.contentId]?.length ?? 0;
             const loadedComments = comments[post.contentId]?.length ?? 0;
@@ -575,9 +575,9 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                   <div className="subtext">Posted by {post.authorWallet.slice(0, 10)}…</div>
                 </div>
                 <div className="chip-row">
-                  {personaId && (
-                    <a className="chip" href={`/persona/${personaId}`}>
-                      {personaDetails?.name ?? personaId}
+                  {streamId && (
+                    <a className="chip" href={`/stream/${streamId}`}>
+                      {streamDetails?.name ?? streamId}
                     </a>
                   )}
                   {topic && <span className="chip">{topic}</span>}
@@ -585,11 +585,11 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                     <span className="chip" key={`${post.id}-${tag}`}>{tag}</span>
                   ))}
                 </div>
-                {(personaId || topic || makerWallet || challengeTx) && (
+                {(streamId || topic || makerWallet || challengeTx) && (
                   <div className="social-card__details">
-                    {personaId && (
+                    {streamId && (
                       <div className="subtext">
-                        Persona: <a className="link" href={`/persona/${personaId}`}>{personaId}</a>
+                        Stream: <a className="link" href={`/stream/${streamId}`}>{streamId}</a>
                       </div>
                     )}
                     {topic && <div className="subtext">Topic: {topic}</div>}
@@ -626,8 +626,8 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                   >
                     {isOpen ? "Hide comments" : `Comments · ${totalComments}`}
                   </button>
-                  {personaId && (
-                    <button className="button primary" onClick={() => openSubscribe(personaId)}>
+                  {streamId && (
+                    <button className="button primary" onClick={() => openSubscribe(streamId)}>
                       Subscribe
                     </button>
                   )}
@@ -724,24 +724,24 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
         </div>
       </aside>
 
-      {subscribePersonaId && (
+      {subscribeStreamId && (
         <div className="modal-overlay" onClick={closeSubscribe}>
           <div className="modal-card subscribe-modal" onClick={(event) => event.stopPropagation()}>
             <button className="modal-close" onClick={closeSubscribe} aria-label="Close">
               ×
             </button>
-            {!activePersona || !activeTier ? (
+            {!activeStream || !activeTier ? (
               <>
-                <h3>Persona unavailable</h3>
-                <p className="subtext">We could not load tier data for this persona yet.</p>
+                <h3>Stream unavailable</h3>
+                <p className="subtext">We could not load tier data for this stream yet.</p>
               </>
             ) : (
               <>
                 <span className="kicker">Subscribe</span>
-                <h2>{activePersona.name}</h2>
-                <p className="subtext">{activePersona.domain} · {activePersona.evidence}</p>
+                <h2>{activeStream.name}</h2>
+                <p className="subtext">{activeStream.domain} · {activeStream.evidence}</p>
                 <div className="chip-row">
-                  {activePersona.tiers.map((tier) => (
+                  {activeStream.tiers.map((tier) => (
                     <button
                       key={tier.tierId}
                       className={`chip ${tier.tierId === activeTier.tierId ? "chip--active" : ""}`}
@@ -752,15 +752,15 @@ export default function FeedClient({ searchQuery }: FeedClientProps) {
                   ))}
                 </div>
                 <SubscribeForm
-                  personaId={activePersona.id}
+                  streamId={activeStream.id}
                   tierId={activeTier.tierId}
                   pricingType={activeTier.pricingType}
                   evidenceLevel={activeTier.evidenceLevel}
                   price={activeTier.price}
                   quota={activeTier.quota}
-                  personaOnchainAddress={activePersona.onchainAddress}
-                  personaAuthority={activePersona.authority}
-                  personaDao={activePersona.dao}
+                  streamOnchainAddress={activeStream.onchainAddress}
+                  streamAuthority={activeStream.authority}
+                  streamDao={activeStream.dao}
                 />
               </>
             )}

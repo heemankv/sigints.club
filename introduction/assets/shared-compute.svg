@@ -20,6 +20,6 @@
   <path d="M400 120 L320 170" stroke="url(#scB)" stroke-width="3"/>
   <path d="M160 300 L240 250" stroke="url(#scB)" stroke-width="3"/>
   <path d="M400 300 L320 250" stroke="url(#scB)" stroke-width="3"/>
-  <text x="280" y="216" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="16" fill="#FFFFFF">One Persona</text>
+  <text x="280" y="216" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="16" fill="#FFFFFF">One Stream</text>
   <text x="280" y="236" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="12" fill="#FFFFFF" opacity="0.9">Shared compute</text>
 </svg>

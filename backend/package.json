@@ -1,5 +1,5 @@
 {
-  "name": "persona-backend",
+  "name": "stream-backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "seed:demo": "tsx src/seed/demo.ts",
     "provider": "tsx src/agents/provider.ts",
     "listener": "tsx src/agents/listener.ts",
-    "personas:create": "tsx src/agents/create-personas.ts",
+    "streams:create": "tsx src/agents/create-streams.ts",
     "tapestry:profile": "tsx src/agents/tapestry-profile.ts",
     "tapestry:content": "tsx src/agents/tapestry-content.ts",
     "tapestry:follow": "tsx src/agents/tapestry-follow.ts",

@@ -33,6 +33,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Suspense fallback={<div className="nav-search nav-search--placeholder" />}>
                   <SearchBar />
                 </Suspense>
+                <a
+                  href="https://www.usetapestry.dev/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tapestry-badge"
+                >
+                  Powered by Tapestry
+                </a>
                 <div className="wallet-shell">
                   <WalletConnect />
                 </div>

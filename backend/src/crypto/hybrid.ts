@@ -54,7 +54,7 @@ function deriveSharedKey(ephemeralPrivateDer: Buffer, subscriberPubDer: Buffer):
   const ephPrivate = createPrivateKeyFromDer(ephemeralPrivateDer);
   const subPublic = createPublicKeyFromDer(subscriberPubDer);
   const shared = diffieHellman({ privateKey: ephPrivate, publicKey: subPublic });
-  return hkdfSha256(shared, Buffer.from("persona-fun-keywrap"), 32);
+  return hkdfSha256(shared, Buffer.from("sigints-keywrap"), 32);
 }
 
 function createPrivateKeyFromDer(der: Buffer) {
@@ -103,7 +103,7 @@ export function unwrapKeyForSubscriber(
   const priv = createPrivateKey({ key: subscriberPrivateDer, format: "der", type: "pkcs8" });
   const epk = createPublicKey({ key: Buffer.from(wrapped.epk, "base64"), format: "der", type: "spki" });
   const shared = diffieHellman({ privateKey: priv, publicKey: epk });
-  const sharedKey = hkdfSha256(shared, Buffer.from("persona-fun-keywrap"), 32);
+  const sharedKey = hkdfSha256(shared, Buffer.from("sigints-keywrap"), 32);
   const iv = Buffer.from(wrapped.iv, "base64");
   const tag = Buffer.from(wrapped.tag, "base64");
   const encKey = Buffer.from(wrapped.encKey, "base64");

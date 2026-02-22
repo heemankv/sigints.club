@@ -14,7 +14,7 @@ async function main() {
   const s2 = generateX25519Keypair();
 
   await signalService.publishSignal(
-    "persona-eth",
+    "stream-eth",
     "tier-trust",
     Buffer.from("ETH best price at Venue X", "utf8"),
     [
@@ -23,7 +23,7 @@ async function main() {
     ]
   );
 
-  const signals = await metadata.listSignals("persona-eth");
+  const signals = await metadata.listSignals("stream-eth");
   const latest = signals[signals.length - 1];
 
   const decrypted1 = await listenerService.decryptLatestSignal(latest, {

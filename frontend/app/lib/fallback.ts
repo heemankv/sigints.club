@@ -1,4 +1,4 @@
-export type PersonaSummary = {
+export type StreamSummary = {
   id: string;
   name: string;
   domain: string;
@@ -11,13 +11,13 @@ export type PersonaSummary = {
 
 export type TierOption = {
   tierId: string;
-  pricingType: "subscription_limited" | "subscription_unlimited" | "per_signal";
+  pricingType: "subscription_unlimited";
   price: string;
   quota?: string;
   evidenceLevel: "trust" | "verifier";
 };
 
-export type PersonaDetail = PersonaSummary & {
+export type StreamDetail = StreamSummary & {
   description: string;
   tiers: TierOption[];
 };
@@ -30,9 +30,9 @@ export type RequestSummary = {
   evidence: string;
 };
 
-export const fallbackPersonas: PersonaSummary[] = [
+export const fallbackStreams: StreamSummary[] = [
   {
-    id: "persona-eth",
+    id: "stream-eth",
     name: "ETH-Price Scout",
     domain: "pricing",
     accuracy: "98.2%",
@@ -41,7 +41,7 @@ export const fallbackPersonas: PersonaSummary[] = [
     evidence: "Verifier supported",
   },
   {
-    id: "persona-amazon",
+    id: "stream-amazon",
     name: "Amazon-Deal Scout",
     domain: "e-commerce",
     accuracy: "94.1%",
@@ -50,7 +50,7 @@ export const fallbackPersonas: PersonaSummary[] = [
     evidence: "Verifier supported",
   },
   {
-    id: "persona-anime",
+    id: "stream-anime",
     name: "Anime-Release Scout",
     domain: "media",
     accuracy: "99.1%",
@@ -61,12 +61,11 @@ export const fallbackPersonas: PersonaSummary[] = [
 ];
 
 export const fallbackTiers: Record<string, TierOption[]> = {
-  "persona-eth": [
+  "stream-eth": [
     {
       tierId: "tier-eth-trust",
-      pricingType: "subscription_limited",
+      pricingType: "subscription_unlimited",
       price: "0.05 SOL/mo",
-      quota: "200 signals",
       evidenceLevel: "trust",
     },
     {
@@ -75,29 +74,22 @@ export const fallbackTiers: Record<string, TierOption[]> = {
       price: "0.15 SOL/mo",
       evidenceLevel: "verifier",
     },
-    {
-      tierId: "tier-eth-per",
-      pricingType: "per_signal",
-      price: "0.002 SOL/signal",
-      evidenceLevel: "trust",
-    },
   ],
-  "persona-amazon": [
+  "stream-amazon": [
     {
       tierId: "tier-amz-trust",
-      pricingType: "subscription_limited",
+      pricingType: "subscription_unlimited",
       price: "0.08 SOL/mo",
-      quota: "50 signals",
       evidenceLevel: "trust",
     },
     {
       tierId: "tier-amz-verifier",
-      pricingType: "per_signal",
-      price: "0.01 SOL/signal",
+      pricingType: "subscription_unlimited",
+      price: "0.14 SOL/mo",
       evidenceLevel: "verifier",
     },
   ],
-  "persona-anime": [
+  "stream-anime": [
     {
       tierId: "tier-anime-trust",
       pricingType: "subscription_unlimited",
@@ -106,17 +98,17 @@ export const fallbackTiers: Record<string, TierOption[]> = {
     },
     {
       tierId: "tier-anime-verifier",
-      pricingType: "per_signal",
-      price: "0.001 SOL/signal",
+      pricingType: "subscription_unlimited",
+      price: "0.05 SOL/mo",
       evidenceLevel: "verifier",
     },
   ],
 };
 
-export const fallbackPersonaDetails: PersonaDetail[] = fallbackPersonas.map((persona) => ({
-  ...persona,
-  description: `Signals for ${persona.name} with maker-defined tiers.`,
-  tiers: fallbackTiers[persona.id] ?? [],
+export const fallbackStreamDetails: StreamDetail[] = fallbackStreams.map((stream) => ({
+  ...stream,
+  description: `Signals for ${stream.name} with maker-defined tiers.`,
+  tiers: fallbackTiers[stream.id] ?? [],
 }));
 
 export const fallbackRequests: RequestSummary[] = [
@@ -136,8 +128,8 @@ export const fallbackRequests: RequestSummary[] = [
   },
 ];
 
-export function getFallbackPersona(id: string): PersonaDetail | null {
-  const base = fallbackPersonas.find((p) => p.id === id);
+export function getFallbackStream(id: string): StreamDetail | null {
+  const base = fallbackStreams.find((p) => p.id === id);
   if (!base) return null;
   return {
     ...base,

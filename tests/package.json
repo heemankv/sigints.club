@@ -1,5 +1,5 @@
 {
-  "name": "persona-tests",
+  "name": "stream-tests",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
   "devDependencies": {
     "@coral-xyz/anchor": "^0.32.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@personafun/sdk": "file:../sdk",
+    "@sigints/sdk": "file:../sdk",
     "@solana/spl-token": "^0.4.12",
     "@solana/web3.js": "^1.98.0",
     "@types/node": "^20.14.12",

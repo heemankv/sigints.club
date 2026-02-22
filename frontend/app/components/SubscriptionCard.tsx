@@ -6,7 +6,7 @@ import {
   buildSubscribeInstruction,
   defaultExpiryMs,
   resolveEvidenceLevel,
-  resolvePersonaPubkey,
+  resolveStreamPubkey,
   resolvePricingType,
   resolveProgramId,
 } from "../lib/solana";
@@ -15,8 +15,8 @@ import { getCardArtUrl } from "../lib/cardArt";
 import { parseSolLamports } from "../lib/pricing";
 
 type SubscriptionCardProps = {
-  personaId: string;
-  personaName: string;
+  streamId: string;
+  streamName: string;
   domain: string;
   accuracy: string;
   latency: string;
@@ -26,7 +26,7 @@ type SubscriptionCardProps = {
   price: string;
   quota?: string;
   evidenceLevel: string;
-  personaOnchainAddress?: string;
+  streamOnchainAddress?: string;
   maker?: string;
   treasury?: string;
 };
@@ -43,8 +43,8 @@ function parseQuota(input?: string): number | undefined {
 }
 
 export default function SubscriptionCard({
-  personaId,
-  personaName,
+  streamId,
+  streamName,
   domain,
   accuracy,
   latency,
@@ -54,7 +54,7 @@ export default function SubscriptionCard({
   price,
   quota,
   evidenceLevel,
-  personaOnchainAddress,
+  streamOnchainAddress,
   maker,
   treasury,
 }: SubscriptionCardProps) {
@@ -76,10 +76,10 @@ export default function SubscriptionCard({
         throw new Error("Maker or treasury address missing.");
       }
       const programId = resolveProgramId();
-      const personaPubkey = resolvePersonaPubkey(personaOnchainAddress);
+      const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
       const ix = await buildSubscribeInstruction({
         programId,
-        persona: personaPubkey,
+        stream: streamPubkey,
         subscriber: publicKey,
         tierId,
         pricingType: resolvePricingType(pricingType),
@@ -104,24 +104,27 @@ export default function SubscriptionCard({
     }
   }
 
-  const artUrl = getCardArtUrl(`${personaId}:${tierId}`);
+  const artUrl = getCardArtUrl(`${streamId}:${tierId}`);
   const tierLabel = formatTierLabel(tierId);
-  const disabled = !personaOnchainAddress || !maker || !treasury;
+  const disabled = !streamOnchainAddress || !maker || !treasury;
+  const pricingLabel = pricingType === "subscription_unlimited"
+    ? "monthly subscription"
+    : pricingType.replace(/_/g, " ");
 
   return (
     <div className="data-card">
       <div className="data-card__media">
-        <img src={artUrl} alt={`${personaName} art`} />
+        <img src={artUrl} alt={`${streamName} art`} />
         <div className="data-card__overlay">
           <span className="badge">{evidenceLevel}</span>
-          <span className="badge accent">{pricingType.replace(/_/g, " ")}</span>
+          <span className="badge accent">{pricingLabel}</span>
         </div>
         <div className="data-card__tier">{tierLabel}</div>
       </div>
       <div className="data-card__body">
         <div className="data-card__title">
           <div>
-            <h3>{personaName}</h3>
+            <h3>{streamName}</h3>
             <p className="subtext">{domain} • {accuracy} • {latency}</p>
           </div>
           <div className="data-card__price">{price}</div>
@@ -136,10 +139,10 @@ export default function SubscriptionCard({
           >
             {loading ? "Minting…" : "Buy on-chain"}
           </button>
-          <a className="button ghost" href={`/persona/${personaId}`}>View Persona</a>
+          <a className="button ghost" href={`/stream/${streamId}`}>View Stream</a>
         </div>
         {disabled && (
-          <p className="subtext">On-chain persona or payout accounts not configured.</p>
+          <p className="subtext">On-chain stream or payout accounts not configured.</p>
         )}
         {status && <p className="subtext">{status}</p>}
         {tx && (

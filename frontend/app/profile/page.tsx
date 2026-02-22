@@ -6,8 +6,8 @@ import { fetchJson, postJson } from "../lib/api";
 import { decodeSubscriptionAccount, resolveProgramId, sha256Bytes } from "../lib/solana";
 import NetworkStatusCard from "../components/NetworkStatusCard";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
-import RegisterPersonaForm from "../components/RegisterPersonaForm";
-import KeyManager from "../persona/[id]/KeyManager";
+import RegisterStreamForm from "../components/RegisterStreamForm";
+import KeyManager from "../stream/[id]/KeyManager";
 
 type UserProfile = {
   wallet: string;
@@ -27,7 +27,7 @@ type BotProfile = {
 type SubscriptionRecord = {
   subscription: string;
   subscriber: string;
-  persona: string;
+  stream: string;
   tierIdHex: string;
   pricingType: number;
   evidenceLevel: number;
@@ -45,7 +45,7 @@ type TierOption = {
   evidenceLevel: string;
 };
 
-type PersonaDetail = {
+type StreamDetail = {
   id: string;
   name: string;
   onchainAddress?: string;
@@ -53,7 +53,7 @@ type PersonaDetail = {
 };
 
 type TierLookupEntry = {
-  persona: PersonaDetail;
+  stream: StreamDetail;
   tier: TierOption;
 };
 
@@ -65,10 +65,8 @@ function bytesToHex(bytes: Uint8Array): string {
 
 function pricingTypeLabel(value?: number): string | undefined {
   if (value === undefined) return undefined;
-  if (value === 0) return "subscription_limited";
   if (value === 1) return "subscription_unlimited";
-  if (value === 2) return "per_signal";
-  return undefined;
+  return "legacy";
 }
 
 function evidenceLabel(value?: number): string | undefined {
@@ -86,7 +84,7 @@ export default function ProfilePage() {
   const [listenerBots, setListenerBots] = useState<BotProfile[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
   const [status, setStatus] = useState<string | null>(null);
-  const [personaLookup, setPersonaLookup] = useState<Record<string, PersonaDetail>>({});
+  const [streamLookup, setStreamLookup] = useState<Record<string, StreamDetail>>({});
   const [tierLookup, setTierLookup] = useState<Record<string, TierLookupEntry>>({});
 
   const [botName, setBotName] = useState("");
@@ -142,27 +140,27 @@ export default function ProfilePage() {
       }
 
       try {
-        const data = await fetchJson<{ personas: PersonaDetail[] }>("/personas?includeTiers=true");
-        const personaMap: Record<string, PersonaDetail> = {};
-        data.personas.forEach((persona) => {
-          if (persona.onchainAddress) {
-            personaMap[persona.onchainAddress] = persona;
+        const data = await fetchJson<{ streams: StreamDetail[] }>("/streams?includeTiers=true");
+        const streamMap: Record<string, StreamDetail> = {};
+        data.streams.forEach((stream) => {
+          if (stream.onchainAddress) {
+            streamMap[stream.onchainAddress] = stream;
           }
         });
-        setPersonaLookup(personaMap);
+        setStreamLookup(streamMap);
 
         const entries = await Promise.all(
-          data.personas.flatMap((persona) =>
-            persona.tiers.map(async (tier) => {
+          data.streams.flatMap((stream) =>
+            stream.tiers.map(async (tier) => {
               const hash = await sha256Bytes(tier.tierId);
               const hex = bytesToHex(hash);
-              return [hex, { persona, tier }] as const;
+              return [hex, { stream, tier }] as const;
             })
           )
         );
         setTierLookup(Object.fromEntries(entries));
       } catch {
-        setPersonaLookup({});
+        setStreamLookup({});
         setTierLookup({});
       }
     }
@@ -235,10 +233,10 @@ export default function ProfilePage() {
       <div className="section">
         <div className="section-head">
           <span className="kicker">On-chain</span>
-          <h2>Register Persona</h2>
-          <p>Create a persona entry on-chain and publish it to the Explore marketplace.</p>
+          <h2>Register Stream</h2>
+          <p>Create a stream entry on-chain and publish it to the Explore marketplace.</p>
         </div>
-        <RegisterPersonaForm />
+        <RegisterStreamForm />
       </div>
       <div className="split">
         <div className="module accent-teal">
@@ -329,15 +327,15 @@ export default function ProfilePage() {
         <div className="data-grid">
           {subscriptions.map((sub) => {
             const tierEntry = tierLookup[sub.tierIdHex];
-            const persona = tierEntry?.persona ?? personaLookup[sub.persona];
+            const stream = tierEntry?.stream ?? streamLookup[sub.stream];
             const tier = tierEntry?.tier;
-            const personaName = persona?.name ?? `${sub.persona.slice(0, 8)}…`;
+            const streamName = stream?.name ?? `${sub.stream.slice(0, 8)}…`;
             const tierLabel = tier?.tierId ?? `tier-${sub.tierIdHex.slice(0, 6)}`;
             return (
               <OwnedSubscriptionCard
                 key={sub.subscription}
-                personaName={personaName}
-                personaId={persona?.id ?? sub.persona}
+                streamName={streamName}
+                streamId={stream?.id ?? sub.stream}
                 tierLabel={tierLabel}
                 price={tier?.price}
                 evidenceLevel={tier?.evidenceLevel ?? evidenceLabel(sub.evidenceLevel)}

@@ -3,39 +3,39 @@ use anchor_lang::prelude::*;
 declare_id!("5mDTkhRWcqVi4YNBqLudwMTC4imfHjuCtRu82mmDpSRi");
 
 #[program]
-pub mod persona_registry {
+pub mod stream_registry {
     use super::*;
 
-    pub fn create_persona(
-        ctx: Context<CreatePersona>,
-        persona_id: [u8; 32],
+    pub fn create_stream(
+        ctx: Context<CreateStream>,
+        stream_id: [u8; 32],
         tiers_hash: [u8; 32],
         dao: Pubkey,
     ) -> Result<()> {
-        let persona = &mut ctx.accounts.persona;
-        persona.persona_id = persona_id;
-        persona.authority = ctx.accounts.authority.key();
-        persona.dao = dao;
-        persona.tiers_hash = tiers_hash;
-        persona.status = PersonaStatus::Active as u8;
-        persona.bump = ctx.bumps.persona;
+        let stream = &mut ctx.accounts.stream;
+        stream.stream_id = stream_id;
+        stream.authority = ctx.accounts.authority.key();
+        stream.dao = dao;
+        stream.tiers_hash = tiers_hash;
+        stream.status = StreamStatus::Active as u8;
+        stream.bump = ctx.bumps.stream;
         Ok(())
     }
 
-    pub fn update_persona(
-        ctx: Context<UpdatePersona>,
+    pub fn update_stream(
+        ctx: Context<UpdateStream>,
         tiers_hash: [u8; 32],
         status: u8,
     ) -> Result<()> {
-        let persona = &mut ctx.accounts.persona;
-        persona.tiers_hash = tiers_hash;
-        persona.status = status;
+        let stream = &mut ctx.accounts.stream;
+        stream.tiers_hash = tiers_hash;
+        stream.status = status;
         Ok(())
     }
 
-    pub fn set_tiers(ctx: Context<UpdatePersona>, tiers_hash: [u8; 32]) -> Result<()> {
-        let persona = &mut ctx.accounts.persona;
-        persona.tiers_hash = tiers_hash;
+    pub fn set_tiers(ctx: Context<UpdateStream>, tiers_hash: [u8; 32]) -> Result<()> {
+        let stream = &mut ctx.accounts.stream;
+        stream.tiers_hash = tiers_hash;
         Ok(())
     }
 
@@ -48,8 +48,12 @@ pub mod persona_registry {
         quota: u32,
         status: u8,
     ) -> Result<()> {
+        require!(
+            pricing_type == PricingType::SubscriptionUnlimited as u8,
+            ErrorCode::UnsupportedPricingType
+        );
         let tier = &mut ctx.accounts.tier;
-        tier.persona = ctx.accounts.persona.key();
+        tier.stream = ctx.accounts.stream.key();
         tier.tier_id = tier_id;
         tier.pricing_type = pricing_type;
         tier.evidence_level = evidence_level;
@@ -62,25 +66,25 @@ pub mod persona_registry {
 }
 
 #[derive(Accounts)]
-#[instruction(persona_id: [u8; 32])]
-pub struct CreatePersona<'info> {
+#[instruction(stream_id: [u8; 32])]
+pub struct CreateStream<'info> {
     #[account(
         init,
         payer = authority,
-        space = PersonaConfig::SPACE,
-        seeds = [b"persona", persona_id.as_ref()],
+        space = StreamConfig::SPACE,
+        seeds = [b"stream", stream_id.as_ref()],
         bump
     )]
-    pub persona: Account<'info, PersonaConfig>,
+    pub stream: Account<'info, StreamConfig>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-pub struct UpdatePersona<'info> {
+pub struct UpdateStream<'info> {
     #[account(mut, has_one = authority)]
-    pub persona: Account<'info, PersonaConfig>,
+    pub stream: Account<'info, StreamConfig>,
     pub authority: Signer<'info>,
 }
 
@@ -88,12 +92,12 @@ pub struct UpdatePersona<'info> {
 #[instruction(tier_id: [u8; 32])]
 pub struct UpsertTier<'info> {
     #[account(mut, has_one = authority)]
-    pub persona: Account<'info, PersonaConfig>,
+    pub stream: Account<'info, StreamConfig>,
     #[account(
         init_if_needed,
         payer = authority,
         space = TierConfig::SPACE,
-        seeds = [b"tier", persona.key().as_ref(), tier_id.as_ref()],
+        seeds = [b"tier", stream.key().as_ref(), tier_id.as_ref()],
         bump
     )]
     pub tier: Account<'info, TierConfig>,
@@ -103,8 +107,8 @@ pub struct UpsertTier<'info> {
 }
 
 #[account]
-pub struct PersonaConfig {
-    pub persona_id: [u8; 32],
+pub struct StreamConfig {
+    pub stream_id: [u8; 32],
     pub authority: Pubkey,
     pub dao: Pubkey,
     pub tiers_hash: [u8; 32],
@@ -112,13 +116,13 @@ pub struct PersonaConfig {
     pub bump: u8,
 }
 
-impl PersonaConfig {
+impl StreamConfig {
     pub const SPACE: usize = 8 + 32 + 32 + 32 + 32 + 1 + 1;
 }
 
 #[account]
 pub struct TierConfig {
-    pub persona: Pubkey,
+    pub stream: Pubkey,
     pub tier_id: [u8; 32],
     pub pricing_type: u8,
     pub evidence_level: u8,
@@ -132,7 +136,7 @@ impl TierConfig {
     pub const SPACE: usize = 8 + 32 + 32 + 1 + 1 + 8 + 4 + 1 + 1;
 }
 
-pub enum PersonaStatus {
+pub enum StreamStatus {
     Inactive = 0,
     Active = 1,
     Paused = 2,
@@ -142,4 +146,14 @@ pub enum TierStatus {
     Inactive = 0,
     Active = 1,
     Paused = 2,
+}
+
+pub enum PricingType {
+    SubscriptionUnlimited = 1,
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Only monthly subscriptions are supported for now")]
+    UnsupportedPricingType,
 }

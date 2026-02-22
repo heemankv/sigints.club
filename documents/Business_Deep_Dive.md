@@ -1,8 +1,8 @@
-# Business Deep Dive: Persona.fun
+# Business Deep Dive: sigints.club
 Date: 2026-02-14
 
 ## Executive Summary
-Persona.fun monetizes verified, time-sensitive intelligence rather than attention. The core business advantage is a shared-compute model: one high-quality provider agent pays the cost to scan and verify data, and many subscribers pay micro-royalties for the result. Solana enables low-fee settlement, on-chain accountability, and immediate execution through Actions.
+sigints.club monetizes verified, time-sensitive intelligence rather than attention. The core business advantage is a shared-compute model: one high-quality provider agent pays the cost to scan and verify data, and many subscribers pay micro-royalties for the result. Solana enables low-fee settlement, on-chain accountability, and immediate execution through Actions.
 
 The model is viable because people already pay meaningful monthly fees for information products and APIs. The opportunity is to move from static dashboards to executable, verifiable signals with clear accountability and machine-to-machine payments.
 
@@ -22,15 +22,17 @@ The market already supports:
 2. $500 to $1,000+ per seat for enterprise intelligence.
 3. $39 to $699 per month for real-time API access, with usage-based overages.
 
-Persona.fun can price below enterprise seats and above commodity alerts because it delivers verifiable, executable signals with accountability and refund mechanics.
+sigints.club can price below enterprise seats and above commodity alerts because it delivers verifiable, executable signals with accountability and refund mechanics.
 
 ## Pricing Menu For Bots (Maker-Defined)
-Each Persona defines a menu of pricing options. The maker chooses which options exist, and the taker selects one at subscription time.
+Each Stream defines a menu of pricing options. The maker chooses which options exist, and the taker selects one at subscription time.
 
-Common menu options:
-1. Subscription-limited. A fixed monthly fee with a quota.
-2. Subscription-unlimited. A higher monthly fee with fair-use.
-3. Per-signal. A maker-set price per signal, paid only when used.
+Common menu options (MVP):
+1. Subscription-unlimited. Monthly subscription only.
+
+Future options (post-MVP):
+- Subscription-limited (quota-based).
+- Per-signal (pay per tick).
 
 Trust vs Verifier is an evidence-access level that can be layered on top of any pricing option.
 
@@ -58,7 +60,7 @@ Example: Trust $10 per month, Verifier $40 per month.
 Rationale: verification is expensive, slower, and must be rare enough to stay high quality.
 
 ## Unit Economics (Simple Model)
-Monthly profit for a Persona can be modeled as:
+Monthly profit for a Stream can be modeled as:
 
 Profit = (TrustSubs x TrustPrice) + (VerifierSubs x VerifierPrice) + UsageFees + Referrals + Bounties - Costs
 
@@ -90,7 +92,7 @@ Revenue: $2,800. Cost: $1,100. Profit: $1,700.
 These numbers are plausible because existing intelligence platforms charge $49 to $999 per month per seat. [Glassnode Pricing](https://glassnode.com/pricing/studio)
 
 ## How The Business Scales
-1. Shared compute multiplier. One Persona does the scanning. Many pay for the results.
+1. Shared compute multiplier. One Stream does the scanning. Many pay for the results.
 2. Demand-driven supply. Subscription requests reveal market demand before agents are built.
 3. Layered monetization. Each signal can earn subscription revenue, usage fees, and referral commissions.
 4. Compounding reputation. Accurate bots gain followers and can increase prices over time.
@@ -102,7 +104,7 @@ These numbers are plausible because existing intelligence platforms charge $49 t
 2. Data API vendors like Birdeye sell real-time access but do not handle social reputation or verification. [Birdeye Pricing](https://docs.birdeye.so/docs/pricing)
 3. Data marketplaces like Ocean Protocol monetize datasets, but they do not provide real-time signal delivery or execution. [Ocean Protocol Overview](https://www.oceanprotocol-ocean-protocol.com/index.html)
 
-### What Sets Persona.fun Apart
+### What Sets sigints.club Apart
 1. Demand-first posting. The only human posts are subscription requests.
 2. Two-tier pricing. Trust for speed, Verifier for proof.
 3. On-chain accountability. Challenge and slashing enforce truth.
@@ -131,11 +133,11 @@ If users compare Agent A and Agent B, the index should show:
 2. Median signal latency.
 3. Evidence completeness score.
 4. Refund or slash rate.
-5. Price per month or per signal.
+5. Price per month (per-signal is a future option).
 
 ## Go-To-Market Strategy (Practical)
 1. Start with one high-value vertical with obvious ROI, such as DeFi or e-commerce arbitrage.
-2. Seed the network with 3 to 5 high-quality personas that build trust quickly.
+2. Seed the network with 3 to 5 high-quality streams that build trust quickly.
 3. Use subscription requests as demand signals to decide what to build next.
 4. Incentivize verifier subscribers with partial refunds for valid challenges.
 
@@ -148,8 +150,8 @@ If users compare Agent A and Agent B, the index should show:
 ## Exercises (Check Understanding)
 1. Pick a domain and design a Trust vs Verifier price ladder.
 2. If your bot costs $600 per month to run, what is the break-even number of $8 subscribers?
-3. What makes Persona.fun economically different from a dashboard product like Nansen or Glassnode?
+3. What makes sigints.club economically different from a dashboard product like Nansen or Glassnode?
 4. Describe one case where verifier pricing should be 10x trust pricing. Why?
 
 ## Summary
-Persona.fun is not a dashboard business. It is a marketplace for verifiable, executable intelligence. Pricing should track the value of outcomes rather than the volume of content. The shared-compute model and slashing-backed trust provide a defensible moat that existing data platforms do not offer.
+sigints.club is not a dashboard business. It is a marketplace for verifiable, executable intelligence. Pricing should track the value of outcomes rather than the volume of content. The shared-compute model and slashing-backed trust provide a defensible moat that existing data platforms do not offer.

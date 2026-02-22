@@ -1,14 +1,14 @@
-# Tapestry Protocol Understanding (For Persona.fun)
+# Tapestry Protocol Understanding (For sigints.club)
 Date: 2026-02-14
 
 ## Purpose of This Doc
-This document explains what Tapestry provides, how it works, and how to use it as the social layer for Persona.fun. It is written as a practical, hackathon-focused skill note with examples and exercises.
+This document explains what Tapestry provides, how it works, and how to use it as the social layer for sigints.club. It is written as a practical, hackathon-focused skill note with examples and exercises.
 
 ## What Tapestry Is (In One Line)
 Tapestry is a social graph protocol on Solana that lets you build profiles, follows, content, likes, and comments with a developer-friendly API, while keeping social data verifiable on-chain. citeturn6view6turn6view7
 
-## Why It Matters For Persona.fun
-Persona.fun needs a social layer that is:
+## Why It Matters For sigints.club
+sigints.club needs a social layer that is:
 1. Portable and composable across apps.
 2. Cheap and fast for lots of social interactions.
 3. Verifiable so reputation and interactions cannot be silently tampered with.
@@ -50,11 +50,11 @@ Key setup steps:
 2. Set a namespace to separate your app’s profiles, follows, and content from other apps.
 3. Initialize the client with the base URL and API key. citeturn2view0
 
-## How Persona.fun Uses Tapestry
-This section maps Persona.fun features to Tapestry capabilities.
+## How sigints.club Uses Tapestry
+This section maps sigints.club features to Tapestry capabilities.
 
-1. Persona identities
-- Each Persona is a Tapestry profile (namespaced for your app), tied to a wallet.
+1. Stream identities
+- Each Stream is a Tapestry profile (namespaced for your app), tied to a wallet.
 - Managers or a multisig controls the wallet used for profile creation. citeturn4view3
 
 2. Subscription requests (only human posts)
@@ -64,11 +64,11 @@ This section maps Persona.fun features to Tapestry capabilities.
 Tapestry supports content creation and custom properties in content payloads. citeturn6view2turn5view3
 
 3. Provider discovery
-- Discovery UI can list Tapestry profiles (Personas), using follow counts, likes, and comments as ranking signals.
+- Discovery UI can list Tapestry profiles (Streams), using follow counts, likes, and comments as ranking signals.
 - For onboarding, use the “find all profiles” flow to import existing social identity across apps. citeturn8view0turn6view1turn6view3turn6view4
 
 4. Reputation and competition
-- Likes and comments provide a lightweight on-chain reputation trail for Personas.
+- Likes and comments provide a lightweight on-chain reputation trail for Streams.
 - Follower relationships show adoption and allow feed-style curation. citeturn6view1turn6view3turn6view4
 
 5. Social graph + financial graph
@@ -77,14 +77,14 @@ Tapestry supports content creation and custom properties in content payloads. �
 - This separation keeps the social layer light and fast while the financial layer stays formal and auditable.
 
 ## Concrete Hackathon Examples
-Example 1: Persona profile creation
+Example 1: Stream profile creation
 - Create a Tapestry profile with walletAddress, username, and namespace.
 - Use FAST_UNCONFIRMED for faster UX during demos.
-- The Persona profile is now discoverable and followable. citeturn4view3turn2view0
+- The Stream profile is now discoverable and followable. citeturn4view3turn2view0
 
 Example 2: Request post for ETH pricing
 - A user creates a content post tagged as a “request.”
-- Providers read the request and decide whether to mint a Persona to serve it.
+- Providers read the request and decide whether to mint a Stream to serve it.
 - Others can like or comment to signal demand or specify evidence requirements. citeturn6view2turn6view3turn6view4
 
 Example 3: Provider competition
@@ -93,7 +93,7 @@ Example 3: Provider competition
 - Discovery ranks providers by follower growth and verified engagement. citeturn6view1turn6view3turn6view4
 
 Example 4: Cross-app onboarding
-- When a user connects a wallet, use the profiles search with external profiles enabled to prefill their Persona.fun identity.
+- When a user connects a wallet, use the profiles search with external profiles enabled to prefill their sigints.club identity.
 - This reduces onboarding friction and imports existing identity context. citeturn8view0
 
 ## Limits And Design Choices (Important)
@@ -105,7 +105,7 @@ Example 4: Cross-app onboarding
 - Use slower, confirmed writes for reputation-critical actions.
 - Use fast writes for high-frequency social interactions. citeturn6view8
 
-## Suggested Data Model For Persona.fun On Tapestry
+## Suggested Data Model For sigints.club On Tapestry
 Use Tapestry content posts with customProperties. Example:
 - contentType: "text"
 - content: "Request: ETH best price every minute. Will pay 0.02 SOL per week."
@@ -119,7 +119,7 @@ Use Tapestry content posts with customProperties. Example:
 Tapestry content supports custom properties for flexible metadata. citeturn5view3
 
 ## Quick Checklist (Hackathon Build)
-1. Create Persona profiles in your namespace. citeturn4view3
+1. Create Stream profiles in your namespace. citeturn4view3
 2. Implement request posts via content creation. citeturn6view2
 3. Use follows for subscription-like relationships. citeturn6view0
 4. Use likes/comments for lightweight reputation. citeturn6view3turn6view4
@@ -127,7 +127,7 @@ Tapestry content supports custom properties for flexible metadata. citetur
 
 ## Exercises (Check Understanding)
 1. In your own words, why does Tapestry store social data off-chain with an on-chain Merkle root? citeturn6view7
-2. Which execution method would you use for a Persona profile creation and why? citeturn6view8turn4view3
+2. Which execution method would you use for a Stream profile creation and why? citeturn6view8turn4view3
 3. Design a “subscription request” post for an anime release tracker and list the customProperties you would include.
 4. What would be a good ranking formula for provider discovery using follows, likes, and comment quality? citeturn6view1turn6view3turn6view4
 5. If a user already has a profile in another Tapestry app, how would you import it? citeturn8view0

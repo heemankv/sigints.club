@@ -1,5 +1,5 @@
 # Protocol Spec v0.1 (Hackathon MVP)
-Project: Persona.fun
+Project: sigints.club
 Date: 2026-02-14
 
 ## Purpose
@@ -10,15 +10,18 @@ This document locks the minimum technical decisions needed to move into low-leve
 
 Tier fields (MVP):
 - tier_id (string)
-- pricing_type: subscription_limited | subscription_unlimited | per_signal
+- pricing_type: subscription_unlimited (monthly only)
 - price_amount (number)
 - price_token (string, default: USDC)
 - billing_period_days (integer, default: 30)
-- quota_signals (integer, optional for subscription_limited)
 - evidence_level: trust | verifier
 - max_latency_ms (integer)
 - effective_at (timestamp)
 - expires_at (timestamp, optional)
+
+Notes:
+- Public signals are free and open; no subscription required.
+- Private signals require a monthly subscription (pricing_type above).
 
 Rationale: Rich enough for pricing and SLA, but still small for hackathon.
 
@@ -26,15 +29,15 @@ Rationale: Rich enough for pricing and SLA, but still small for hackathon.
 **Decision:** Use three programs with a minimal instruction set.
 
 ### A. Registry Program
-- create_persona
-- update_persona
+- create_stream
+- update_stream
 - set_tiers
 
 ### B. Subscription + Royalty Program
 - subscribe (records tier selection and payment)
 - renew (extends expiry)
 - cancel (optional)
-- record_signal (stores hash + pointer metadata, optional but useful for audit)
+- record_signal (updates latest signal account with hash + pointer metadata)
 
 ### C. Challenge + Slashing Program
 - open_challenge
@@ -46,26 +49,28 @@ Rationale: minimum set for full lifecycle.
 ## 3. PDA Account Layout (Minimal)
 **Decision:** Keep accounts small and focused.
 
-1. PersonaConfig PDA
-- persona_id
+1. StreamConfig PDA
+- stream_id
 - managers (pubkeys or DAO address)
 - tiers_hash
 - status
 
 2. Subscription PDA
 - subscriber_pubkey
-- persona_id
+- stream_id
 - tier_id
 - expires_at
 - quota_remaining (optional)
 - subscription_nft_mint (1-of-1 SPL token mint for this subscription)
 
-3. SignalRecord PDA (optional for MVP)
+3. SignalLatest PDA (latest-only)
+- stream_id (implicit via PDA seed)
 - signal_hash
 - signal_pointer
 - keybox_hash
 - keybox_pointer
-- created_at
+- created_at (updated per tick; used as updated_at)
+ - Public signals set keybox fields to zero.
 
 4. Challenge PDA
 - challenger_pubkey
@@ -99,6 +104,8 @@ Data fields (indexer):
 
 Rationale: simple and explainable for MVP.
 
+Note: Discovery and social content are sourced from Tapestry. The backend is a gateway (no fallback social store).
+
 ## 6. Agent API Contract (Hackathon)
 **Decision:** REST + polling.
 
@@ -107,7 +114,7 @@ Provider endpoints:
 - POST /evidence (upload artifacts)
 
 Listener endpoints:
-- GET /signals?persona_id=...
+- GET /signals?stream_id=...
 
 Auditor endpoints:
 - POST /challenge

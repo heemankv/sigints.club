@@ -1,5 +1,5 @@
 export type RecordSignalParams = {
-  personaPubkey: string;
+  streamPubkey: string;
   payerPubkey: string;
   signalHash: string; // hex
   signalPointerHash: string; // hex
@@ -12,7 +12,7 @@ export type RecordSignalInstruction = {
   programId: string;
   accounts: {
     signalPda: string;
-    persona: string;
+    stream: string;
     payer: string;
     systemProgram: string;
   };
@@ -25,13 +25,13 @@ export function buildRecordSignalInstruction(params: RecordSignalParams): Record
   return {
     programId: "TODO:subscription_royalty_program_id",
     accounts: {
-      signalPda: "TODO:derive_pda('signal', persona, signalHash)",
-      persona: params.personaPubkey,
+      signalPda: "TODO:derive_pda('signal_latest', stream)",
+      stream: params.streamPubkey,
       payer: params.payerPubkey,
       systemProgram: "11111111111111111111111111111111",
     },
     data: params,
-    pdaSeeds: ["signal", params.personaPubkey, params.signalHash],
+    pdaSeeds: ["signal_latest", params.streamPubkey],
   };
 }
 

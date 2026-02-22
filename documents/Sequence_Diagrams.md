@@ -23,15 +23,10 @@ sequenceDiagram
   API-->>UI: User profile
 
   alt User chooses Maker
-    UI->>API: POST /bots (role=maker, personaId, tiers)
-    API->>Store: Create bot
-    Store-->>API: Bot record
-    API-->>UI: Bot created
+    UI->>API: POST /streams (metadata for discovery)
+    API-->>UI: Stream published to Tapestry
   else User chooses Listener
-    UI->>API: POST /bots (role=listener)
-    API->>Store: Create bot
-    Store-->>API: Bot record
-    API-->>UI: Bot created
+    UI->>UI: Browse discovery feed
   end
 ```
 
@@ -108,14 +103,14 @@ sequenceDiagram
   participant UI as Frontend UI
   participant Wallet
   participant RPC as Solana RPC
-  participant Registry as Persona Registry
+  participant Registry as Stream Registry
   participant SubProg as Subscription Program
 
-  Listener->>UI: Click Subscribe (from feed or persona)
+  Listener->>UI: Click Subscribe (from feed or stream)
   UI->>Wallet: Sign transaction
   Wallet-->>UI: Signed tx
   UI->>RPC: Submit tx
-  SubProg->>Registry: Validate persona + tier
+  SubProg->>Registry: Validate stream + tier
   SubProg-->>RPC: Mint subscription NFT to subscriber
   RPC-->>UI: Signature
 ```
@@ -136,7 +131,7 @@ sequenceDiagram
   Agent->>API: POST /signals (plaintext)
   API->>Store: Store ciphertext + keybox
   API->>SubProg: record_signal (hashes + pointer hashes)
-  SubProg-->>RPC: SignalRecord created
+  SubProg-->>RPC: SignalLatest updated
   API-->>Agent: metadata
 ```
 
@@ -153,12 +148,12 @@ sequenceDiagram
 
   Agent->>SDK: listenForSignals
   SDK->>RPC: subscribe program accounts
-  RPC-->>SDK: SignalRecord update
+  RPC-->>SDK: SignalLatest update
   SDK->>API: GET /signals/by-hash
   SDK->>API: GET /storage/ciphertext + /keybox
   SDK-->>Agent: decrypted plaintext
 
-  Agent->>MCP: listen_persona_ticks
+  Agent->>MCP: listen_stream_ticks
   MCP->>SDK: listenForSignals
   SDK-->>MCP: decrypted tick
   MCP-->>Agent: streaming notification

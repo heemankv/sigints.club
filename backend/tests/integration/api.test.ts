@@ -15,13 +15,13 @@ beforeAll(async () => {
 describe("backend API", () => {
   it("publishes and retrieves signals", async () => {
     const kp = generateX25519Keypair();
-    const personaId = "persona-api";
+    const streamId = "stream-api";
     const subscriberId = process.env.TEST_ONCHAIN_SUBSCRIBE === "true"
       ? await (async () => {
           const subscribeRes = await request(app)
             .post("/subscribe")
             .send({
-              personaId,
+              streamId,
               encPubKeyDerBase64: kp.publicKey.toString("base64"),
               subscriberWallet: "11111111111111111111111111111111",
             });
@@ -33,7 +33,7 @@ describe("backend API", () => {
 
     const plaintext = Buffer.from("api-signal").toString("base64");
     const publishRes = await request(app).post("/signals").send({
-      personaId,
+      streamId,
       tierId: "tier-trust",
       plaintextBase64: plaintext,
     });
@@ -42,9 +42,11 @@ describe("backend API", () => {
 
     const latestRes = await request(app)
       .get("/signals/latest")
-      .query({ personaId });
+      .query({ streamId });
     expect(latestRes.status).toBe(200);
     const meta = latestRes.body.signal;
+    expect(meta.visibility).toBe("private");
+    expect(meta.keyboxPointer).toBeTruthy();
 
     const byHash = await request(app)
       .get(`/signals/by-hash/${meta.signalHash}`);
@@ -66,5 +68,25 @@ describe("backend API", () => {
     } else {
       expect(keyboxRes.body.keybox).toBeDefined();
     }
+  });
+
+  it("publishes public signals without keybox", async () => {
+    const streamId = "stream-public";
+    const plaintext = Buffer.from("public-signal").toString("base64");
+    const publishRes = await request(app).post("/signals").send({
+      streamId,
+      tierId: "tier-public",
+      plaintextBase64: plaintext,
+      visibility: "public",
+    });
+    expect(publishRes.status).toBe(200);
+    const meta = publishRes.body.metadata;
+    expect(meta.visibility).toBe("public");
+    expect(meta.keyboxPointer).toBeNull();
+    expect(meta.signalPointer.startsWith("backend://public/")).toBe(true);
+    const signalSha = meta.signalPointer.split("/").pop();
+    const publicRes = await request(app).get(`/storage/public/${signalSha}`);
+    expect(publicRes.status).toBe(200);
+    expect(publicRes.body.payload.plaintext).toBe(plaintext);
   });
 });

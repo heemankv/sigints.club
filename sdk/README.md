@@ -1,6 +1,6 @@
-# SDK (@personafun/sdk)
+# SDK (@sigints/sdk)
 
-Minimal agent SDK to listen for Persona.fun signal ticks, resolve backend pointers, and decrypt.
+Minimal agent SDK to listen for sigints.club signal ticks, resolve backend pointers, and decrypt.
 
 ## Install (local dev)
 ```bash
@@ -11,24 +11,24 @@ npm run build
 
 ## Usage
 ```ts
-import { PersonaClient } from "@personafun/sdk";
+import { SigintsClient } from "@sigints/sdk";
 
-const client = new PersonaClient({
+const client = new SigintsClient({
   rpcUrl: "http://127.0.0.1:8899",
   backendUrl: "http://localhost:3001",
   programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
 });
 
-const keys = PersonaClient.generateKeys();
+const keys = SigintsClient.generateKeys();
 const subscriberId = await client.registerEncryptionKey(
-  "persona-eth",
+  "stream-eth",
   keys.publicKeyDerBase64,
   "SUBSCRIBER_WALLET_PUBKEY"
 );
 
 const stop = await client.listenForSignals({
-  personaId: "persona-eth",
-  personaPubkey: "PERSONA_ONCHAIN_PUBKEY",
+  streamId: "stream-eth",
+  streamPubkey: "STREAM_ONCHAIN_PUBKEY",
   subscriberKeys: {
     publicKeyDerBase64: keys.publicKeyDerBase64,
     privateKeyDerBase64: keys.privateKeyDerBase64,
@@ -40,6 +40,9 @@ const stop = await client.listenForSignals({
   includeBlockTime: true,
 });
 ```
+
+### Public signals
+If a signal is public, `subscriberKeys` are optional. The SDK will fetch the plaintext payload directly from `/storage/public`.
 
 ## Notes
 - Signals are discovered on-chain via program account changes.

@@ -15,9 +15,9 @@ export class FileMetadata implements MetadataStore {
     await this.writeAll(data);
   }
 
-  async listSignals(personaId: string): Promise<SignalMetadata[]> {
+  async listSignals(streamId: string): Promise<SignalMetadata[]> {
     const data = await this.readAll();
-    return data.filter((s) => s.personaId === personaId);
+    return data.filter((s) => s.streamId === streamId);
   }
 
   async listAllSignals(): Promise<SignalMetadata[]> {

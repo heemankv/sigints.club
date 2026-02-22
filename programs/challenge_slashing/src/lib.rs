@@ -12,7 +12,7 @@ pub mod challenge_slashing {
         created_at: i64,
     ) -> Result<()> {
         let ch = &mut ctx.accounts.challenge;
-        ch.persona = ctx.accounts.persona.key();
+        ch.stream = ctx.accounts.stream.key();
         ch.challenger = ctx.accounts.challenger.key();
         ch.signal_hash = signal_hash;
         ch.status = ChallengeStatus::Open as u8;
@@ -47,12 +47,12 @@ pub struct OpenChallenge<'info> {
         init,
         payer = challenger,
         space = Challenge::SPACE,
-        seeds = [b"challenge", persona.key().as_ref(), &signal_hash, challenger.key().as_ref()],
+        seeds = [b"challenge", stream.key().as_ref(), &signal_hash, challenger.key().as_ref()],
         bump
     )]
     pub challenge: Account<'info, Challenge>,
-    /// CHECK: persona is validated off-chain in MVP
-    pub persona: UncheckedAccount<'info>,
+    /// CHECK: stream is validated off-chain in MVP
+    pub stream: UncheckedAccount<'info>,
     #[account(mut)]
     pub challenger: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -67,7 +67,7 @@ pub struct ResolveChallenge<'info> {
 
 #[account]
 pub struct Challenge {
-    pub persona: Pubkey,
+    pub stream: Pubkey,
     pub challenger: Pubkey,
     pub signal_hash: [u8; 32],
     pub status: u8,

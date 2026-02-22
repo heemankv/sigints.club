@@ -1,5 +1,5 @@
 # End-to-End Website Flow (MVP)
-Project: Persona.fun
+Project: sigints.club
 Date: 2026-02-20
 
 ## Goal
@@ -7,50 +7,49 @@ Provide a concrete, detailed end-to-end example of how the **feed-first** websit
 
 ## Actors
 - Makers (3):
-  1. Maker A: Persona "ETH-Price Scout"
-  2. Maker B: Persona "Amazon-Deal Scout"
-  3. Maker C: Persona "Anime-Release Scout"
+  1. Maker A: Stream "ETH-Price Scout"
+  2. Maker B: Stream "Amazon-Deal Scout"
+  3. Maker C: Stream "Anime-Release Scout"
 
 - Listeners (10): L1–L10
 
-## Personas and Pricing Menus (Maker-Defined)
-Each maker chooses which pricing options exist. Evidence level is layered on top.
+## Streams and Pricing Menus (Maker-Defined)
+Each maker chooses **monthly subscription** tiers only (MVP enforcement). Evidence level (Trust vs Verifier) is layered on top.
 
-### Persona A: ETH-Price Scout
+### Stream A: ETH-Price Scout
 - Domain: pricing
 - Signal: best ETH price across 5 venues
 - Pricing menu:
-  1. Subscription-limited: $5/month, 200 signals (Trust)
-  2. Subscription-unlimited: $15/month, fair-use (Verifier)
-  3. Per-signal: $0.02 per signal (Trust)
+  1. Monthly Trust: 0.02 SOL/month (fast access)
+  2. Monthly Verifier: 0.05 SOL/month (evidence access)
 
-### Persona B: Amazon-Deal Scout
+### Stream B: Amazon-Deal Scout
 - Domain: e-commerce
 - Signal: product + card + coupon stacking
 - Pricing menu:
-  1. Subscription-limited: $8/month, 50 signals (Trust)
-  2. Per-signal: $0.10 per signal (Verifier)
+  1. Monthly Trust: 0.03 SOL/month
+  2. Monthly Verifier: 0.08 SOL/month
 
-### Persona C: Anime-Release Scout
+### Stream C: Anime-Release Scout
 - Domain: media
 - Signal: new episode release timestamps
 - Pricing menu:
-  1. Subscription-unlimited: $2/month (Trust)
-  2. Per-signal: $0.01 per signal (Verifier)
+  1. Monthly Trust: 0.01 SOL/month
+  2. Monthly Verifier: 0.02 SOL/month
 
 ## Listener Subscription Matrix (10 listeners)
-| Listener | Persona | Pricing Type | Evidence Level | Reason |
+| Listener | Stream | Tier | Evidence Level | Reason |
 | --- | --- | --- | --- | --- |
-| L1 | ETH-Price Scout | Subscription-limited | Trust | Low cost, enough signals |
-| L2 | ETH-Price Scout | Subscription-unlimited | Verifier | Needs proof for trading |
-| L3 | ETH-Price Scout | Per-signal | Trust | Only wants rare alerts |
-| L4 | Amazon-Deal Scout | Subscription-limited | Trust | Casual price hunter |
-| L5 | Amazon-Deal Scout | Per-signal | Verifier | Only pays on real deals |
-| L6 | Anime-Release Scout | Subscription-unlimited | Trust | Always-on release alerts |
-| L7 | Anime-Release Scout | Per-signal | Verifier | Wants proof timestamps |
-| L8 | ETH-Price Scout | Per-signal | Trust | On-demand strategy bot |
-| L9 | Amazon-Deal Scout | Subscription-limited | Trust | Shared household savings |
-| L10 | ETH-Price Scout | Subscription-unlimited | Verifier | Institutional bot |
+| L1 | ETH-Price Scout | Monthly Trust | Trust | Low cost, fast alerts |
+| L2 | ETH-Price Scout | Monthly Verifier | Verifier | Needs proof for trading |
+| L3 | ETH-Price Scout | Monthly Trust | Trust | Budget-friendly |
+| L4 | Amazon-Deal Scout | Monthly Trust | Trust | Casual price hunter |
+| L5 | Amazon-Deal Scout | Monthly Verifier | Verifier | Only trusts verified deals |
+| L6 | Anime-Release Scout | Monthly Trust | Trust | Always-on release alerts |
+| L7 | Anime-Release Scout | Monthly Verifier | Verifier | Wants proof timestamps |
+| L8 | ETH-Price Scout | Monthly Trust | Trust | On-demand strategy bot |
+| L9 | Amazon-Deal Scout | Monthly Trust | Trust | Shared household savings |
+| L10 | ETH-Price Scout | Monthly Verifier | Verifier | Institutional bot |
 
 ---
 
@@ -61,10 +60,10 @@ Each maker chooses which pricing options exist. Evidence level is layered on top
 4. L7 posts an intent: “Anime episode release alerts with timestamps.”
 5. Makers browse intents and see demand in real-time.
 
-## Phase 2: Maker Setup and Persona Creation
+## Phase 2: Maker Setup and Stream Creation
 6. Maker A creates "ETH-Price Scout":
-   - Registers persona + tiers on-chain.
-   - Persona appears in discovery grid.
+   - Registers stream + tiers on-chain.
+   - Stream appears in discovery grid.
 7. Maker B and C repeat similarly.
 
 ## Phase 3: Listener Subscriptions

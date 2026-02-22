@@ -17,13 +17,13 @@ describe("Hybrid encryption flow", () => {
     const plaintext = Buffer.from("hello-signal", "utf8");
 
     await signalService.publishSignal(
-      "personaA",
+      "streamA",
       "tier-1",
       plaintext,
       [{ encPubKeyDerBase64: kp.publicKey.toString("base64") }]
     );
 
-    const signals = await metadata.listSignals("personaA");
+    const signals = await metadata.listSignals("streamA");
     expect(signals.length).toBe(1);
 
     const decrypted = await listenerService.decryptLatestSignal(signals[0], {

@@ -40,7 +40,7 @@
               },
               {
                 "kind": "account",
-                "path": "persona"
+                "path": "stream"
               },
               {
                 "kind": "arg",
@@ -54,7 +54,7 @@
           }
         },
         {
-          "name": "persona"
+          "name": "stream"
         },
         {
           "name": "challenger",
@@ -162,7 +162,7 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "persona",
+            "name": "stream",
             "type": "pubkey"
           },
           {

@@ -1,4 +1,4 @@
-import { SocialPost, SocialPostStore, SocialPostType } from "../social/SocialPostStore";
+import { SocialPost, SocialPostType } from "../social/SocialPostStore";
 import { UserStore } from "../social/UserStore";
 import { TapestryClient } from "../tapestry/TapestryClient";
 import { randomUUID } from "node:crypto";
@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 export type CreateIntentInput = {
   wallet: string;
   content: string;
-  personaId?: string;
+  streamId?: string;
   tags?: string[];
   topic?: string;
   displayName?: string;
@@ -15,7 +15,7 @@ export type CreateIntentInput = {
 export type CreateSlashInput = {
   wallet: string;
   content: string;
-  personaId?: string;
+  streamId?: string;
   makerWallet?: string;
   challengeTx?: string;
   severity?: string;
@@ -25,7 +25,6 @@ export type CreateSlashInput = {
 export class SocialService {
   constructor(
     private client: TapestryClient,
-    private posts: SocialPostStore,
     private users: UserStore
   ) {}
 
@@ -35,7 +34,7 @@ export class SocialService {
       return user.tapestryProfileId;
     }
     const username =
-      displayName?.replace(/\s+/g, "-").toLowerCase() ?? `persona-${wallet.slice(0, 6)}`;
+      displayName?.replace(/\s+/g, "-").toLowerCase() ?? `stream-${wallet.slice(0, 6)}`;
     const res = await this.client.createProfile({
       walletAddress: wallet,
       username,
@@ -56,7 +55,7 @@ export class SocialService {
     const properties = [
       { key: "type", value: "intent" },
       { key: "text", value: input.content },
-      ...(input.personaId ? [{ key: "personaId", value: input.personaId }] : []),
+      ...(input.streamId ? [{ key: "streamId", value: input.streamId }] : []),
       ...(input.topic ? [{ key: "topic", value: input.topic }] : []),
       ...(input.tags?.length ? [{ key: "tags", value: input.tags.join(",") }] : []),
       { key: "wallet", value: input.wallet },
@@ -71,14 +70,16 @@ export class SocialService {
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
     }
-    return this.posts.createPost({
+    return {
+      id: resolvedId,
       type: "intent",
       contentId: resolvedId,
       profileId,
       authorWallet: input.wallet,
       content: input.content,
       customProperties: toPropertyMap(properties),
-    });
+      createdAt: Date.now(),
+    };
   }
 
   async createSlashReport(input: CreateSlashInput) {
@@ -89,7 +90,7 @@ export class SocialService {
     const properties = [
       { key: "type", value: "slash" },
       { key: "text", value: input.content },
-      ...(input.personaId ? [{ key: "personaId", value: input.personaId }] : []),
+      ...(input.streamId ? [{ key: "streamId", value: input.streamId }] : []),
       ...(input.makerWallet ? [{ key: "makerWallet", value: input.makerWallet }] : []),
       ...(input.challengeTx ? [{ key: "challengeTx", value: input.challengeTx }] : []),
       ...(input.severity ? [{ key: "severity", value: input.severity }] : []),
@@ -105,14 +106,16 @@ export class SocialService {
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
     }
-    return this.posts.createPost({
+    return {
+      id: resolvedId,
       type: "slash",
       contentId: resolvedId,
       profileId,
       authorWallet: input.wallet,
       content: input.content,
       customProperties: toPropertyMap(properties),
-    });
+      createdAt: Date.now(),
+    };
   }
 
   listPosts(type?: SocialPostType) {
@@ -181,33 +184,20 @@ export class SocialService {
   }
 
   async listPostsWithCounts(type?: SocialPostType, limit = 50) {
-    try {
-      const entries = await this.fetchTapestryContents(type, limit);
-      const posts: SocialPost[] = [];
-      const likeCounts: Record<string, number> = {};
-      const commentCounts: Record<string, number> = {};
-      for (const entry of entries) {
-        const mapped = mapTapestryEntryToPost(entry);
-        if (!mapped) continue;
-        posts.push(mapped);
-        likeCounts[mapped.contentId] = entry.socialCounts?.likeCount ?? 0;
-        commentCounts[mapped.contentId] = entry.socialCounts?.commentCount ?? 0;
-      }
-      const merged = await this.mergeWithLocal(posts, type, limit);
-      for (const post of merged) {
-        if (!(post.contentId in likeCounts)) {
-          likeCounts[post.contentId] = 0;
-        }
-        if (!(post.contentId in commentCounts)) {
-          commentCounts[post.contentId] = 0;
-        }
-      }
-      return { posts: merged, likeCounts, commentCounts };
-    } catch (error) {
-      const fallback = await this.posts.listPosts(type ? { type } : {});
-      const trimmed = limit ? fallback.slice(0, limit) : fallback;
-      return { posts: trimmed, likeCounts: {}, commentCounts: {} };
+    const entries = await this.fetchTapestryContents(type, limit);
+    const posts: SocialPost[] = [];
+    const likeCounts: Record<string, number> = {};
+    const commentCounts: Record<string, number> = {};
+    for (const entry of entries) {
+      const mapped = mapTapestryEntryToPost(entry);
+      if (!mapped) continue;
+      posts.push(mapped);
+      likeCounts[mapped.contentId] = entry.socialCounts?.likeCount ?? 0;
+      commentCounts[mapped.contentId] = entry.socialCounts?.commentCount ?? 0;
     }
+    const sorted = posts.sort((a, b) => b.createdAt - a.createdAt);
+    const trimmed = limit ? sorted.slice(0, limit) : sorted;
+    return { posts: trimmed, likeCounts, commentCounts };
   }
 
   async addComment(wallet: string, contentId: string, comment: string, displayName?: string) {
@@ -255,29 +245,10 @@ export class SocialService {
   }
 
   private async listTapestryPosts(type?: SocialPostType, limit = 50) {
-    try {
-      const entries = await this.fetchTapestryContents(type, limit);
-      const posts = entries.map(mapTapestryEntryToPost).filter(Boolean) as SocialPost[];
-      return this.mergeWithLocal(posts, type, limit);
-    } catch (error) {
-      return this.posts.listPosts(type ? { type } : {});
-    }
-  }
-
-  private async mergeWithLocal(posts: SocialPost[], type?: SocialPostType, limit = 50) {
-    const local = await this.posts.listPosts(type ? { type } : {});
-    const map = new Map<string, SocialPost>();
-    for (const post of posts) {
-      map.set(post.contentId, post);
-    }
-    const now = Date.now();
-    for (const post of local) {
-      if (map.has(post.contentId)) continue;
-      if (now - post.createdAt > 5 * 60 * 1000) continue;
-      map.set(post.contentId, post);
-    }
-    const merged = Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
-    return limit ? merged.slice(0, limit) : merged;
+    const entries = await this.fetchTapestryContents(type, limit);
+    const posts = entries.map(mapTapestryEntryToPost).filter(Boolean) as SocialPost[];
+    const sorted = posts.sort((a, b) => b.createdAt - a.createdAt);
+    return limit ? sorted.slice(0, limit) : sorted;
   }
 
   private async fetchTapestryContents(type?: SocialPostType, limit = 50) {
