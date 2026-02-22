@@ -57,12 +57,22 @@ export default function RegisterStreamForm() {
   }
 
   function addTier() {
-    setTiers((prev) => [...prev, { ...DEFAULT_TIER, tierId: `tier-${prev.length + 1}` }]);
+    setTiers((prev) => [
+      ...prev,
+      { ...DEFAULT_TIER, tierId: `tier-${prev.length + 1}`, price: visibility === "public" ? "0 SOL/mo" : DEFAULT_TIER.price },
+    ]);
   }
 
   function removeTier(index: number) {
     setTiers((prev) => prev.filter((_, idx) => idx !== index));
   }
+
+  useEffect(() => {
+    if (visibility === "public") {
+      setPrice("0 SOL/mo");
+      setTiers((prev) => prev.map((tier) => ({ ...tier, price: "0 SOL/mo" })));
+    }
+  }, [visibility]);
 
   async function submit() {
     if (!publicKey) {
@@ -158,7 +168,13 @@ export default function RegisterStreamForm() {
         <input className="input" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Domain" />
         <input className="input" value={accuracy} onChange={(e) => setAccuracy(e.target.value)} placeholder="Accuracy" />
         <input className="input" value={latency} onChange={(e) => setLatency(e.target.value)} placeholder="Latency" />
-        <input className="input" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
+        <input
+          className="input"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          placeholder="Price"
+          disabled={visibility === "public"}
+        />
         <input className="input" value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="Evidence" />
         <select
           className="input"
@@ -197,6 +213,7 @@ export default function RegisterStreamForm() {
               value={tier.price}
               onChange={(e) => updateTier(idx, { price: e.target.value })}
               placeholder="0.05 SOL/mo"
+              disabled={visibility === "public"}
             />
             <input
               className="input"

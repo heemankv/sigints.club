@@ -1,3 +1,7 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 const FOOTER_LINKS = [
   {
     heading: "Discover",
@@ -26,6 +30,9 @@ const FOOTER_LINKS = [
 ];
 
 export default function Footer() {
+  const pathname = usePathname();
+  if (pathname !== "/") return null;
+
   return (
     <footer className="site-footer">
       <div className="container">

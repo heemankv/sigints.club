@@ -48,7 +48,7 @@ export default function MyStreamsSection() {
       const visDefaults: Record<string, "public" | "private"> = {};
       mine.forEach((s) => {
         tierDefaults[s.id] = s.tiers?.[0]?.tierId ?? "";
-        visDefaults[s.id] = "public";
+        visDefaults[s.id] = (s.visibility === "private" ? "private" : "public");
       });
       setPublishTier(tierDefaults);
       setPublishVisibility(visDefaults);
@@ -122,47 +122,64 @@ export default function MyStreamsSection() {
 
         return (
           <div className="stream-card" key={stream.id}>
-            <div className="stream-card-header">
-              {stream.domain && <span className="badge badge-teal">{stream.domain}</span>}
-              {stream.evidence && <span className="badge badge-gold">{stream.evidence}</span>}
-            </div>
+            <div className="stream-card-row">
 
-            <h3 className="stream-card-name">{stream.name}</h3>
-
-            {stream.description && (
-              <p className="stream-card-desc">
-                {stream.description.length > 100
-                  ? `${stream.description.slice(0, 100)}…`
-                  : stream.description}
-              </p>
-            )}
-
-            <div className="stream-card-meta">
-              {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
-              {stream.latency && <span>{stream.latency} latency</span>}
-              {subscriberCounts[stream.id] !== undefined && (
-                <span>{subscriberCounts[stream.id]} subscribers</span>
-              )}
-            </div>
-
-            {stream.tiers?.length > 0 && (
-              <div className="chip-row" style={{ marginTop: 8 }}>
-                {stream.tiers.map((t) => (
-                  <span className="chip" key={t.tierId}>{t.tierId}</span>
-                ))}
+              {/* Identity */}
+              <div className="stream-card-identity">
+                <div className="stream-card-header">
+                  {stream.domain && <span className="badge badge-teal">{stream.domain}</span>}
+                  {stream.evidence && <span className="badge badge-gold">{stream.evidence}</span>}
+                  {stream.visibility && (
+                    <span
+                      className={`badge ${stream.visibility === "private" ? "badge-private" : "badge-public"}`}
+                    >
+                      {stream.visibility}
+                    </span>
+                  )}
+                </div>
+                <h3 className="stream-card-name">{stream.name}</h3>
+                {stream.description && (
+                  <p className="stream-card-desc">
+                    {stream.description.length > 80
+                      ? `${stream.description.slice(0, 80)}…`
+                      : stream.description}
+                  </p>
+                )}
               </div>
-            )}
 
-            <div className="stream-card-actions">
-              <Link className="button ghost" href={`/stream/${stream.id}`}>
-                View Stream →
-              </Link>
-              <button
-                className="button primary"
-                onClick={() => setPublishOpen((prev) => ({ ...prev, [stream.id]: !isOpen }))}
-              >
-                {isOpen ? "Close ▲" : "Publish Signal ▾"}
-              </button>
+              {/* Stats */}
+              <div className="stream-card-stats">
+                {(stream.accuracy || stream.latency || subscriberCounts[stream.id] !== undefined) && (
+                  <div className="stream-card-meta">
+                    {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
+                    {stream.latency && <span>{stream.latency} latency</span>}
+                    {subscriberCounts[stream.id] !== undefined && (
+                      <span>{subscriberCounts[stream.id]} subs</span>
+                    )}
+                  </div>
+                )}
+                {stream.tiers?.length > 0 && (
+                  <div className="chip-row">
+                    {stream.tiers.map((t) => (
+                      <span className="chip" key={t.tierId}>{t.tierId}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="stream-card-actions">
+                <Link className="button ghost" href={`/stream/${stream.id}`}>
+                  View →
+                </Link>
+                <button
+                  className="button primary"
+                  onClick={() => setPublishOpen((prev) => ({ ...prev, [stream.id]: !isOpen }))}
+                >
+                  {isOpen ? "Close ▲" : "Publish ▾"}
+                </button>
+              </div>
+
             </div>
 
             {isOpen && (

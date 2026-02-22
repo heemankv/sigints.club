@@ -520,6 +520,14 @@ const streamSchema = z.object({
   tiers: z.array(tierSchema).min(1),
 });
 
+function parsePriceValue(input: string): number {
+  const match = input.match(/[\d.]+/);
+  if (!match) return 0;
+  const value = Number(match[0]);
+  if (!Number.isFinite(value)) return 0;
+  return value;
+}
+
 router.post("/streams", async (req, res) => {
   if (!streamRegistry) {
     return res.status(503).json({ error: "stream registry not configured" });
@@ -530,6 +538,14 @@ router.post("/streams", async (req, res) => {
   const parsed = streamSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const visibility = parsed.data.visibility ?? "private";
+  if (visibility === "public") {
+    const basePrice = parsePriceValue(parsed.data.price);
+    const tierPrices = parsed.data.tiers.map((tier) => parsePriceValue(tier.price));
+    if (basePrice > 0 || tierPrices.some((val) => val > 0)) {
+      return res.status(400).json({ error: "public streams must be free (price = 0)" });
+    }
   }
   const tiersHash = hashTiersHex(parsed.data.tiers);
   const onchain = await streamRegistry.getStreamConfig(parsed.data.id);
@@ -547,7 +563,6 @@ router.post("/streams", async (req, res) => {
   }
   let tapestryProfileId: string;
   try {
-    const visibility = parsed.data.visibility ?? "private";
     tapestryProfileId = await tapestryStreamServiceInstance.upsertStream(
       {
         streamId: parsed.data.id,

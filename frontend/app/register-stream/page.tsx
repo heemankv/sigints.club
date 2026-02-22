@@ -15,7 +15,7 @@ import type { TierInput } from "../lib/tiersHash";
 import { parseSolLamports } from "../lib/pricing";
 import { explorerTx } from "../lib/constants";
 import { parseQuota } from "../lib/utils";
-import MyStreamsSection from "../components/MyStreamsSection";
+import LeftNav from "../components/LeftNav";
 
 const DEFAULT_TIER: TierInput = {
   tierId: "tier-basic",
@@ -25,14 +25,9 @@ const DEFAULT_TIER: TierInput = {
   evidenceLevel: "trust",
 };
 
-type ActiveTab = "register" | "mystreams";
-
 export default function RegisterStreamPage() {
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
-
-  // ─── Tab ─────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<ActiveTab>("register");
 
   // ─── Step wizard ──────────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -52,7 +47,7 @@ export default function RegisterStreamPage() {
   const [deployTx, setDeployTx] = useState<string | null>(null);
   const [deploySuccess, setDeploySuccess] = useState(false);
 
-  useEffect(() => {}, [activeTab, publicKey]); // kept for lint — tab switching only
+  useEffect(() => {}, [publicKey]); // kept for lint
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function waitForStreamAccount(streamPda: import("@solana/web3.js").PublicKey, timeoutMs = 10_000) {
@@ -72,12 +67,26 @@ export default function RegisterStreamPage() {
   }
 
   function addTier() {
-    setTiers((prev) => [...prev, { ...DEFAULT_TIER, tierId: `tier-${prev.length + 1}` }]);
+    setTiers((prev) => [
+      ...prev,
+      {
+        ...DEFAULT_TIER,
+        tierId: `tier-${prev.length + 1}`,
+        price: visibility === "public" ? "0 SOL/mo" : DEFAULT_TIER.price,
+      },
+    ]);
   }
 
   function removeTier(index: number) {
     setTiers((prev) => prev.filter((_, idx) => idx !== index));
   }
+
+  useEffect(() => {
+    if (visibility === "public") {
+      setPrice("0 SOL/mo");
+      setTiers((prev) => prev.map((tier) => ({ ...tier, price: "0 SOL/mo" })));
+    }
+  }, [visibility]);
 
   // ─── Step navigation ──────────────────────────────────────────────────────
 
@@ -187,40 +196,25 @@ export default function RegisterStreamPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="maker-dash">
-      <div className="maker-dash-header">
-        <span className="kicker">Maker Dashboard</span>
-        <h1 className="maker-dash-title">Streams &amp; Signals</h1>
-        <p className="maker-dash-subtitle">
-          Register your stream on-chain, then publish signals to your subscribers.
-        </p>
-      </div>
+    <section className="social-shell">
+      <LeftNav />
 
-      {/* Tab bar */}
-      <div className="maker-tabs">
-        <button
-          className={`maker-tab${activeTab === "register" ? " maker-tab--active" : ""}`}
-          onClick={() => setActiveTab("register")}
-        >
-          Register Stream
-        </button>
-        <button
-          className={`maker-tab${activeTab === "mystreams" ? " maker-tab--active" : ""}`}
-          onClick={() => setActiveTab("mystreams")}
-        >
-          My Streams
-        </button>
-      </div>
+      <div className="social-main">
+        <div className="maker-dash">
+          <div className="maker-dash-header">
+            <span className="kicker">Maker Dashboard</span>
+            <h1 className="maker-dash-title">Streams &amp; Signals</h1>
+            <p className="maker-dash-subtitle">
+              Register your stream on-chain, then publish signals to your subscribers.
+            </p>
+          </div>
 
-      {/* ── Tab 1: Step wizard ── */}
-      {activeTab === "register" && !publicKey && (
-        <div className="module">
-          <p className="subtext">Connect your wallet to register a stream.</p>
-        </div>
-      )}
+          {!publicKey && (
+            <p className="subtext">Connect your wallet to register a stream.</p>
+          )}
 
-      {activeTab === "register" && publicKey && (
-        <div className="module">
+          {publicKey && (
+            <>
           {/* Step indicator */}
           <div className="step-bar">
             {(
@@ -282,6 +276,7 @@ export default function RegisterStreamPage() {
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   placeholder="Base price (e.g. 0.05 SOL/mo)"
+                  disabled={visibility === "public"}
                 />
                 <input
                   className="input"
@@ -344,6 +339,7 @@ export default function RegisterStreamPage() {
                       value={tier.price}
                       onChange={(e) => updateTier(idx, { price: e.target.value })}
                       placeholder="0.05 SOL/mo"
+                      disabled={visibility === "public"}
                     />
                     <select
                       className="input"
@@ -476,11 +472,10 @@ export default function RegisterStreamPage() {
               )}
             </div>
           )}
+            </>
+          )}
         </div>
-      )}
-
-      {/* ── Tab 2: My Streams ── */}
-      {activeTab === "mystreams" && <MyStreamsSection />}
-    </div>
+      </div>
+    </section>
   );
 }

@@ -56,7 +56,7 @@ const streamSpecs = [
     description: "Best ETH price alerts across top venues.",
     accuracy: "98%",
     latency: "<2s",
-    price: "0.05 SOL/mo",
+    price: "0 SOL/mo",
     evidence: "trust",
   },
   {
@@ -82,7 +82,7 @@ const streamSpecs = [
 ];
 
 const streamTiers: Record<string, { tierId: string; pricingType: "subscription_unlimited"; evidenceLevel: "trust" | "verifier"; priceLamports: number; quota: number }> = {
-  "stream-eth": { tierId: "tier-eth-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 50_000_000, quota: 0 },
+  "stream-eth": { tierId: "tier-eth-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 0, quota: 0 },
   "stream-amazon": { tierId: "tier-amz-trust", pricingType: "subscription_unlimited", evidenceLevel: "trust", priceLamports: 80_000_000, quota: 0 },
   "stream-anime": { tierId: "tier-anime-verifier", pricingType: "subscription_unlimited", evidenceLevel: "verifier", priceLamports: 20_000_000, quota: 0 },
 };

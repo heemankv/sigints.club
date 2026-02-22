@@ -6,6 +6,7 @@ import Providers from "./providers";
 import WalletConnect from "./components/WalletConnect";
 import SearchBar from "./components/SearchBar";
 import NetworkOnboarding from "./components/NetworkOnboarding";
+import AppToasts from "./components/AppToasts";
 import Footer from "./components/Footer";
 import TapestryHeaderBadge from "./components/TapestryHeaderBadge";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="toast-stack">
             <NetworkBanner />
             <NetworkOnboarding />
+            <AppToasts />
           </div>
           <Footer />
         </Providers>

@@ -6,6 +6,7 @@ export type StreamSummary = {
   latency: string;
   price: string;
   evidence: string;
+  visibility?: "public" | "private";
   tapestryProfileId?: string;
 };
 
@@ -37,8 +38,9 @@ export const fallbackStreams: StreamSummary[] = [
     domain: "pricing",
     accuracy: "98.2%",
     latency: "1.4s",
-    price: "0.05 SOL/mo",
+    price: "0 SOL/mo",
     evidence: "Verifier supported",
+    visibility: "public",
   },
   {
     id: "stream-amazon",
@@ -48,6 +50,7 @@ export const fallbackStreams: StreamSummary[] = [
     latency: "3.2s",
     price: "0.08 SOL/mo",
     evidence: "Verifier supported",
+    visibility: "private",
   },
   {
     id: "stream-anime",
@@ -57,6 +60,7 @@ export const fallbackStreams: StreamSummary[] = [
     latency: "5.0s",
     price: "0.02 SOL/mo",
     evidence: "Trust + Verifier",
+    visibility: "private",
   },
 ];
 
