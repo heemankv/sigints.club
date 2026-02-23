@@ -23,7 +23,6 @@ import {
 import bs58 from "bs58";
 import { BackendStorage } from "../storage/providers/BackendStorage";
 import { FileMetadata } from "../metadata/providers/FileMetadata";
-import { FileSubscriberDirectory } from "../services/FileSubscriberDirectory";
 import { FileUserStore, FileBotStore, FileSubscriptionStore } from "../social";
 import { StreamTier } from "../streams";
 import { buildTiersSeed } from "../streams/tiersHash";
@@ -598,7 +597,6 @@ export async function seedDemoData(options: SeedOptions = {}) {
     const dataDir = path.resolve(backendRoot, "data");
     const storageDir = path.resolve(backendRoot, "storage");
     await fs.rm(path.join(dataDir, "metadata.json"), { force: true });
-    await fs.rm(path.join(dataDir, "subscribers.json"), { force: true });
     await fs.rm(path.join(dataDir, "users.json"), { force: true });
     await fs.rm(path.join(dataDir, "bots.json"), { force: true });
     await fs.rm(path.join(dataDir, "subscriptions.json"), { force: true });
@@ -609,7 +607,6 @@ export async function seedDemoData(options: SeedOptions = {}) {
 
   const storage = new BackendStorage(path.resolve(backendRoot, "storage"));
   const metadata = new FileMetadata(path.resolve(backendRoot, "data", "metadata.json"));
-  const subscribers = new FileSubscriberDirectory(path.resolve(backendRoot, "data", "subscribers.json"));
   const userStore = new FileUserStore(path.resolve(backendRoot, "data", "users.json"));
   const botStore = new FileBotStore(path.resolve(backendRoot, "data", "bots.json"));
   const subscriptionStore = new FileSubscriptionStore(path.resolve(backendRoot, "data", "subscriptions.json"));
@@ -710,11 +707,6 @@ export async function seedDemoData(options: SeedOptions = {}) {
     const keys = generateX25519Keypair();
     const encPub = keys.publicKey.toString("base64");
     const subscriberId = subscriberIdFromPubkey(keys.publicKey);
-    await subscribers.addSubscriber({
-      streamId: stream.id,
-      subscriberId,
-      encPubKeyDerBase64: encPub,
-    });
     subscriberKeys.push({
       streamId: stream.id,
       subscriberId,
@@ -852,13 +844,15 @@ export async function seedDemoData(options: SeedOptions = {}) {
   for (const stream of streamProfiles) {
     const tier = streamTiers[stream.id];
     const messages = signalTemplates[stream.id] ?? [];
-    const streamSubscribers = await subscribers.listSubscribers(stream.id);
+    const streamSubscribers = subscriberKeys
+      .filter((key) => key.streamId === stream.id)
+      .map((key) => ({ encPubKeyDerBase64: key.publicKeyBase64 }));
     for (const message of messages) {
       const publish = await signalService.publishSignal(
         stream.id,
         tier.tierId,
         Buffer.from(message, "utf8"),
-        streamSubscribers.map((s) => ({ encPubKeyDerBase64: s.encPubKeyDerBase64 })),
+        streamSubscribers,
         streamVisibility[stream.id] ?? "private"
       );
       let onchainTx: string | undefined;

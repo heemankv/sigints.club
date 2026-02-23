@@ -229,7 +229,6 @@ export default function RegisterStreamPage() {
                 key={n}
                 className={`step-item${step > n ? " step-item--done" : ""}${step === n ? " step-item--active" : ""}`}
               >
-                {idx > 0 && <div className="step-connector" />}
                 <div className="step-dot">{step > n ? "✓" : n}</div>
                 <span className="step-label">{label}</span>
               </div>

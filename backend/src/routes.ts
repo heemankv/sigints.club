@@ -12,7 +12,6 @@ import path from "path";
 import {
   signalService,
   metadataStore,
-  subscriberDirectory,
   discoveryService,
   onChainSubscriptionClient,
   storageProvider,
@@ -23,7 +22,7 @@ import {
   streamRegistry,
   tapestryStreamServiceInstance,
 } from "./services/ServiceContainer";
-import { decodeSubscriptionAccount } from "./services/OnChainSubscriptionClient";
+import { decodeSubscriptionAccount, type OnChainSubscription } from "./services/OnChainSubscriptionClient";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 import { hashTiersHex } from "./streams/tiersHash";
 
@@ -230,9 +229,14 @@ router.post("/signals", async (req, res) => {
     return res.status(404).json({ error: "stream not found" });
   }
   const visibility = stream?.visibility ?? parsed.data.visibility ?? "private";
-  const subscribers = visibility === "public"
-    ? []
-    : await subscriberDirectory.listSubscribers(parsed.data.streamId);
+  let subscribers: { encPubKeyDerBase64: string }[] = [];
+  if (visibility === "private") {
+    try {
+      subscribers = await resolveStreamSubscriberKeys(parsed.data.streamId);
+    } catch (error: any) {
+      return res.status(503).json({ error: error?.message ?? "subscriber lookup failed" });
+    }
+  }
   const publish = await signalService.publishSignal(
     parsed.data.streamId,
     parsed.data.tierId,
@@ -253,9 +257,14 @@ router.post("/signals/prepare", async (req, res) => {
     return res.status(404).json({ error: "stream not found" });
   }
   const visibility = stream?.visibility ?? parsed.data.visibility ?? "private";
-  const subscribers = visibility === "public"
-    ? []
-    : await subscriberDirectory.listSubscribers(parsed.data.streamId);
+  let subscribers: { encPubKeyDerBase64: string }[] = [];
+  if (visibility === "private") {
+    try {
+      subscribers = await resolveStreamSubscriberKeys(parsed.data.streamId);
+    } catch (error: any) {
+      return res.status(503).json({ error: error?.message ?? "subscriber lookup failed" });
+    }
+  }
   const publish = await signalService.publishSignal(
     parsed.data.streamId,
     parsed.data.tierId,
@@ -1059,6 +1068,72 @@ async function getAccountWithRetry(
   return account;
 }
 
+async function listSubscriptionsForStream(
+  connection: Connection,
+  programId: PublicKey,
+  streamPubkey: PublicKey
+): Promise<OnChainSubscription[]> {
+  const filters = [
+    { memcmp: { offset: 8 + 32, bytes: streamPubkey.toBase58() } },
+  ];
+  const programAccounts = await connection.getProgramAccounts(programId, { filters });
+  return programAccounts
+    .map((acc) => decodeSubscriptionAccount(acc.pubkey, acc.account.data))
+    .filter((item): item is OnChainSubscription => item !== null);
+}
+
+async function resolveStreamSubscriberKeys(streamId: string): Promise<{ encPubKeyDerBase64: string }[]> {
+  if (!streamRegistry) {
+    throw new Error("stream registry not configured");
+  }
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  if (!subscriptionProgramId) {
+    throw new Error("subscription program not configured");
+  }
+  const programId = new PublicKey(subscriptionProgramId);
+  const connection = new Connection(rpcUrl, "confirmed");
+  const streamPda = streamRegistry.deriveStreamPda(streamId);
+  const subscriptions = onChainSubscriptionClient
+    ? await onChainSubscriptionClient.listSubscriptionsForStream(streamPda.toBase58())
+    : await listSubscriptionsForStream(connection, programId, streamPda);
+
+  const now = Date.now();
+  const activeSubscribers = Array.from(
+    new Set(
+      subscriptions
+        .filter((sub) => sub.status === 0 && (!sub.expiresAt || sub.expiresAt > now))
+        .map((sub) => sub.subscriber)
+    )
+  );
+
+  if (activeSubscribers.length === 0) {
+    return [];
+  }
+
+  const walletKeyPdas = activeSubscribers.map((subscriber) =>
+    PublicKey.findProgramAddressSync(
+      [Buffer.from("wallet_key"), new PublicKey(subscriber).toBuffer()],
+      programId
+    )[0]
+  );
+  const walletKeyAccounts = await connection.getMultipleAccountsInfo(walletKeyPdas);
+  const subscribers: { encPubKeyDerBase64: string }[] = [];
+  walletKeyAccounts.forEach((account) => {
+    if (!account || !account.owner.equals(programId)) {
+      return;
+    }
+    const decoded = decodeWalletKey(account.data);
+    if (!decoded) {
+      return;
+    }
+    subscribers.push({
+      encPubKeyDerBase64: x25519RawToDer(decoded.encPubkey).toString("base64"),
+    });
+  });
+  return subscribers;
+}
+
 const subscribeSchema = z.object({
   streamId: z.string(),
   subscriberWallet: z.string(),
@@ -1088,11 +1163,6 @@ router.post("/subscribe", async (req, res) => {
     }
     const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pub);
-    await subscriberDirectory.addSubscriber({
-      streamId: parsed.data.streamId,
-      subscriberId,
-      encPubKeyDerBase64: parsed.data.encPubKeyDerBase64,
-    });
     return res.json({ subscriberId, bypass: true });
   }
   if (visibility === "public") {
@@ -1138,11 +1208,6 @@ router.post("/subscribe", async (req, res) => {
     const encPubKeyBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
     const pubDer = Buffer.from(encPubKeyBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pubDer);
-    await subscriberDirectory.addSubscriber({
-      streamId: parsed.data.streamId,
-      subscriberId,
-      encPubKeyDerBase64: encPubKeyBase64,
-    });
     return res.json({ subscriberId });
   } catch (error: any) {
     return res.status(400).json({ error: error.message ?? "invalid subscriber wallet" });
@@ -1168,16 +1233,7 @@ router.post("/wallet-key/sync", async (req, res) => {
     }
     const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pub);
-    await subscriberDirectory.addSubscriber({
-      streamId: parsed.data.streamId,
-      subscriberId,
-      encPubKeyDerBase64: parsed.data.encPubKeyDerBase64,
-    });
     return res.json({ subscriberId, bypass: true });
-  }
-
-  if (!streamRegistry || !onChainSubscriptionClient) {
-    return res.status(503).json({ error: "subscription services not configured" });
   }
   const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
   const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
@@ -1202,29 +1258,7 @@ router.post("/wallet-key/sync", async (req, res) => {
   const encPubKeyDerBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
   const subscriberId = subscriberIdFromPubkey(Buffer.from(encPubKeyDerBase64, "base64"));
 
-  const streams = await discoveryService.listStreamDetails();
-  const streamMap = new Map(
-    streams
-      .filter((s) => s.onchainAddress)
-      .map((s) => [s.onchainAddress as string, s.id])
-  );
-
-  const subscriptions = await onChainSubscriptionClient.listSubscriptionsFor(wallet);
-  let updated = 0;
-  for (const sub of subscriptions) {
-    if (sub.status !== 0) continue;
-    if (sub.expiresAt && sub.expiresAt <= Date.now()) continue;
-    const streamId = streamMap.get(sub.stream);
-    if (!streamId) continue;
-    await subscriberDirectory.addSubscriber({
-      streamId,
-      subscriberId,
-      encPubKeyDerBase64,
-    });
-    updated += 1;
-  }
-
-  return res.json({ subscriberId, updated });
+  return res.json({ subscriberId, updated: 0 });
 });
 
 const onchainSubscribeSchema = z.object({

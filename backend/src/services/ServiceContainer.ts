@@ -3,8 +3,6 @@ import { getStorageProvider } from "../storage";
 import { InMemoryMetadata } from "../metadata/providers/InMemoryMetadata";
 import { FileMetadata } from "../metadata/providers/FileMetadata";
 import { SignalService } from "./SignalService";
-import { InMemorySubscriberDirectory } from "./InMemorySubscriberDirectory";
-import { FileSubscriberDirectory } from "./FileSubscriberDirectory";
 import { DiscoveryService } from "./DiscoveryService";
 import { StreamRegistryClient } from "./StreamRegistryClient";
 import { ListenerService } from "./ListenerService";
@@ -36,7 +34,6 @@ const solanaStreamRegistryId = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
 const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : new BackendStorage();
 const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
 const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
-const subscribers = persist ? new FileSubscriberDirectory() : new InMemorySubscriberDirectory();
 const streamRegistryInstance = solanaStreamRegistryId
   ? new StreamRegistryClient({
       rpcUrl: solanaRpcUrl,
@@ -76,7 +73,6 @@ const discovery = new DiscoveryService(streamRegistryInstance, tapestryStreamSer
 
 export const signalService = new SignalService(storage, metadata, socialPublisher);
 export const metadataStore = metadata;
-export const subscriberDirectory = subscribers;
 export const discoveryService = discovery;
 export const streamRegistry = streamRegistryInstance;
 export const listenerService = listener;

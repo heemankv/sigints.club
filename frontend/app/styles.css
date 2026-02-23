@@ -63,10 +63,10 @@ body:has(.hero-fullscreen) {
 
 body:not(:has(.hero-fullscreen)) {
   background: #060D1F;
-  color: #E2E8F4;
+  color: var(--ink);
   --bg: #060D1F;
   --bg-alt: #0A1229;
-  --ink: #E2E8F4;
+  --ink: #ffffff;
   --muted: #7B8FAD;
   --card: #0C1631;
   --stroke: rgba(50, 70, 120, 0.28);
@@ -264,7 +264,7 @@ main:not(:has(.hero-fullscreen)) {
 .sidebar-logo-link {
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 6px 20px;
   border-radius: 999px;
   border: 1px solid rgba(255, 107, 53, 0.45);
   background: rgba(255, 107, 53, 0.1);
@@ -1448,6 +1448,27 @@ textarea {
   cursor: pointer;
   width: 100%;
   font-family: inherit;
+}
+
+.x-nav-label {
+  position: relative;
+  display: inline-block;
+  padding-right: 10px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.65);
+  display: inline-block;
+}
+
+.x-nav-label .status-dot {
+  position: absolute;
+  top: -2px;
+  right: -6px;
 }
 
 .x-nav-item:hover {
@@ -3538,6 +3559,19 @@ textarea {
   transition: color 0.18s ease, border-color 0.18s ease;
 }
 
+.maker-tab-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-right: 12px;
+}
+
+.maker-tab-label .status-dot {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+}
+
 .maker-tab:hover {
   color: var(--ink);
 }
@@ -3556,22 +3590,47 @@ textarea {
 }
 
 .step-item {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   flex: 1;
 }
 
-.step-connector {
-  flex: 1;
+.step-item::before,
+.step-item::after {
+  content: "";
+  position: absolute;
+  top: 50%;
   height: 2px;
   background: var(--stroke);
-  margin-right: 8px;
+  transform: translateY(-50%);
   transition: background 0.2s ease;
+  z-index: 0;
 }
 
-.step-item--done .step-connector,
-.step-item--active .step-connector {
+.step-item::before {
+  left: 0;
+  right: 50%;
+}
+
+.step-item::after {
+  left: 50%;
+  right: 0;
+}
+
+.step-item:first-child::before {
+  display: none;
+}
+
+.step-item:last-child::after {
+  display: none;
+}
+
+.step-item--done::before,
+.step-item--done::after,
+.step-item--active::before {
   background: var(--accent-2);
 }
 
@@ -3589,6 +3648,7 @@ textarea {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s ease;
+  z-index: 1;
 }
 
 .step-item--active .step-dot {
@@ -3608,6 +3668,7 @@ textarea {
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
+  z-index: 1;
 }
 
 .step-item--active .step-label {
@@ -4020,9 +4081,72 @@ textarea {
   padding: 20px;
 }
 
+.profile-tab-content--actions {
+  padding-top: 10px;
+}
+
 .profile-actions {
-  display: grid;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-actions-section {
+  position: relative;
+  padding: 10px 0 28px;
+}
+
+.profile-actions-section:last-child {
+  padding-bottom: 0;
+}
+
+.profile-actions-section + .profile-actions-section::before {
+  content: "";
+  position: absolute;
+  top: -16px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(123, 143, 173, 0.45), transparent);
+}
+
+.profile-actions .x-rail-module {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.key-manager {
+  position: relative;
+}
+
+.key-manager--plain {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.key-manager--plain h3 {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+
+.key-manager-title {
+  position: relative;
+  display: inline-block;
+  padding-right: 12px;
+}
+
+.key-manager-title .status-dot {
+  position: absolute;
+  top: -2px;
+  right: -6px;
 }
 
 .key-instructions {

@@ -14,6 +14,7 @@ import KeyManager from "../stream/[id]/KeyManager";
 import { sha256Bytes } from "../lib/solana";
 import { toHex } from "../lib/utils";
 import LeftNav from "../components/LeftNav";
+import { useWalletKeyStatus } from "../lib/walletKeyStatus";
 
 type UserProfile = {
   wallet: string;
@@ -25,6 +26,7 @@ function ProfilePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { publicKey } = useWallet();
+  const { needsWalletKey } = useWalletKeyStatus();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [makerBots, setMakerBots] = useState<BotProfile[]>([]);
@@ -238,7 +240,10 @@ function ProfilePageInner() {
                 className={`maker-tab${activeTab === "actions" ? " maker-tab--active" : ""}`}
                 onClick={() => switchTab("actions")}
               >
-                Actions
+                <span className="maker-tab-label">
+                  Actions
+                  {needsWalletKey && <span className="status-dot" aria-label="Wallet key missing" />}
+                </span>
               </button>
             </div>
 
@@ -273,17 +278,24 @@ function ProfilePageInner() {
             )}
 
             {activeTab === "actions" && (
-              <div className="profile-tab-content">
+              <div className="profile-tab-content profile-tab-content--actions">
                 <div className="profile-actions">
-                  <div className="x-rail-module">
+                  <div className="profile-actions-section">
+                    <KeyManager variant="plain" />
+                  </div>
+
+                  <div className="profile-actions-section">
+                    <div className="x-rail-module">
                     <h3 className="x-rail-heading">Register Stream</h3>
                     <p className="x-trend-category">Launch a new signal stream on-chain.</p>
                     <Link className="button ghost" href="/register-stream" style={{ marginTop: 10 }}>
                       Register Stream →
                     </Link>
+                    </div>
                   </div>
 
-                  <div className="x-rail-module">
+                  <div className="profile-actions-section">
+                    <div className="x-rail-module">
                     <h3 className="x-rail-heading">Create Bot</h3>
                     <input
                       className="input"
@@ -331,11 +343,11 @@ function ProfilePageInner() {
                       Register Bot
                     </button>
                     {botStatus && <p className="subtext" style={{ marginTop: 8 }}>{botStatus}</p>}
+                    </div>
                   </div>
 
-                  <KeyManager />
-
-                  <div className="x-rail-module">
+                  <div className="profile-actions-section">
+                    <div className="x-rail-module">
                     <h3 className="x-rail-heading">Your Bots</h3>
                     {allBots.length > 0 ? (
                       allBots.map((bot) => (
@@ -364,6 +376,7 @@ function ProfilePageInner() {
                         </div>
                       </>
                     )}
+                    </div>
                   </div>
                 </div>
               </div>

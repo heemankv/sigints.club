@@ -10,7 +10,7 @@ import {
   resolveStreamPubkey,
   resolvePricingType,
   resolveProgramId,
-  deriveWalletKeyPda,
+  hasRegisteredWalletKey,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
 import { explorerTx } from "../../lib/constants";
@@ -64,10 +64,9 @@ export default function SubscribeForm({
       }
       try {
         const programId = resolveProgramId();
-        const walletKeyPda = deriveWalletKeyPda(programId, publicKey);
-        const account = await connection.getAccountInfo(walletKeyPda);
+        const registered = await hasRegisteredWalletKey(connection, programId, publicKey);
         if (!active) return;
-        setWalletKeyReady(!!account);
+        setWalletKeyReady(registered);
       } catch {
         if (!active) return;
         setWalletKeyReady(false);

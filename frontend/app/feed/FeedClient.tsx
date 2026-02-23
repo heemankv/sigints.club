@@ -30,7 +30,7 @@ type FeedClientProps = {
   initialTab?: FeedTab;
 };
 
-type FeedTab = "feed" | "streams" | "slashing";
+type FeedTab = "feed" | "streams";
 
 function AvatarCircle({ seed }: { seed: string }) {
   const char = seed?.[0]?.toUpperCase() ?? "?";
@@ -71,12 +71,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   // Composer state
   const [postText, setPostText] = useState("");
   const [isIntentTag, setIsIntentTag] = useState(false);
-  const [slashText, setSlashText] = useState("");
+  const [isSlashTag, setIsSlashTag] = useState(false);
   const [slashStream, setSlashStream] = useState("");
-  const [slashMakerWallet, setSlashMakerWallet] = useState("");
   const [slashTx, setSlashTx] = useState("");
-
-  const isSlashMode = activeTab === "slashing";
 
   const searchLabel = useMemo(() => searchQuery.trim(), [searchQuery]);
   const streamById = useMemo(
@@ -101,7 +98,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       return;
     }
     void loadFeed();
-  }, [activeTab]);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void loadSidebar();
@@ -146,7 +143,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     setLoading(true);
     setStatus(null);
     setOpenComments({});
-    const type = activeTab === "slashing" ? "slash" as const : undefined;
+    const type = undefined;
     try {
       const data = await fetchFeed(type);
       setFeed(data.posts ?? []);
@@ -164,31 +161,26 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     if (!wallet) { openWalletModal(false); return; }
     setStatus(null);
     try {
-      await createIntent({
-        wallet,
-        content: postText,
-        tags: isIntentTag ? ["intent"] : undefined,
-      });
+      if (isSlashTag) {
+        await createSlashReport({
+          wallet,
+          content: postText,
+          streamId: slashStream || undefined,
+          challengeTx: slashTx || undefined,
+        });
+        setSlashStream(""); setSlashTx("");
+      } else {
+        await createIntent({
+          wallet,
+          content: postText,
+          tags: isIntentTag ? ["intent"] : undefined,
+        });
+      }
       setPostText("");
       setIsIntentTag(false);
+      setIsSlashTag(false);
       await loadFeed();
     } catch (err: any) { setStatus(err.message ?? "Failed to post"); }
-  }
-
-  async function postSlash() {
-    if (!wallet) { openWalletModal(false); return; }
-    setStatus(null);
-    try {
-      await createSlashReport({
-        wallet,
-        content: slashText,
-        streamId: slashStream || undefined,
-        makerWallet: slashMakerWallet || undefined,
-        challengeTx: slashTx || undefined,
-      });
-      setSlashText(""); setSlashStream(""); setSlashMakerWallet(""); setSlashTx("");
-      await loadFeed();
-    } catch (err: any) { setStatus(err.message ?? "Failed to post slash report"); }
   }
 
   async function toggleLike(contentId: string) {
@@ -299,51 +291,38 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
             </div>
             <div className="x-composer-body">
 
-              {!isSlashMode ? (
-                /* Unified post composer */
-                <>
-                  <textarea
-                    className="x-composer-textarea"
-                    value={postText}
-                    onChange={(e) => setPostText(e.target.value)}
-                    placeholder="Share your market intelligence..."
-                    rows={2}
-                  />
-                  <div className="x-composer-footer">
-                    <button
-                      className={`composer-tag-btn${isIntentTag ? " composer-tag-btn--active" : ""}`}
-                      onClick={() => setIsIntentTag((v) => !v)}
-                    >
-                      # Intent
-                    </button>
-                    <button className="x-submit-btn" onClick={postContent} disabled={!postText}>
-                      Post
-                    </button>
-                  </div>
-                </>
-              ) : (
-                /* Slash report composer */
-                <>
-                  <textarea
-                    className="x-composer-textarea"
-                    value={slashText}
-                    onChange={(e) => setSlashText(e.target.value)}
-                    placeholder="Report a false or misleading signal..."
-                    rows={2}
-                  />
-                  <div className="x-composer-fields">
-                    <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
-                    <input className="input" value={slashMakerWallet} onChange={(e) => setSlashMakerWallet(e.target.value)} placeholder="Maker wallet" />
-                    <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
-                  </div>
-                  <div className="x-composer-footer">
-                    <span className="subtext">Triggers a public review thread.</span>
-                    <button className="x-submit-btn" onClick={postSlash} disabled={!slashText}>
-                      Report
-                    </button>
-                  </div>
-                </>
+              <textarea
+                className="x-composer-textarea"
+                value={postText}
+                onChange={(e) => setPostText(e.target.value)}
+                placeholder={isSlashTag ? "Report a false or misleading signal..." : "Share your market intelligence..."}
+                rows={2}
+              />
+
+              {isSlashTag && (
+                <div className="x-composer-fields">
+                  <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
+                  <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
+                </div>
               )}
+
+              <div className="x-composer-footer">
+                <button
+                  className={`composer-tag-btn${isIntentTag ? " composer-tag-btn--active" : ""}`}
+                  onClick={() => { setIsIntentTag((v) => !v); setIsSlashTag(false); }}
+                >
+                  # Intent
+                </button>
+                <button
+                  className={`composer-tag-btn${isSlashTag ? " composer-tag-btn--active" : ""}`}
+                  onClick={() => { setIsSlashTag((v) => !v); setIsIntentTag(false); }}
+                >
+                  # Slashing
+                </button>
+                <button className="x-submit-btn" onClick={postContent} disabled={!postText}>
+                  {isSlashTag ? "Report" : "Post"}
+                </button>
+              </div>
 
             </div>
             {!wallet && (

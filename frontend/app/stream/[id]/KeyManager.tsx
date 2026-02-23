@@ -6,8 +6,14 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { buildRegisterWalletKeyInstruction, resolveProgramId } from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
 import { syncWalletKey } from "../../lib/sdkBackend";
+import { useWalletKeyStatus } from "../../lib/walletKeyStatus";
 
-export default function KeyManager() {
+type KeyManagerProps = {
+  variant?: "card" | "plain";
+  className?: string;
+};
+
+export default function KeyManager({ variant = "card", className }: KeyManagerProps) {
   const [pubKey, setPubKey] = useState("");
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -15,6 +21,7 @@ export default function KeyManager() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
+  const { refresh: refreshWalletKey, needsWalletKey } = useWalletKeyStatus();
 
   async function handlePubKeyChange(next: string) {
     setPubKey(next);
@@ -59,15 +66,27 @@ export default function KeyManager() {
         wallet: publicKey.toBase58(),
       });
       setSyncStatus("Backend sync complete.");
+      await refreshWalletKey();
     } catch (err: any) {
       setChainStatus(err?.message ?? "Failed to register on-chain key.");
     }
   }
 
+  const isPlain = variant === "plain";
+  const containerClass = [
+    isPlain ? "key-manager key-manager--plain" : "card key-manager",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="card">
-      <div className="hud-corners" />
-      <h3>Wallet Key Manager</h3>
+    <div className={containerClass}>
+      {!isPlain && <div className="hud-corners" />}
+      <h3 className="key-manager-title">
+        Encryption Key Registration
+        {needsWalletKey && <span className="status-dot" aria-label="Wallet key missing" />}
+      </h3>
       <p>
         Generate an X25519 keypair locally on your machine, then paste the <strong>public key</strong> here to
         register it on-chain. Keep the private key offline — you will only use it when decrypting.

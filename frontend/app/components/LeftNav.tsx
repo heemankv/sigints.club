@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SolanaBadge from "./SolanaBadge";
+import { useWalletKeyStatus } from "../lib/walletKeyStatus";
 
 const NAV_ITEMS = [
   {
@@ -25,13 +26,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/slashings",
-    label: "Slashings",
+    href: "/register-stream",
+    label: "Register Stream",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 9v4" />
-        <path d="M12 17h.01" />
-        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="12" y1="8" x2="12" y2="16" />
+        <line x1="8" y1="12" x2="16" y2="12" />
       </svg>
     ),
   },
@@ -45,21 +46,11 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  {
-    href: "/register-stream",
-    label: "Register",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-        <line x1="12" y1="8" x2="12" y2="16" />
-        <line x1="8" y1="12" x2="16" y2="12" />
-      </svg>
-    ),
-  },
 ];
 
 export default function LeftNav() {
   const pathname = usePathname();
+  const { needsWalletKey } = useWalletKeyStatus();
 
   return (
     <aside className="x-sidebar">
@@ -67,6 +58,7 @@ export default function LeftNav() {
         {NAV_ITEMS.map(({ href, label, icon }) => {
           const baseHref = href.split("?")[0];
           const isActive = pathname === baseHref;
+          const showDot = needsWalletKey && baseHref === "/profile";
           return (
             <Link
               key={href}
@@ -74,7 +66,10 @@ export default function LeftNav() {
               className={`x-nav-item${isActive ? " x-nav-item--active" : ""}`}
             >
               {icon}
-              <span>{label}</span>
+              <span className="x-nav-label">
+                {label}
+                {showDot && <span className="status-dot" aria-label="Wallet key missing" />}
+              </span>
             </Link>
           );
         })}

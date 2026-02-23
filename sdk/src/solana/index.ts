@@ -16,6 +16,7 @@ export {
   deriveSubscriptionMint,
   deriveSubscriberKeyPda,
   deriveWalletKeyPda,
+  hasRegisteredWalletKey,
   deriveTierConfigPda as deriveTierConfigPdaFromHash,
   deriveStreamState,
   buildSubscribeInstruction,

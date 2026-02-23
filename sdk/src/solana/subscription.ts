@@ -1,4 +1,4 @@
-import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction } from "@solana/web3.js";
+import { Connection, type Commitment, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -83,6 +83,17 @@ export function deriveWalletKeyPda(programId: PublicKey, subscriber: PublicKey):
     programId
   );
   return pda;
+}
+
+export async function hasRegisteredWalletKey(
+  connection: Connection,
+  programId: PublicKey,
+  subscriber: PublicKey,
+  commitment: Commitment = "confirmed"
+): Promise<boolean> {
+  const walletKey = deriveWalletKeyPda(programId, subscriber);
+  const account = await connection.getAccountInfo(walletKey, commitment);
+  return !!account;
 }
 
 export function deriveTierConfigPda(
