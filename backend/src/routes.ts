@@ -226,9 +226,37 @@ router.post("/signals", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const visibility = parsed.data.visibility ?? "private";
-  const subscribers =
-    visibility === "public" ? [] : await subscriberDirectory.listSubscribers(parsed.data.streamId);
+  const stream = await discoveryService.getStream(parsed.data.streamId);
+  if (!stream) {
+    return res.status(404).json({ error: "stream not found" });
+  }
+  const visibility = stream.visibility ?? "private";
+  const subscribers = visibility === "public"
+    ? []
+    : await subscriberDirectory.listSubscribers(parsed.data.streamId);
+  const publish = await signalService.publishSignal(
+    parsed.data.streamId,
+    parsed.data.tierId,
+    Buffer.from(parsed.data.plaintextBase64, "base64"),
+    subscribers.map((s) => ({ encPubKeyDerBase64: s.encPubKeyDerBase64 })),
+    visibility
+  );
+  return res.json({ metadata: publish.metadata });
+});
+
+router.post("/signals/prepare", async (req, res) => {
+  const parsed = signalSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const stream = await discoveryService.getStream(parsed.data.streamId);
+  if (!stream) {
+    return res.status(404).json({ error: "stream not found" });
+  }
+  const visibility = stream.visibility ?? "private";
+  const subscribers = visibility === "public"
+    ? []
+    : await subscriberDirectory.listSubscribers(parsed.data.streamId);
   const publish = await signalService.publishSignal(
     parsed.data.streamId,
     parsed.data.tierId,

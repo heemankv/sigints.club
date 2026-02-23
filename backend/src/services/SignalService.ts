@@ -8,7 +8,6 @@ import {
   WrappedKey,
 } from "../crypto/hybrid";
 import { SocialPublisher } from "./SocialPublisher";
-import { OnChainRecorder, toRecordSignalInput } from "./OnChainRecorder";
 
 export type Subscriber = {
   encPubKeyDerBase64: string;
@@ -23,8 +22,7 @@ export class SignalService {
   constructor(
     private storage: StorageProvider,
     private metadata: MetadataStore,
-    private socialPublisher?: SocialPublisher,
-    private onChainRecorder?: OnChainRecorder
+    private socialPublisher?: SocialPublisher
   ) {}
 
   async publishSignal(
@@ -52,17 +50,6 @@ export class SignalService {
         visibility,
         createdAt: Date.now(),
       };
-      if (this.onChainRecorder) {
-        try {
-          const signature = await this.onChainRecorder.recordSignal(toRecordSignalInput(meta));
-          if (signature) {
-            meta.onchainTx = signature;
-          }
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.warn("on-chain record_signal failed", error);
-        }
-      }
       await this.metadata.addSignal(meta);
       if (this.socialPublisher) {
         await this.socialPublisher.publishSignal({
@@ -122,18 +109,6 @@ export class SignalService {
       visibility,
       createdAt: Date.now(),
     };
-    if (this.onChainRecorder) {
-      try {
-        const signature = await this.onChainRecorder.recordSignal(toRecordSignalInput(meta));
-        if (signature) {
-          meta.onchainTx = signature;
-        }
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn("on-chain record_signal failed", error);
-      }
-    }
-
     await this.metadata.addSignal(meta);
 
     if (this.socialPublisher) {

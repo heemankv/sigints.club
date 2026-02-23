@@ -6,11 +6,18 @@ import {
   unwrapKeyForSubscriber,
   WrappedKey,
 } from "./crypto";
+import {
+  prepareSignal as prepareSignalRequest,
+  buildRecordSignalInstruction as buildRecordSignalIx,
+  type PrepareSignalInput,
+  type RecordSignalParams,
+} from "./publish";
 
 export type StreamSdkConfig = {
   rpcUrl: string;
   backendUrl: string;
   programId: string;
+  streamRegistryProgramId?: string;
   keyboxAuth?: KeyboxAuth;
 };
 
@@ -70,6 +77,7 @@ export type ListenOptions = {
 export class SigintsClient {
   private connection: Connection;
   private programId: PublicKey;
+  private streamRegistryProgramId?: PublicKey;
   private backendUrl: string;
   private keyboxAuth?: KeyboxAuth;
   private seenSignals = new Set<string>();
@@ -77,6 +85,9 @@ export class SigintsClient {
   constructor(cfg: StreamSdkConfig) {
     this.connection = new Connection(cfg.rpcUrl, "confirmed");
     this.programId = new PublicKey(cfg.programId);
+    this.streamRegistryProgramId = cfg.streamRegistryProgramId
+      ? new PublicKey(cfg.streamRegistryProgramId)
+      : undefined;
     this.backendUrl = cfg.backendUrl.replace(/\/$/, "");
     this.keyboxAuth = cfg.keyboxAuth;
   }
@@ -279,6 +290,21 @@ export class SigintsClient {
     }
     return null;
   }
+
+  async prepareSignal(input: PrepareSignalInput): Promise<SignalMetadata> {
+    return prepareSignalRequest(this.backendUrl, input);
+  }
+
+  async buildRecordSignalInstruction(params: Omit<RecordSignalParams, "programId" | "streamRegistryProgramId">): Promise<import("@solana/web3.js").TransactionInstruction> {
+    if (!this.streamRegistryProgramId) {
+      throw new Error("streamRegistryProgramId not configured");
+    }
+    return buildRecordSignalIx({
+      ...params,
+      programId: this.programId,
+      streamRegistryProgramId: this.streamRegistryProgramId,
+    });
+  }
 }
 
 type DecodedSignalRecord = {
@@ -351,6 +377,10 @@ function hexToBytes(input: string, label: string): Uint8Array {
 }
 
 export { generateX25519Keypair, subscriberIdFromPubkey, WrappedKey };
+export {
+  prepareSignalRequest as prepareSignal,
+  buildRecordSignalIx as buildRecordSignalInstruction,
+};
 
 export const __testing = {
   decodeSignalRecord,

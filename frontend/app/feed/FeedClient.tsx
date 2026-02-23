@@ -448,13 +448,15 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               return (
                 <div className="xpost" key={post.id}>
                   <div className="xpost-avatar">
-                    <AvatarCircle seed={post.authorWallet} />
+                    <Link href={`/profile/${post.authorWallet}`}>
+                      <AvatarCircle seed={post.authorWallet} />
+                    </Link>
                   </div>
                   <div className="xpost-body">
                     <div className="xpost-header">
-                      <span className="xpost-name">
+                      <Link href={`/profile/${post.authorWallet}`} className="xpost-name">
                         {shortWallet(post.authorWallet)}
-                      </span>
+                      </Link>
                       <Link href={`/post/${post.contentId}`} className="xpost-time" title="View post">
                         · {timeAgo(post.createdAt)}
                       </Link>

@@ -56,17 +56,6 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/my-streams",
-    label: "My Streams",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="3" width="20" height="4" rx="1" />
-        <rect x="2" y="10" width="20" height="4" rx="1" />
-        <rect x="2" y="17" width="20" height="4" rx="1" />
-      </svg>
-    ),
-  },
-  {
     href: "/register-stream",
     label: "Register",
     icon: (
@@ -85,16 +74,20 @@ export default function LeftNav() {
   return (
     <aside className="x-sidebar">
       <nav className="x-nav">
-        {NAV_ITEMS.map(({ href, label, icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`x-nav-item${pathname === href ? " x-nav-item--active" : ""}`}
-          >
-            {icon}
-            <span>{label}</span>
-          </Link>
-        ))}
+        {NAV_ITEMS.map(({ href, label, icon }) => {
+          const baseHref = href.split("?")[0];
+          const isActive = pathname === baseHref;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`x-nav-item${isActive ? " x-nav-item--active" : ""}`}
+            >
+              {icon}
+              <span>{label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="sidebar-badges">

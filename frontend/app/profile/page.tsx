@@ -2,12 +2,14 @@
 
 import { useEffect, useState, type ComponentProps } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchJson, postJson } from "../lib/api";
 import { fetchStreams } from "../lib/api/streams";
 import { fetchOnchainSubscriptions } from "../lib/api/subscriptions";
 import type { BotProfile, OnChainSubscription, StreamDetail, StreamTier } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
+import MyStreamsSection from "../components/MyStreamsSection";
 import KeyManager from "../stream/[id]/KeyManager";
 import { sha256Bytes } from "../lib/solana";
 import { toHex } from "../lib/utils";
@@ -20,6 +22,8 @@ type UserProfile = {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { publicKey } = useWallet();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -36,8 +40,25 @@ export default function ProfilePage() {
   const [botEvidence, setBotEvidence] = useState<"trust" | "verifier" | "hybrid">("trust");
   const [botStatus, setBotStatus] = useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = useState<"subscriptions" | "streams" | "actions">("subscriptions");
+
   const walletAddr = publicKey?.toBase58();
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "streams" || tab === "actions" || tab === "subscriptions") {
+      setActiveTab(tab);
+      return;
+    }
+    setActiveTab("subscriptions");
+  }, [searchParams]);
+
+  function switchTab(tab: "subscriptions" | "streams" | "actions") {
+    setActiveTab(tab);
+    const suffix = tab === "subscriptions" ? "" : `?tab=${tab}`;
+    router.push(`/profile${suffix}`, { scroll: false });
+  }
 
   useEffect(() => {
     if (!walletAddr) return;
@@ -194,126 +215,147 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Subscriptions */}
-            <div className="profile-tab-content">
-              <div className="data-grid">
-                {subsLoading && <p className="subtext">Loading subscriptions…</p>}
-                {subsError && <p className="subtext">{subsError}</p>}
-                {!subsLoading && !subsError && subscriptionCards.length === 0 && (
-                  <p className="subtext">No active subscriptions yet.</p>
-                )}
-                {subscriptionCards.map((card) => (
-                  <OwnedSubscriptionCard key={`${card.streamId}:${card.tierLabel}`} {...card} />
-                ))}
-              </div>
+            <div className="maker-tabs" style={{ marginTop: 20 }}>
+              <button
+                className={`maker-tab${activeTab === "subscriptions" ? " maker-tab--active" : ""}`}
+                onClick={() => switchTab("subscriptions")}
+              >
+                My Subscriptions
+              </button>
+              <button
+                className={`maker-tab${activeTab === "streams" ? " maker-tab--active" : ""}`}
+                onClick={() => switchTab("streams")}
+              >
+                My Streams
+              </button>
+              <button
+                className={`maker-tab${activeTab === "actions" ? " maker-tab--active" : ""}`}
+                onClick={() => switchTab("actions")}
+              >
+                Actions
+              </button>
             </div>
+
+            {activeTab === "subscriptions" && (
+              <div className="profile-tab-content">
+                <div className="data-grid">
+                  {subsLoading && <p className="subtext">Loading subscriptions…</p>}
+                  {subsError && <p className="subtext">{subsError}</p>}
+                  {!subsLoading && !subsError && subscriptionCards.length === 0 && (
+                    <p className="subtext">No active subscriptions yet.</p>
+                  )}
+                  {subscriptionCards.map((card) => (
+                    <OwnedSubscriptionCard key={`${card.streamId}:${card.tierLabel}`} {...card} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "streams" && (
+              <div className="profile-tab-content">
+                <MyStreamsSection />
+              </div>
+            )}
+
+            {activeTab === "actions" && (
+              <div className="profile-tab-content">
+                <div className="profile-actions">
+                  <div className="x-rail-module">
+                    <h3 className="x-rail-heading">Register Stream</h3>
+                    <p className="x-trend-category">Launch a new signal stream on-chain.</p>
+                    <Link className="button ghost" href="/register-stream" style={{ marginTop: 10 }}>
+                      Register Stream →
+                    </Link>
+                  </div>
+
+                  <div className="x-rail-module">
+                    <h3 className="x-rail-heading">Create Bot</h3>
+                    <input
+                      className="input"
+                      value={botName}
+                      onChange={(e) => setBotName(e.target.value)}
+                      placeholder="Bot name"
+                      style={{ marginBottom: 8 }}
+                    />
+                    <input
+                      className="input"
+                      value={botDomain}
+                      onChange={(e) => setBotDomain(e.target.value)}
+                      placeholder="Domain (e.g. pricing)"
+                      style={{ marginBottom: 8 }}
+                    />
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      <button
+                        className={`button ${botRole === "maker" ? "primary" : "ghost"}`}
+                        onClick={() => setBotRole("maker")}
+                        style={{ flex: 1, fontSize: 13 }}
+                      >
+                        Maker
+                      </button>
+                      <button
+                        className={`button ${botRole === "listener" ? "primary" : "ghost"}`}
+                        onClick={() => setBotRole("listener")}
+                        style={{ flex: 1, fontSize: 13 }}
+                      >
+                        Listener
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                      {(["trust", "verifier", "hybrid"] as const).map((ev) => (
+                        <button
+                          key={ev}
+                          className={`button ${botEvidence === ev ? "primary" : "ghost"}`}
+                          onClick={() => setBotEvidence(ev)}
+                          style={{ flex: 1, fontSize: 11, padding: "6px 4px" }}
+                        >
+                          {ev}
+                        </button>
+                      ))}
+                    </div>
+                    <button className="button secondary" onClick={createBot} style={{ width: "100%" }}>
+                      Register Bot
+                    </button>
+                    {botStatus && <p className="subtext" style={{ marginTop: 8 }}>{botStatus}</p>}
+                  </div>
+
+                  <KeyManager />
+
+                  <div className="x-rail-module">
+                    <h3 className="x-rail-heading">Your Bots</h3>
+                    {allBots.length > 0 ? (
+                      allBots.map((bot) => (
+                        <div className="x-trend-item" key={bot.id}>
+                          <span className="x-trend-category">{bot.domain} · {bot.role}</span>
+                          <strong className="x-trend-topic">{bot.name}</strong>
+                          <span className="x-trend-meta">{bot.evidence}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <>
+                        <div className="x-trend-item">
+                          <span className="x-trend-category">pricing · maker</span>
+                          <strong className="x-trend-topic">BTC Price Oracle</strong>
+                          <span className="x-trend-meta">verifier</span>
+                        </div>
+                        <div className="x-trend-item">
+                          <span className="x-trend-category">mev · maker</span>
+                          <strong className="x-trend-topic">Solana MEV Watch</strong>
+                          <span className="x-trend-meta">trust</span>
+                        </div>
+                        <div className="x-trend-item">
+                          <span className="x-trend-category">aggregation · listener</span>
+                          <strong className="x-trend-topic">Signal Aggregator</strong>
+                          <span className="x-trend-meta">hybrid</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
-
-      {/* ─── Right: action rail ─── */}
-      <aside className="social-rail">
-
-        {/* Maker quick links */}
-        <div className="x-rail-module">
-          <h3 className="x-rail-heading">Maker</h3>
-          <Link className="x-trend-item" href="/register-stream" style={{ cursor: "pointer" }}>
-            <strong className="x-trend-topic">Register Stream</strong>
-            <span className="x-trend-category">Launch a new signal stream on-chain</span>
-          </Link>
-          <Link className="x-rail-link" href="/my-streams" style={{ display: "block", paddingTop: 12 }}>
-            View My Streams →
-          </Link>
-        </div>
-
-        {/* Create Bot */}
-        <div className="x-rail-module">
-          <h3 className="x-rail-heading">Create Bot</h3>
-          <input
-            className="input"
-            value={botName}
-            onChange={(e) => setBotName(e.target.value)}
-            placeholder="Bot name"
-            style={{ marginBottom: 8 }}
-          />
-          <input
-            className="input"
-            value={botDomain}
-            onChange={(e) => setBotDomain(e.target.value)}
-            placeholder="Domain (e.g. pricing)"
-            style={{ marginBottom: 8 }}
-          />
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <button
-              className={`button ${botRole === "maker" ? "primary" : "ghost"}`}
-              onClick={() => setBotRole("maker")}
-              style={{ flex: 1, fontSize: 13 }}
-            >
-              Maker
-            </button>
-            <button
-              className={`button ${botRole === "listener" ? "primary" : "ghost"}`}
-              onClick={() => setBotRole("listener")}
-              style={{ flex: 1, fontSize: 13 }}
-            >
-              Listener
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-            {(["trust", "verifier", "hybrid"] as const).map((ev) => (
-              <button
-                key={ev}
-                className={`button ${botEvidence === ev ? "primary" : "ghost"}`}
-                onClick={() => setBotEvidence(ev)}
-                style={{ flex: 1, fontSize: 11, padding: "6px 4px" }}
-              >
-                {ev}
-              </button>
-            ))}
-          </div>
-          <button className="button secondary" onClick={createBot} style={{ width: "100%" }}>
-            Register Bot
-          </button>
-          {botStatus && <p className="subtext" style={{ marginTop: 8 }}>{botStatus}</p>}
-        </div>
-
-        {/* Encryption Key */}
-        <KeyManager />
-
-        {/* Your Bots */}
-        <div className="x-rail-module">
-          <h3 className="x-rail-heading">Your Bots</h3>
-          {allBots.length > 0 ? (
-            allBots.map((bot) => (
-              <div className="x-trend-item" key={bot.id}>
-                <span className="x-trend-category">{bot.domain} · {bot.role}</span>
-                <strong className="x-trend-topic">{bot.name}</strong>
-                <span className="x-trend-meta">{bot.evidence}</span>
-              </div>
-            ))
-          ) : (
-            /* DUMMY: remove when real bot data is wired */
-            <>
-              <div className="x-trend-item">
-                <span className="x-trend-category">pricing · maker</span>
-                <strong className="x-trend-topic">BTC Price Oracle</strong>
-                <span className="x-trend-meta">verifier</span>
-              </div>
-              <div className="x-trend-item">
-                <span className="x-trend-category">mev · maker</span>
-                <strong className="x-trend-topic">Solana MEV Watch</strong>
-                <span className="x-trend-meta">trust</span>
-              </div>
-              <div className="x-trend-item">
-                <span className="x-trend-category">aggregation · listener</span>
-                <strong className="x-trend-topic">Signal Aggregator</strong>
-                <span className="x-trend-meta">hybrid</span>
-              </div>
-            </>
-          )}
-        </div>
-
-      </aside>
     </section>
   );
 }

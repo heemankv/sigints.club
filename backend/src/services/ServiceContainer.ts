@@ -8,8 +8,6 @@ import { FileSubscriberDirectory } from "./FileSubscriberDirectory";
 import { DiscoveryService } from "./DiscoveryService";
 import { StreamRegistryClient } from "./StreamRegistryClient";
 import { ListenerService } from "./ListenerService";
-import { OnChainStub } from "./OnChainStub";
-import { OnChainAnchorRecorder } from "./OnChainAnchorRecorder";
 import { OnChainSubscriptionClient } from "./OnChainSubscriptionClient";
 import {
   FileUserStore,
@@ -53,20 +51,6 @@ const subscriptionStore = persist ? new FileSubscriptionStore() : new InMemorySu
 const client = getTapestryClient();
 const tapestryStreamService = new TapestryStreamService(client, tapestryRegistryProfileId);
 
-const onChainRecorder =
-  solanaProgramId && (solanaKeypairPath || solanaSecretKey)
-    ? new OnChainAnchorRecorder({
-        rpcUrl: solanaRpcUrl,
-        keypairPath: solanaKeypairPath,
-        secretKeyBase58: solanaSecretKey,
-        programId: solanaProgramId,
-        idlPath: solanaIdlPath,
-        streamMap: solanaStreamMap,
-        streamDefault: solanaStreamDefault,
-        streamRegistryProgramId: solanaStreamRegistryId,
-      })
-    : new OnChainStub();
-
 const onChainSubscriptions =
   solanaProgramId && (solanaKeypairPath || solanaSecretKey)
     ? new OnChainSubscriptionClient({
@@ -92,7 +76,7 @@ socialService.startBackgroundRefresh(15_000); // poll Tapestry feed every 15 s
 const discovery = new DiscoveryService(streamRegistryInstance, tapestryStreamService);
 discovery.startBackgroundRefresh(20_000); // poll Tapestry streams every 20 s
 
-export const signalService = new SignalService(storage, metadata, socialPublisher, onChainRecorder);
+export const signalService = new SignalService(storage, metadata, socialPublisher);
 export const metadataStore = metadata;
 export const subscriberDirectory = subscribers;
 export const discoveryService = discovery;

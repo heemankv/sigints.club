@@ -1,49 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { generateX25519Keypair, subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../lib/crypto";
+import { useState } from "react";
+import { subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../lib/crypto";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { buildRegisterWalletKeyInstruction, resolveProgramId } from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
 
-const storageKey = (wallet?: string) => `wallet.keys.${wallet ?? "unknown"}`;
-
 export default function KeyManager() {
   const [pubKey, setPubKey] = useState("");
-  const [privKey, setPrivKey] = useState("");
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
-  useEffect(() => {
-    if (!publicKey) return;
-    const raw = localStorage.getItem(storageKey(publicKey.toBase58()));
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw);
-      setPubKey(data.publicKeyBase64 ?? "");
-      setPrivKey(data.privateKeyBase64 ?? "");
-      setSubscriberId(data.subscriberId ?? null);
-    } catch {
-      // ignore
-    }
-  }, [publicKey]);
-
-  async function generate() {
+  async function handlePubKeyChange(next: string) {
+    setPubKey(next);
     setStatus(null);
+    if (!next) {
+      setSubscriberId(null);
+      return;
+    }
     try {
-      const data = await generateX25519Keypair();
-      const subId = await subscriberIdFromPubkey(data.publicKeyBase64);
-      setPubKey(data.publicKeyBase64);
-      setPrivKey(data.privateKeyBase64);
+      const subId = await subscriberIdFromPubkey(next);
       setSubscriberId(subId);
-      const key = storageKey(publicKey?.toBase58());
-      localStorage.setItem(key, JSON.stringify({ ...data, subscriberId: subId }));
-      setStatus("Generated new keypair. Store your private key safely.");
     } catch (err: any) {
-      setStatus(err?.message ?? "Failed to generate keypair in this browser.");
+      setSubscriberId(null);
+      setStatus(err?.message ?? "Invalid public key format.");
     }
   }
 
@@ -78,16 +61,36 @@ export default function KeyManager() {
     <div className="card">
       <div className="hud-corners" />
       <h3>Wallet Key Manager</h3>
-      <p>Register one encryption keypair for all subscriptions.</p>
-      <button className="button primary" onClick={generate}>Generate Keypair</button>
+      <p>
+        Generate an X25519 keypair locally on your machine, then paste the <strong>public key</strong> here to
+        register it on-chain. Keep the private key offline — you will only use it when decrypting.
+      </p>
+
+      <div className="key-instructions">
+        <div className="key-block">
+          <h4>macOS / Linux</h4>
+          <pre>
+{`openssl genpkey -algorithm X25519 -out x25519.key
+openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
+          </pre>
+          <p className="subtext">Copy the output above as your public key (base64 DER).</p>
+        </div>
+        <div className="key-block">
+          <h4>Windows (PowerShell / Git Bash)</h4>
+          <pre>
+{`openssl genpkey -algorithm X25519 -out x25519.key
+openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
+          </pre>
+          <p className="subtext">
+            If `openssl` is missing, install OpenSSL or use Git Bash.
+          </p>
+        </div>
+      </div>
+
       {status && <p className="subtext">{status}</p>}
       <div className="field">
-        <label>Public Key (base64)</label>
-        <textarea value={pubKey} onChange={(e) => setPubKey(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>Private Key (base64)</label>
-        <textarea value={privKey} onChange={(e) => setPrivKey(e.target.value)} />
+        <label>Public Key (base64 DER)</label>
+        <textarea value={pubKey} onChange={(e) => void handlePubKeyChange(e.target.value.trim())} />
       </div>
       {subscriberId && <p className="subtext">Subscriber ID: {subscriberId}</p>}
       <div className="divider" />
