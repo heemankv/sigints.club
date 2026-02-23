@@ -2,13 +2,15 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { sha256Bytes } from "../utils/hash";
 
 const STREAM_SEED = Buffer.from("stream");
-const STREAM_ACCOUNT_SIZE = 8 + 32 + 32 + 32 + 32 + 1 + 1;
+const STREAM_ACCOUNT_SIZE = 8 + 32 + 32 + 32 + 32 + 1 + 1 + 1;
+const STREAM_ACCOUNT_SIZE_LEGACY = 8 + 32 + 32 + 32 + 32 + 1 + 1;
 
 export type OnchainStreamConfig = {
   streamIdHex: string;
   authority: string;
   dao: string;
   tiersHashHex: string;
+  visibility: number;
   status: number;
   bump: number;
   pda: string;
@@ -65,7 +67,7 @@ export class StreamRegistryClient {
 }
 
 function decodeStreamConfig(data: Buffer, pda: PublicKey): OnchainStreamConfig | null {
-  if (data.length < STREAM_ACCOUNT_SIZE) {
+  if (data.length < STREAM_ACCOUNT_SIZE_LEGACY) {
     return null;
   }
   let offset = 8;
@@ -77,14 +79,26 @@ function decodeStreamConfig(data: Buffer, pda: PublicKey): OnchainStreamConfig |
   offset += 32;
   const tiersHash = data.slice(offset, offset + 32);
   offset += 32;
-  const status = data[offset];
-  offset += 1;
-  const bump = data[offset];
+  let visibility = 1;
+  let status: number;
+  let bump: number;
+  if (data.length >= STREAM_ACCOUNT_SIZE) {
+    visibility = data[offset];
+    offset += 1;
+    status = data[offset];
+    offset += 1;
+    bump = data[offset];
+  } else {
+    status = data[offset];
+    offset += 1;
+    bump = data[offset];
+  }
   return {
     streamIdHex: streamId.toString("hex"),
     authority: authority.toBase58(),
     dao: dao.toBase58(),
     tiersHashHex: tiersHash.toString("hex"),
+    visibility,
     status,
     bump,
     pda: pda.toBase58(),

@@ -74,6 +74,10 @@
         {
           "name": "dao",
           "type": "pubkey"
+        },
+        {
+          "name": "visibility",
+          "type": "u8"
         }
       ]
     },
@@ -309,6 +313,10 @@
                 32
               ]
             }
+          },
+          {
+            "name": "visibility",
+            "type": "u8"
           },
           {
             "name": "status",

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { backendUrl } from "../lib/api";
+import { fetchHealth } from "../lib/sdkBackend";
 
 export default function BackendStatus() {
   const [status, setStatus] = useState<"unknown" | "online" | "offline">("unknown");
@@ -10,7 +11,7 @@ export default function BackendStatus() {
     let cancelled = false;
     async function check() {
       try {
-        const res = await fetch(`${backendUrl()}/health`, { cache: "no-store" });
+        const res = await fetchHealth(backendUrl());
         if (!cancelled) {
           setStatus(res.ok ? "online" : "offline");
         }

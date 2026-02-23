@@ -11,12 +11,14 @@ pub mod stream_registry {
         stream_id: [u8; 32],
         tiers_hash: [u8; 32],
         dao: Pubkey,
+        visibility: u8,
     ) -> Result<()> {
         let stream = &mut ctx.accounts.stream;
         stream.stream_id = stream_id;
         stream.authority = ctx.accounts.authority.key();
         stream.dao = dao;
         stream.tiers_hash = tiers_hash;
+        stream.visibility = visibility;
         stream.status = StreamStatus::Active as u8;
         stream.bump = ctx.bumps.stream;
         Ok(())
@@ -112,12 +114,18 @@ pub struct StreamConfig {
     pub authority: Pubkey,
     pub dao: Pubkey,
     pub tiers_hash: [u8; 32],
+    pub visibility: u8,
     pub status: u8,
     pub bump: u8,
 }
 
 impl StreamConfig {
-    pub const SPACE: usize = 8 + 32 + 32 + 32 + 32 + 1 + 1;
+    pub const SPACE: usize = 8 + 32 + 32 + 32 + 32 + 1 + 1 + 1;
+}
+
+pub enum StreamVisibility {
+    Public = 0,
+    Private = 1,
 }
 
 #[account]

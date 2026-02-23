@@ -41,19 +41,22 @@ export async function buildCreateStreamInstruction(params: {
   streamId: string;
   tiers: TierInput[];
   dao?: string;
+  visibility: "public" | "private";
 }): Promise<{ instruction: TransactionInstruction; streamPda: PublicKey; tiersHash: Uint8Array }> {
   const streamIdBytes = await deriveStreamIdBytes(params.streamId);
   const tiersHash = await buildTiersHash(params.tiers);
   const daoPubkey = params.dao ? new PublicKey(params.dao) : params.authority;
+  const visibility = params.visibility === "public" ? 0 : 1;
   const streamPda = PublicKey.findProgramAddressSync(
     [Buffer.from("stream"), Buffer.from(streamIdBytes)],
     params.programId
   )[0];
-  const data = new Uint8Array(8 + 32 + 32 + 32);
+  const data = new Uint8Array(8 + 32 + 32 + 32 + 1);
   data.set(CREATE_STREAM_DISCRIMINATOR, 0);
   data.set(streamIdBytes, 8);
   data.set(tiersHash, 40);
   data.set(daoPubkey.toBytes(), 72);
+  data[104] = visibility;
   const instruction = new TransactionInstruction({
     programId: params.programId,
     keys: [

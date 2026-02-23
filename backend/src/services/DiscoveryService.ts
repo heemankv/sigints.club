@@ -143,8 +143,10 @@ export class DiscoveryService {
       if (!config || config.status !== 1) continue;
       const tiersHash = hashTiersHex(stream.tiers);
       if (tiersHash !== config.tiersHashHex) continue;
+      const visibility = config.visibility === 0 ? "public" : "private";
       results.push({
         ...stream,
+        visibility,
         onchainAddress: config.pda,
         authority: config.authority,
         dao: config.dao,

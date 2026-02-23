@@ -531,6 +531,9 @@
           "writable": true
         },
         {
+          "name": "wallet_key"
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         },
@@ -702,6 +705,11 @@
       "code": 6010,
       "name": "SubscriptionInactive",
       "msg": "Subscription is not active"
+    },
+    {
+      "code": 6011,
+      "name": "WalletKeyMissing",
+      "msg": "Wallet encryption key missing for private stream"
     }
   ],
   "types": [

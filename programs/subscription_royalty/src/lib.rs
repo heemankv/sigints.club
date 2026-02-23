@@ -30,6 +30,13 @@ pub mod subscription_royalty {
             stream_config.status == StreamStatus::Active as u8,
             ErrorCode::StreamInactive
         );
+        if stream_config.visibility == StreamVisibility::Private as u8 {
+            require_wallet_key(
+                &ctx.accounts.wallet_key,
+                &ctx.accounts.subscriber,
+                &ctx.program_id,
+            )?;
+        }
         let tier_config = validate_tier(
             &ctx.accounts.tier_config,
             &ctx.accounts.stream,
@@ -384,6 +391,8 @@ pub struct Subscribe<'info> {
     pub maker: SystemAccount<'info>,
     #[account(mut)]
     pub treasury: SystemAccount<'info>,
+    /// CHECK: validated in handler for private streams
+    pub wallet_key: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
     pub token_2022_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -563,6 +572,7 @@ pub struct StreamConfig {
     pub authority: Pubkey,
     pub dao: Pubkey,
     pub tiers_hash: [u8; 32],
+    pub visibility: u8,
     pub status: u8,
     pub bump: u8,
 }
@@ -571,6 +581,11 @@ pub enum StreamStatus {
     Inactive = 0,
     Active = 1,
     Paused = 2,
+}
+
+pub enum StreamVisibility {
+    Public = 0,
+    Private = 1,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -615,6 +630,30 @@ pub enum ErrorCode {
     InvalidSubscriberAta,
     #[msg("Subscription is not active")]
     SubscriptionInactive,
+    #[msg("Wallet encryption key missing for private stream")]
+    WalletKeyMissing,
+}
+
+fn require_wallet_key(
+    wallet_key: &AccountInfo,
+    subscriber: &Signer,
+    program_id: &Pubkey,
+) -> Result<()> {
+    let expected = Pubkey::find_program_address(
+        &[b"wallet_key", subscriber.key().as_ref()],
+        program_id,
+    )
+    .0;
+    require_keys_eq!(expected, *wallet_key.key, ErrorCode::WalletKeyMissing);
+    require_keys_eq!(*wallet_key.owner, *program_id, ErrorCode::WalletKeyMissing);
+    let data = wallet_key.data.borrow();
+    if data.len() < 8 {
+        return Err(error!(ErrorCode::WalletKeyMissing));
+    }
+    let mut data: &[u8] = &data[8..];
+    let decoded = WalletKey::deserialize(&mut data).map_err(|_| error!(ErrorCode::WalletKeyMissing))?;
+    require_keys_eq!(decoded.subscriber, subscriber.key(), ErrorCode::WalletKeyMissing);
+    Ok(())
 }
 
 fn load_stream_config(account: &AccountInfo, registry_program: &AccountInfo) -> Result<StreamConfig> {

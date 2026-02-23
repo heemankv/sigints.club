@@ -267,6 +267,7 @@ async function ensureStreamConfig(args: {
   authority: Keypair;
   streamId: string;
   tiers: StreamTier[];
+  visibility: "public" | "private";
   coder: anchor.BorshInstructionCoder;
 }): Promise<PublicKey> {
   const streamIdBytes = sha256Bytes(args.streamId);
@@ -283,6 +284,7 @@ async function ensureStreamConfig(args: {
     stream_id: Array.from(streamIdBytes),
     tiers_hash: Array.from(tiersHashBytes),
     dao: args.authority.publicKey,
+    visibility: args.visibility === "public" ? 0 : 1,
   });
 
   const ix = new anchor.web3.TransactionInstruction({

@@ -6,6 +6,7 @@ import { type WalletName } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import { TestWalletAdapter } from "./lib/TestWalletAdapter";
 import { backendUrl } from "./lib/api";
+import { getTestWallet } from "./lib/sdkBackend";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName;
 const TEST_WALLET_FLAG = process.env.NEXT_PUBLIC_TEST_WALLET === "true";
@@ -63,10 +64,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setTestWalletActive(true);
     }
     let cancelled = false;
-    const accountParam = testWalletAccount ? `?wallet=${encodeURIComponent(testWalletAccount)}` : "";
-    fetch(`${backendUrl()}/test-wallet${accountParam}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Test wallet unavailable"))))
-      .then((data: { wallet?: string }) => {
+    getTestWallet(backendUrl(), testWalletAccount)
+      .then((data) => {
         if (cancelled) return;
         setTestWalletPubkey(data.wallet ?? null);
         setTestWalletActive(Boolean(data.wallet));

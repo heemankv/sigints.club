@@ -554,18 +554,22 @@ router.post("/streams", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const visibility = parsed.data.visibility ?? "private";
+  const tiersHash = hashTiersHex(parsed.data.tiers);
+  const onchain = await streamRegistry.getStreamConfig(parsed.data.id);
+  if (!onchain) {
+    return res.status(400).json({ error: "stream not registered on-chain" });
+  }
+  const onchainVisibility = onchain.visibility === 0 ? "public" : "private";
+  const visibility = parsed.data.visibility ?? onchainVisibility;
+  if (visibility !== onchainVisibility) {
+    return res.status(400).json({ error: "visibility mismatch with on-chain config" });
+  }
   if (visibility === "public") {
     const basePrice = parsePriceValue(parsed.data.price);
     const tierPrices = parsed.data.tiers.map((tier) => parsePriceValue(tier.price));
     if (basePrice > 0 || tierPrices.some((val) => val > 0)) {
       return res.status(400).json({ error: "public streams must be free (price = 0)" });
     }
-  }
-  const tiersHash = hashTiersHex(parsed.data.tiers);
-  const onchain = await streamRegistry.getStreamConfig(parsed.data.id);
-  if (!onchain) {
-    return res.status(400).json({ error: "stream not registered on-chain" });
   }
   if (onchain.status !== 1) {
     return res.status(400).json({ error: "stream is not active" });
@@ -603,7 +607,7 @@ router.post("/streams", async (req, res) => {
     stream: {
       ...parsed.data,
       onchainAddress: onchain.pda,
-      visibility: parsed.data.visibility ?? "private",
+      visibility,
       tapestryProfileId,
     },
   });

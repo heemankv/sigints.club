@@ -11,6 +11,7 @@ import type { Connection, TransactionSignature, TransactionVersion } from "@sola
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { backendUrl } from "./api";
+import { testWalletSend, testWalletSignMessage } from "./sdkBackend";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName<"TestWallet">;
 const TEST_ICON =
@@ -72,20 +73,14 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
     const serialized = isVersioned
       ? transaction.serialize()
       : transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
-    const walletQuery = this.walletName ? `?wallet=${encodeURIComponent(this.walletName)}` : "";
-    const res = await fetch(`${backendUrl()}/test-wallet/send${walletQuery}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    const data = await testWalletSend(
+      backendUrl(),
+      {
         transactionBase64: Buffer.from(serialized).toString("base64"),
         skipPreflight: options?.skipPreflight ?? false,
-      }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Test wallet send failed (${res.status}): ${text}`);
-    }
-    const data = (await res.json()) as { signature?: string };
+      },
+      this.walletName
+    );
     if (!data.signature) {
       throw new Error("Test wallet returned no signature");
     }
@@ -93,17 +88,11 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
   }
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
-    const walletQuery = this.walletName ? `?wallet=${encodeURIComponent(this.walletName)}` : "";
-    const res = await fetch(`${backendUrl()}/test-wallet/sign-message${walletQuery}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messageBase64: Buffer.from(message).toString("base64") }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Test wallet sign failed (${res.status}): ${text}`);
-    }
-    const data = (await res.json()) as { signatureBase64?: string };
+    const data = await testWalletSignMessage(
+      backendUrl(),
+      { messageBase64: Buffer.from(message).toString("base64") },
+      this.walletName
+    );
     if (!data.signatureBase64) {
       throw new Error("Test wallet returned no signature");
     }

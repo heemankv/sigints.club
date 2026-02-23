@@ -124,6 +124,7 @@ export default function RegisterStreamPage() {
           streamId,
           tiers,
           dao: dao || undefined,
+          visibility,
         });
         const tx = new Transaction().add(instruction);
         tx.feePayer = publicKey;

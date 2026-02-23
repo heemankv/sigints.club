@@ -187,6 +187,7 @@ async function ensureStreamExists(args: {
   authority: Keypair;
   coder: anchor.BorshInstructionCoder;
   dao?: PublicKey;
+  visibility?: "public" | "private";
 }): Promise<PublicKey> {
   const streamIdBytes = sha256Bytes(args.streamId);
   const tiersHashBytes = sha256Bytes(args.tiersSeed);
@@ -204,6 +205,7 @@ async function ensureStreamExists(args: {
     stream_id: Array.from(streamIdBytes),
     tiers_hash: Array.from(tiersHashBytes),
     dao: args.dao ?? args.authority.publicKey,
+    visibility: args.visibility === "public" ? 0 : 1,
   });
 
   const ix = new anchor.web3.TransactionInstruction({
@@ -439,9 +441,13 @@ describe("E2E maker/taker flow", () => {
       keys: SigintsClient.generateKeys(),
     }));
 
-    // Fund takers and register encryption keys
+    // Fund takers and register global wallet keys (required for private streams)
     for (const taker of takers) {
       await airdrop(connection, taker.wallet.publicKey, 3);
+      await sendRegisterWalletKeyTx({
+        subscriber: taker.wallet,
+        encPubKeyBase64: taker.keys.publicKeyDerBase64,
+      });
     }
 
     // On-chain subscription NFTs
@@ -491,10 +497,6 @@ describe("E2E maker/taker flow", () => {
       const tokenAccount = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
       expect(tokenAccount.amount).toBe(1n);
 
-      await sendRegisterWalletKeyTx({
-        subscriber: taker.wallet,
-        encPubKeyBase64: taker.keys.publicKeyDerBase64,
-      });
     }
 
     for (const [idx, taker] of takers.entries()) {
@@ -740,6 +742,11 @@ describe("Subscription enforcement", () => {
       args.stream,
       args.subscriber.publicKey
     );
+    const keys = SigintsClient.generateKeys();
+    await sendRegisterWalletKeyTx({
+      subscriber: args.subscriber,
+      encPubKeyBase64: keys.publicKeyDerBase64,
+    });
     await expect(sendSubscribeTx(args)).rejects.toThrow();
     const account = await connection.getAccountInfo(subscriptionPda, "confirmed");
     expect(account).toBeNull();
@@ -775,6 +782,11 @@ describe("Subscription enforcement", () => {
 
     const subscriber = Keypair.generate();
     await airdrop(connection, subscriber.publicKey, 10);
+    const keys = SigintsClient.generateKeys();
+    await sendRegisterWalletKeyTx({
+      subscriber,
+      encPubKeyBase64: keys.publicKeyDerBase64,
+    });
 
     const makerBefore = await connection.getBalance(authorityKeypair.publicKey, "confirmed");
     const treasuryBefore = await connection.getBalance(treasury.publicKey, "confirmed");
