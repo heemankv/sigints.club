@@ -1,19 +1,14 @@
-import { BackendStorage } from "../storage/providers/BackendStorage";
-import { getStorageProvider } from "../storage";
-import { InMemoryMetadata } from "../metadata/providers/InMemoryMetadata";
-import { FileMetadata } from "../metadata/providers/FileMetadata";
+import { getDb } from "../db";
+import { SqlSignalStore } from "../signals";
 import { SignalService } from "./SignalService";
 import { DiscoveryService } from "./DiscoveryService";
 import { StreamRegistryClient } from "./StreamRegistryClient";
 import { ListenerService } from "./ListenerService";
 import { OnChainSubscriptionClient } from "./OnChainSubscriptionClient";
 import {
-  FileUserStore,
-  FileBotStore,
-  FileSubscriptionStore,
-  InMemoryUserStore,
-  InMemoryBotStore,
-  InMemorySubscriptionStore,
+  SqlUserStore,
+  SqlBotStore,
+  SqlSubscriptionStore,
 } from "../social";
 import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 import { getTapestryClient } from "../tapestry";
@@ -31,19 +26,18 @@ const tapestryRegistryProfileId = process.env.TAPESTRY_REGISTRY_PROFILE_ID;
 const solanaStreamDefault = process.env.SOLANA_STREAM_DEFAULT;
 const solanaStreamRegistryId = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
 
-const storage = process.env.STORAGE_KIND === "da" ? getStorageProvider("da") : new BackendStorage();
-const persist = process.env.PERSIST === "true" || process.env.NODE_ENV !== "test";
-const metadata = persist ? new FileMetadata() : new InMemoryMetadata();
+const db = getDb();
+const signalStore = new SqlSignalStore(db);
 const streamRegistryInstance = solanaStreamRegistryId
   ? new StreamRegistryClient({
       rpcUrl: solanaRpcUrl,
       programId: solanaStreamRegistryId,
     })
   : undefined;
-const listener = new ListenerService(storage);
-const userStore = persist ? new FileUserStore() : new InMemoryUserStore();
-const botStore = persist ? new FileBotStore() : new InMemoryBotStore();
-const subscriptionStore = persist ? new FileSubscriptionStore() : new InMemorySubscriptionStore();
+const listener = new ListenerService(signalStore);
+const userStore = new SqlUserStore(db);
+const botStore = new SqlBotStore(db);
+const subscriptionStore = new SqlSubscriptionStore(db);
 
 const client = getTapestryClient();
 const tapestryStreamService = new TapestryStreamService(client, tapestryRegistryProfileId);
@@ -71,18 +65,18 @@ const socialService = new SocialService(client, userStore);
 
 const discovery = new DiscoveryService(streamRegistryInstance, tapestryStreamService);
 
-export const signalService = new SignalService(storage, metadata, socialPublisher);
-export const metadataStore = metadata;
+export const signalService = new SignalService(signalStore, socialPublisher);
+export { signalStore };
 export const discoveryService = discovery;
 export const streamRegistry = streamRegistryInstance;
 export const listenerService = listener;
-export const storageProvider = storage;
 export const onChainSubscriptionClient = onChainSubscriptions;
 export const userProfileStore = userStore;
 export const botProfileStore = botStore;
 export const subscriptionProfileStore = subscriptionStore;
 export const socialServiceInstance = socialService;
 export const tapestryStreamServiceInstance = tapestryStreamService;
+export const tapestryClient = client;
 
 function parseStreamMap(value?: string): Record<string, string> | undefined {
   if (!value) {

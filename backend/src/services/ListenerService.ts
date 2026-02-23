@@ -1,6 +1,7 @@
-import { StorageProvider, StoragePointer } from "../storage/StorageProvider";
+import { SignalStore } from "../signals/SignalStore";
 import { SignalMetadata } from "../metadata/MetadataStore";
 import { sha256Hex } from "../utils/hash";
+import { stableStringify } from "../utils/json";
 import {
   decryptSignal,
   subscriberIdFromPubkey,
@@ -14,18 +15,18 @@ export type SubscriberKeys = {
 };
 
 export class ListenerService {
-  constructor(private storage: StorageProvider) {}
+  constructor(private signals: SignalStore) {}
 
   async decryptLatestSignal(meta: SignalMetadata, keys?: SubscriberKeys): Promise<Buffer> {
     if (meta.visibility === "public") {
-      const signalPointer = this.pointerFromId(meta.signalPointer);
-      const signalBytes = await this.storage.getPublic(signalPointer);
-      if (sha256Hex(signalBytes) !== meta.signalHash) {
+      const payload = await this.signals.getPayloadByHash(meta.signalHash);
+      if (!payload || !("plaintext" in payload)) {
+        throw new Error("public payload not found");
+      }
+      const payloadBytes = Buffer.from(stableStringify(payload));
+      if (sha256Hex(payloadBytes) !== meta.signalHash) {
         throw new Error("signal hash mismatch");
       }
-      const payload = JSON.parse(Buffer.from(signalBytes).toString("utf8")) as {
-        plaintext: string;
-      };
       return Buffer.from(payload.plaintext, "base64");
     }
 
@@ -35,12 +36,17 @@ export class ListenerService {
     if (!meta.keyboxPointer) {
       throw new Error("keybox pointer missing for private signal");
     }
+    if (!meta.keyboxHash) {
+      throw new Error("keybox hash missing for private signal");
+    }
 
-    const keyboxPointer = this.pointerFromId(meta.keyboxPointer);
-    const keyboxBytes = await this.storage.getKeybox(keyboxPointer);
-    const parsed = JSON.parse(Buffer.from(keyboxBytes).toString("utf8")) as
+    const parsed = (await this.signals.getKeyboxByHash(meta.keyboxHash)) as
       | WrappedKey[]
-      | Record<string, WrappedKey>;
+      | Record<string, WrappedKey>
+      | null;
+    if (!parsed) {
+      throw new Error("keybox not found");
+    }
 
     const subscriberId = subscriberIdFromPubkey(Buffer.from(keys.publicKeyDerBase64, "base64"));
     const entry = Array.isArray(parsed)
@@ -55,18 +61,14 @@ export class ListenerService {
       entry
     );
 
-    const signalPointer = this.pointerFromId(meta.signalPointer);
-    const signalBytes = await this.storage.getCiphertext(signalPointer);
-
-    if (sha256Hex(signalBytes) !== meta.signalHash) {
+    const payload = await this.signals.getPayloadByHash(meta.signalHash);
+    if (!payload || !("ciphertext" in payload)) {
+      throw new Error("ciphertext payload not found");
+    }
+    const payloadBytes = Buffer.from(stableStringify(payload));
+    if (sha256Hex(payloadBytes) !== meta.signalHash) {
       throw new Error("signal hash mismatch");
     }
-
-    const payload = JSON.parse(Buffer.from(signalBytes).toString("utf8")) as {
-      iv: string;
-      tag: string;
-      ciphertext: string;
-    };
 
     return decryptSignal(
       Buffer.from(payload.ciphertext, "base64"),
@@ -74,11 +76,5 @@ export class ListenerService {
       Buffer.from(payload.iv, "base64"),
       Buffer.from(payload.tag, "base64")
     );
-  }
-
-  private pointerFromId(id: string): StoragePointer {
-    const parts = id.split("/");
-    const sha = parts[parts.length - 1];
-    return { id, sha256: sha };
   }
 }

@@ -13,6 +13,12 @@ export type SyncWalletKeyResponse = {
   bypass?: boolean;
 };
 
+export type SolanaConfigResponse = {
+  subscriptionProgramId: string;
+  streamRegistryProgramId: string;
+  rpcUrl: string;
+};
+
 const normalizeBackendUrl = (backendUrl: string) => backendUrl.replace(/\/$/, "");
 
 function buildUrl(backendUrl: string, path: string) {
@@ -41,6 +47,19 @@ export async function postJson<T>(backendUrl: string, path: string, body: unknow
   return (await res.json()) as T;
 }
 
+export async function patchJson<T>(backendUrl: string, path: string, body: unknown): Promise<T> {
+  const res = await fetch(buildUrl(backendUrl, path), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`backend PATCH ${path} failed (${res.status}): ${text}`);
+  }
+  return (await res.json()) as T;
+}
+
 export async function deleteJson<T>(backendUrl: string, path: string, body: unknown): Promise<T> {
   const res = await fetch(buildUrl(backendUrl, path), {
     method: "DELETE",
@@ -59,6 +78,10 @@ export async function registerSubscription(
   input: { streamId: string; subscriberWallet: string }
 ): Promise<SubscribeResponse> {
   return postJson<SubscribeResponse>(backendUrl, "/subscribe", input);
+}
+
+export async function fetchSolanaConfig(backendUrl: string): Promise<SolanaConfigResponse> {
+  return getJson<SolanaConfigResponse>(backendUrl, "/config/solana");
 }
 
 export async function syncWalletKey(
@@ -295,6 +318,14 @@ export async function fetchUserProfile<T = any>(backendUrl: string, wallet: stri
   return getJson<T>(backendUrl, `/users/${encodeURIComponent(wallet)}`);
 }
 
+export async function updateUserProfile<T = any>(
+  backendUrl: string,
+  wallet: string,
+  payload: { displayName?: string; bio?: string }
+): Promise<T> {
+  return patchJson<T>(backendUrl, `/users/${encodeURIComponent(wallet)}`, payload);
+}
+
 export async function loginUser(backendUrl: string, wallet: string): Promise<void> {
   await postJson(backendUrl, "/users/login", { wallet });
 }
@@ -321,9 +352,11 @@ export function createBackendClient(backendUrl: string) {
   return {
     getJson: <T>(path: string) => getJson<T>(url, path),
     postJson: <T>(path: string, body: unknown) => postJson<T>(url, path, body),
+    patchJson: <T>(path: string, body: unknown) => patchJson<T>(url, path, body),
     deleteJson: <T>(path: string, body: unknown) => deleteJson<T>(url, path, body),
     registerSubscription: (input: { streamId: string; subscriberWallet: string }) =>
       registerSubscription(url, input),
+    fetchSolanaConfig: () => fetchSolanaConfig(url),
     syncWalletKey: (input: { wallet: string; streamId?: string; encPubKeyDerBase64?: string }) =>
       syncWalletKey(url, input),
     fetchStream: <T = any>(streamId: string) => fetchStream<T>(url, streamId),
@@ -366,6 +399,8 @@ export function createBackendClient(backendUrl: string) {
     fetchBots: <T = any>(params: { owner?: string; role?: string; search?: string }) => fetchBots<T>(url, params),
     createBot: <T = any>(payload: unknown) => createBot<T>(url, payload),
     fetchUserProfile: <T = any>(wallet: string) => fetchUserProfile<T>(url, wallet),
+    updateUserProfile: <T = any>(wallet: string, payload: { displayName?: string; bio?: string }) =>
+      updateUserProfile<T>(url, wallet, payload),
     loginUser: (wallet: string) => loginUser(url, wallet),
   };
 }

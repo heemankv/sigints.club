@@ -1620,15 +1620,31 @@ textarea {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 8px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: 0;
+  transition: max-height 0.28s ease, opacity 0.22s ease, margin-bottom 0.28s ease;
+}
+
+.x-composer-fields--open {
+  max-height: 80px;
+  opacity: 1;
+  margin-bottom: 10px;
 }
 
 .x-composer-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: 10px 0 14px;
   border-top: 1px solid var(--stroke);
   gap: 12px;
+}
+
+.x-composer-tags {
+  display: flex;
+  gap: 8px;
 }
 
 .x-submit-btn {
@@ -1665,7 +1681,6 @@ textarea {
   font-family: "Space Grotesk", sans-serif;
   cursor: pointer;
   transition: all 0.15s ease;
-  margin-right: auto;
 }
 
 .composer-tag-btn:hover {

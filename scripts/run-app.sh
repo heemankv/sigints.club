@@ -31,6 +31,16 @@ require_cmd node
 require_cmd npm
 require_cmd solana
 require_cmd solana-keygen
+require_cmd docker
+
+if docker compose version >/dev/null 2>&1; then
+  DOCKER_COMPOSE=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  DOCKER_COMPOSE=(docker-compose)
+else
+  echo "Missing docker compose. Install Docker Desktop or docker-compose."
+  exit 1
+fi
 
 mkdir -p "$LOG_DIR"
 
@@ -52,6 +62,30 @@ fi
 log "Checking localnet RPC..."
 if ! solana -u http://127.0.0.1:8899 slot >/dev/null 2>&1; then
   echo "Localnet RPC not reachable. Start it first with scripts/run-chain.sh"
+  exit 1
+fi
+
+log "Ensuring Postgres is running..."
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker daemon is not running. Start Docker Desktop first."
+  exit 1
+fi
+
+POSTGRES_CID="$("${DOCKER_COMPOSE[@]}" -f "$ROOT/docker-compose.yml" ps -q postgres 2>/dev/null || true)"
+if [ -z "$POSTGRES_CID" ]; then
+  log "Starting Postgres via docker compose..."
+  "${DOCKER_COMPOSE[@]}" -f "$ROOT/docker-compose.yml" up -d postgres
+  POSTGRES_CID="$("${DOCKER_COMPOSE[@]}" -f "$ROOT/docker-compose.yml" ps -q postgres 2>/dev/null || true)"
+fi
+
+for _ in $(seq 1 30); do
+  if [ -n "$POSTGRES_CID" ] && docker exec "$POSTGRES_CID" pg_isready -U sigints -d sigints >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+if ! ( [ -n "$POSTGRES_CID" ] && docker exec "$POSTGRES_CID" pg_isready -U sigints -d sigints >/dev/null 2>&1 ); then
+  echo "Postgres is not ready. Check docker logs for the postgres container."
   exit 1
 fi
 
@@ -126,6 +160,7 @@ NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID=$STREAM_REGISTRY_ID
 NEXT_PUBLIC_TREASURY_ADDRESS=$PAYER_PUBKEY
 NEXT_PUBLIC_SOLANA_CLUSTER=devnet
 NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
+DATABASE_URL=postgresql://sigints:sigints@localhost:5432/sigints
 TEST_WALLET=true
 TEST_WALLET_PATH=$ROOT/accounts/taker.json
 NEXT_PUBLIC_TEST_WALLET=true

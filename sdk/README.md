@@ -16,10 +16,7 @@ import { Keypair } from "@solana/web3.js";
 import nacl from "tweetnacl";
 
 const wallet = Keypair.generate();
-const client = new SigintsClient({
-  rpcUrl: "http://127.0.0.1:8899",
-  backendUrl: "http://localhost:3001",
-  programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
+const client = await SigintsClient.fromBackend("http://localhost:3001", {
   keyboxAuth: {
     walletPubkey: wallet.publicKey.toBase58(),
     signMessage: (message) => nacl.sign.detached(message, wallet.secretKey),
@@ -45,6 +42,20 @@ const stop = await client.listenForSignals({
   },
   maxAgeMs: 60_000,
   includeBlockTime: true,
+});
+```
+
+If you want to pass config manually instead of bootstrapping from the backend:
+```ts
+const client = new SigintsClient({
+  rpcUrl: "http://127.0.0.1:8899",
+  backendUrl: "http://localhost:3001",
+  programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
+  streamRegistryProgramId: "HCm2Bk65hCaevrs4N3oYegMBZBTPpzjoMB44JgTrTVSA",
+  keyboxAuth: {
+    walletPubkey: wallet.publicKey.toBase58(),
+    signMessage: (message) => nacl.sign.detached(message, wallet.secretKey),
+  },
 });
 ```
 

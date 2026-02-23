@@ -21,9 +21,9 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import bs58 from "bs58";
-import { BackendStorage } from "../storage/providers/BackendStorage";
-import { FileMetadata } from "../metadata/providers/FileMetadata";
-import { FileUserStore, FileBotStore, FileSubscriptionStore } from "../social";
+import { getDb } from "../db";
+import { SqlSignalStore } from "../signals";
+import { SqlUserStore, SqlBotStore, SqlSubscriptionStore } from "../social";
 import { StreamTier } from "../streams";
 import { buildTiersSeed } from "../streams/tiersHash";
 import { generateX25519Keypair, subscriberIdFromPubkey } from "../crypto/hybrid";
@@ -32,6 +32,7 @@ import { getTapestryClient } from "../tapestry";
 import { SocialService } from "../services/SocialService";
 import { TapestryStreamService } from "../services/TapestryStreamService";
 import { TapestryPublisher } from "../tapestry/TapestryPublisher";
+import { initDb } from "../db";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -587,6 +588,7 @@ async function recordSignalOnchain(args: {
 }
 
 export async function seedDemoData(options: SeedOptions = {}) {
+  await initDb();
   const markerPath = path.resolve(backendRoot, "data", "demo_seed.json");
   if (!options.force && (await fileExists(markerPath))) {
     // eslint-disable-next-line no-console
@@ -594,22 +596,14 @@ export async function seedDemoData(options: SeedOptions = {}) {
     return;
   }
   if (options.force) {
-    const dataDir = path.resolve(backendRoot, "data");
-    const storageDir = path.resolve(backendRoot, "storage");
-    await fs.rm(path.join(dataDir, "metadata.json"), { force: true });
-    await fs.rm(path.join(dataDir, "users.json"), { force: true });
-    await fs.rm(path.join(dataDir, "bots.json"), { force: true });
-    await fs.rm(path.join(dataDir, "subscriptions.json"), { force: true });
-    await fs.rm(path.join(dataDir, "social_posts.json"), { force: true });
-    await fs.rm(path.join(storageDir, "ciphertext"), { recursive: true, force: true });
-    await fs.rm(path.join(storageDir, "keybox"), { recursive: true, force: true });
+    await fs.rm(markerPath, { force: true });
   }
 
-  const storage = new BackendStorage(path.resolve(backendRoot, "storage"));
-  const metadata = new FileMetadata(path.resolve(backendRoot, "data", "metadata.json"));
-  const userStore = new FileUserStore(path.resolve(backendRoot, "data", "users.json"));
-  const botStore = new FileBotStore(path.resolve(backendRoot, "data", "bots.json"));
-  const subscriptionStore = new FileSubscriptionStore(path.resolve(backendRoot, "data", "subscriptions.json"));
+  const db = getDb();
+  const signalStore = new SqlSignalStore(db);
+  const userStore = new SqlUserStore(db);
+  const botStore = new SqlBotStore(db);
+  const subscriptionStore = new SqlSubscriptionStore(db);
 
   const seedOnchain = options.seedOnchain ?? true;
   const seedSocial = options.seedSocial ?? false;
@@ -839,7 +833,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
     ? new TapestryPublisher(tapestryClient!, process.env.TAPESTRY_PROFILE_ID, tapestryProfileMap, tapestryStreams)
     : undefined;
 
-  const signalService = new SignalService(storage, metadata, tapestryPublisher);
+  const signalService = new SignalService(signalStore, tapestryPublisher);
   const signals: DemoSummary["signals"] = [];
   for (const stream of streamProfiles) {
     const tier = streamTiers[stream.id];

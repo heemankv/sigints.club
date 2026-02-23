@@ -6,6 +6,7 @@ type Profile = {
   username: string;
   bio?: string;
   properties?: Property[];
+  image?: string;
   created_at: number;
 };
 
@@ -57,6 +58,64 @@ export class MockTapestryClient {
       });
     }
     return { profile: { id } };
+  }
+
+  async updateProfile(input: {
+    profileId: string;
+    username?: string;
+    bio?: string;
+    image?: string;
+    properties?: Property[];
+  }) {
+    const existing = this.profiles.get(input.profileId);
+    if (existing) {
+      if (input.username !== undefined) existing.username = input.username;
+      if (input.bio !== undefined) existing.bio = input.bio;
+      if (input.image !== undefined) existing.image = input.image;
+      if (input.properties !== undefined) existing.properties = input.properties;
+      return { ...existing };
+    }
+    return null;
+  }
+
+  async listProfiles(input: { walletAddress?: string; page?: number | string; pageSize?: number | string }) {
+    let items = Array.from(this.profiles.values());
+    if (input.walletAddress) {
+      items = items.filter((p) => p.walletAddress === input.walletAddress);
+    }
+    const pageSize = Number(input.pageSize ?? 50);
+    const page = Number(input.page ?? 1);
+    const start = (page - 1) * pageSize;
+    const slice = items.slice(start, start + pageSize);
+
+    const profiles = slice.map((profile) => ({
+      profile,
+      wallet: { address: profile.walletAddress },
+    }));
+    return { profiles, page, pageSize, totalCount: items.length };
+  }
+
+  async findUserProfileByWallet(walletAddress: string) {
+    const res = await this.listProfiles({ walletAddress, page: 1, pageSize: 20 });
+    const entries = res?.profiles ?? [];
+    for (const entry of entries) {
+      const id = entry?.profile?.id;
+      if (!id) continue;
+      const isStream = await this.isStreamProfile(id);
+      if (!isStream) return entry;
+    }
+    const fallback = entries?.[0];
+    if (!fallback?.profile) return null;
+    return fallback;
+  }
+
+  async isStreamProfile(profileId: string): Promise<boolean> {
+    for (const content of this.contents.values()) {
+      if (content.profileId !== profileId) continue;
+      const props = propsToObject(content.properties);
+      if (props.type === "stream") return true;
+    }
+    return false;
   }
 
   async follow(input: { startId: string; endId: string }) {

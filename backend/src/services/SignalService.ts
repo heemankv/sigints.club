@@ -1,6 +1,7 @@
-import { StorageProvider } from "../storage/StorageProvider";
-import { MetadataStore, SignalMetadata } from "../metadata/MetadataStore";
+import { SignalMetadata } from "../metadata/MetadataStore";
+import { SignalStore } from "../signals/SignalStore";
 import { sha256Hex } from "../utils/hash";
+import { stableStringify } from "../utils/json";
 import {
   generateSymmetricKey,
   encryptSignal,
@@ -20,8 +21,7 @@ export type PublishResult = {
 
 export class SignalService {
   constructor(
-    private storage: StorageProvider,
-    private metadata: MetadataStore,
+    private signals: SignalStore,
     private socialPublisher?: SocialPublisher
   ) {}
 
@@ -33,13 +33,12 @@ export class SignalService {
     visibility: "public" | "private" = "private"
   ): Promise<PublishResult> {
     if (visibility === "public") {
-      const payload = Buffer.from(
-        JSON.stringify({
-          plaintext: plaintext.toString("base64"),
-        })
-      );
-      const signalHash = sha256Hex(payload);
-      const { pointer: signalPointer } = await this.storage.putPublic(payload, signalHash);
+      const payload = {
+        plaintext: plaintext.toString("base64"),
+      };
+      const payloadBytes = Buffer.from(stableStringify(payload));
+      const signalHash = sha256Hex(payloadBytes);
+      const signalPointer = { id: `backend://public/${signalHash}` };
       const meta: SignalMetadata = {
         streamId,
         tierId,
@@ -50,7 +49,7 @@ export class SignalService {
         visibility,
         createdAt: Date.now(),
       };
-      await this.metadata.addSignal(meta);
+      await this.signals.upsertPublicSignal(meta, payload);
       if (this.socialPublisher) {
         await this.socialPublisher.publishSignal({
           streamId,
@@ -64,19 +63,14 @@ export class SignalService {
     const symKey = generateSymmetricKey();
     const { ciphertext, iv, tag } = encryptSignal(plaintext, symKey);
 
-    const ciphertextPayload = Buffer.from(
-      JSON.stringify({
-        iv: iv.toString("base64"),
-        tag: tag.toString("base64"),
-        ciphertext: ciphertext.toString("base64"),
-      })
-    );
+    const ciphertextPayload = {
+      iv: iv.toString("base64"),
+      tag: tag.toString("base64"),
+      ciphertext: ciphertext.toString("base64"),
+    };
 
-    const signalHash = sha256Hex(ciphertextPayload);
-    const { pointer: signalPointer } = await this.storage.putCiphertext(
-      ciphertextPayload,
-      signalHash
-    );
+    const signalHash = sha256Hex(Buffer.from(stableStringify(ciphertextPayload)));
+    const signalPointer = { id: `backend://ciphertext/${signalHash}` };
 
     const keybox: Record<string, WrappedKey> = {};
     for (const subscriber of subscribers) {
@@ -92,12 +86,8 @@ export class SignalService {
       }
     }
 
-    const keyboxPayload = Buffer.from(JSON.stringify(keybox));
-    const keyboxHash = sha256Hex(keyboxPayload);
-    const { pointer: keyboxPointer } = await this.storage.putKeybox(
-      keyboxPayload,
-      keyboxHash
-    );
+    const keyboxHash = sha256Hex(Buffer.from(stableStringify(keybox)));
+    const keyboxPointer = { id: `backend://keybox/${keyboxHash}` };
 
     const meta: SignalMetadata = {
       streamId,
@@ -109,7 +99,7 @@ export class SignalService {
       visibility,
       createdAt: Date.now(),
     };
-    await this.metadata.addSignal(meta);
+    await this.signals.upsertPrivateSignal(meta, ciphertextPayload, keybox);
 
     if (this.socialPublisher) {
       await this.socialPublisher.publishSignal({

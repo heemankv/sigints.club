@@ -39,6 +39,11 @@ When these are set, the backend sends a real Anchor transaction to record signal
 - `SOLANA_RPC_URL` (optional, defaults to https://api.devnet.solana.com)
 - `SOLANA_STREAM_REGISTRY_PROGRAM_ID` (required for stream PDA creation)
 
+## Solana Config Endpoint
+The SDK can bootstrap from the backend using:
+
+- `GET /config/solana` → `{ subscriptionProgramId, streamRegistryProgramId, rpcUrl }`
+
 ## On-chain subscription endpoints
 - `POST /subscribe/onchain` create subscription PDA and store tier params on-chain
 - `POST /subscribe/onchain/renew` renew subscription

@@ -3,6 +3,8 @@ import { UserStore } from "../social/UserStore";
 import { TapestryClient } from "../tapestry/TapestryClient";
 import { randomUUID } from "node:crypto";
 
+const TAPESTRY_TIMEOUT_MS = 30_000;
+
 export type CreateIntentInput = {
   wallet: string;
   content: string;
@@ -142,7 +144,7 @@ export class SocialService {
         page: args.page,
         pageSize: args.pageSize ?? 50,
       }),
-      4000
+      TAPESTRY_TIMEOUT_MS
     );
     const followingIds = extractFollowingProfileIds(followRes);
     if (!followingIds.length) {
@@ -164,7 +166,7 @@ export class SocialService {
           })
         )
       ),
-      4000
+      TAPESTRY_TIMEOUT_MS
     );
 
     const posts: SocialPost[] = [];
@@ -316,7 +318,7 @@ export class SocialService {
           orderByDirection: "DESC",
           pageSize: limit,
         }),
-        4000
+        TAPESTRY_TIMEOUT_MS
       );
       return response.contents ?? [];
     }
@@ -338,7 +340,7 @@ export class SocialService {
           pageSize: limit,
         }),
       ]),
-      4000
+      TAPESTRY_TIMEOUT_MS
     );
     return responses.flatMap((res) => res.contents ?? []);
   }

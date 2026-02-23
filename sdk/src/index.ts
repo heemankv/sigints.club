@@ -13,6 +13,7 @@ import {
 } from "./publish";
 import {
   registerSubscription as registerSubscriptionRequest,
+  fetchSolanaConfig as fetchSolanaConfigRequest,
   syncWalletKey as syncWalletKeyRequest,
   fetchStream as fetchStreamRequest,
   prepareSignal as prepareSignalRequest,
@@ -102,6 +103,20 @@ export class SigintsClient {
       : undefined;
     this.backendUrl = cfg.backendUrl.replace(/\/$/, "");
     this.keyboxAuth = cfg.keyboxAuth;
+  }
+
+  static async fromBackend(
+    backendUrl: string,
+    options?: { keyboxAuth?: KeyboxAuth }
+  ): Promise<SigintsClient> {
+    const config = await fetchSolanaConfigRequest(backendUrl);
+    return new SigintsClient({
+      rpcUrl: config.rpcUrl,
+      backendUrl,
+      programId: config.subscriptionProgramId,
+      streamRegistryProgramId: config.streamRegistryProgramId,
+      keyboxAuth: options?.keyboxAuth,
+    });
   }
 
   static generateKeys() {
@@ -393,6 +408,7 @@ export {
   postJson,
   deleteJson,
   createBackendClient,
+  fetchSolanaConfig,
   fetchStreams,
   fetchStreamSubscribers,
   createStream,

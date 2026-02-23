@@ -299,26 +299,26 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 rows={2}
               />
 
-              {isSlashTag && (
-                <div className="x-composer-fields">
-                  <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
-                  <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
-                </div>
-              )}
+              <div className={`x-composer-fields${isSlashTag ? " x-composer-fields--open" : ""}`}>
+                <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
+                <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
+              </div>
 
               <div className="x-composer-footer">
-                <button
-                  className={`composer-tag-btn${isIntentTag ? " composer-tag-btn--active" : ""}`}
-                  onClick={() => { setIsIntentTag((v) => !v); setIsSlashTag(false); }}
-                >
-                  # Intent
-                </button>
-                <button
-                  className={`composer-tag-btn${isSlashTag ? " composer-tag-btn--active" : ""}`}
-                  onClick={() => { setIsSlashTag((v) => !v); setIsIntentTag(false); }}
-                >
-                  # Slashing
-                </button>
+                <div className="x-composer-tags">
+                  <button
+                    className={`composer-tag-btn${isIntentTag ? " composer-tag-btn--active" : ""}`}
+                    onClick={() => { setIsIntentTag((v) => !v); setIsSlashTag(false); }}
+                  >
+                    # Intent
+                  </button>
+                  <button
+                    className={`composer-tag-btn${isSlashTag ? " composer-tag-btn--active" : ""}`}
+                    onClick={() => { setIsSlashTag((v) => !v); setIsIntentTag(false); }}
+                  >
+                    # Slashing
+                  </button>
+                </div>
                 <button className="x-submit-btn" onClick={postContent} disabled={!postText}>
                   {isSlashTag ? "Report" : "Post"}
                 </button>

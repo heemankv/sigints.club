@@ -14,6 +14,21 @@ export type CreateProfileInput = {
   execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
 };
 
+export type UpdateProfileInput = {
+  profileId: string;
+  username?: string;
+  bio?: string;
+  image?: string;
+  properties?: { key: string; value: string | number | boolean }[];
+  execution?: "FAST_UNCONFIRMED" | "QUICK_SIGNATURE" | "CONFIRMED_AND_PARSED";
+};
+
+export type ListProfilesInput = {
+  walletAddress?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type CreateContentInput = {
   profileId: string;
   properties: { key: string; value: string | number | boolean }[];
@@ -87,13 +102,19 @@ export type ListContentsResponse = {
 export class TapestryClient {
   private client: SocialFi;
   private apiKey: string;
+  private baseURL: string;
 
   constructor(cfg: TapestryConfig) {
     this.apiKey = cfg.apiKey;
+    this.baseURL = (cfg.baseURL ?? "https://api.usetapestry.dev/v1/").replace(/\/$/, "");
     this.client = new SocialFi({
-      baseURL: cfg.baseURL ?? "https://tapestry-server-prod.fly.dev/api/v1",
+      baseURL: this.baseURL,
       apiKey: cfg.apiKey,
     });
+  }
+
+  private buildUrl(path: string) {
+    return `${this.baseURL}${path.startsWith("/") ? path : `/${path}`}`;
   }
 
   async createProfile(input: CreateProfileInput) {
@@ -109,6 +130,102 @@ export class TapestryClient {
         properties: input.properties,
       }
     );
+  }
+
+  async updateProfile(input: UpdateProfileInput) {
+    const customProperties: { key: string; value: string | number | boolean }[] = [];
+    if (input.bio !== undefined) customProperties.push({ key: "bio", value: input.bio });
+    if (input.image !== undefined) customProperties.push({ key: "profileImage", value: input.image });
+    if (input.properties?.length) {
+      customProperties.push(...input.properties);
+    }
+    if (customProperties.length === 0) {
+      return { profileId: input.profileId };
+    }
+
+    const res = await fetch(`${this.buildUrl("/profiles/update")}?apiKey=${encodeURIComponent(this.apiKey)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        profileId: input.profileId,
+        customProperties,
+        blockchain: "SOLANA",
+        execution: input.execution ?? "FAST_UNCONFIRMED",
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Tapestry update profile failed (${res.status}): ${text}`);
+    }
+    return res.json();
+  }
+
+  async updateProfileCore(input: UpdateProfileInput) {
+    const payload: Record<string, any> = {};
+    if (input.username !== undefined) payload.username = input.username;
+    if (input.bio !== undefined) payload.bio = input.bio;
+    if (input.image !== undefined) payload.image = input.image;
+    if (input.properties !== undefined) payload.properties = input.properties;
+    if (input.execution !== undefined) payload.execution = input.execution;
+    return this.client.profiles.profilesUpdate({ apiKey: this.apiKey, id: input.profileId }, payload);
+  }
+
+  async listProfiles(input: ListProfilesInput) {
+    return this.client.profiles.profilesList({
+      apiKey: this.apiKey,
+      walletAddress: input.walletAddress,
+      page: input.page ? String(input.page) : undefined,
+      pageSize: input.pageSize ? String(input.pageSize) : undefined,
+    });
+  }
+
+  async findUserProfileByWallet(walletAddress: string) {
+    const entries = await this.searchProfilesByWallet(walletAddress, 20);
+    for (const entry of entries) {
+      const id = entry?.profile?.id;
+      if (!id) continue;
+      const isStream = await this.isStreamProfile(id);
+      if (!isStream) {
+        return {
+          profile: entry.profile,
+          wallet: entry.wallet,
+          namespace: entry.namespace,
+        };
+      }
+    }
+    const fallback = entries?.[0];
+    if (!fallback?.profile) return null;
+    return {
+      profile: fallback.profile,
+      wallet: fallback.wallet,
+      namespace: fallback.namespace,
+    };
+  }
+
+  async searchProfilesByWallet(walletAddress: string, limit = 20, offset = 0) {
+    const res = await fetch(`${this.buildUrl("/profiles/search")}?apiKey=${encodeURIComponent(this.apiKey)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ walletAddress, limit, offset }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Tapestry profile search failed (${res.status}): ${text}`);
+    }
+    const data = await res.json();
+    return data?.profiles ?? [];
+  }
+
+  async isStreamProfile(profileId: string): Promise<boolean> {
+    const res = await this.listContents({
+      profileId,
+      filterField: "type",
+      filterValue: "stream",
+      orderByField: "created_at",
+      orderByDirection: "DESC",
+      pageSize: 1,
+    });
+    return (res?.contents?.length ?? 0) > 0;
   }
 
   async follow(input: FollowInput) {

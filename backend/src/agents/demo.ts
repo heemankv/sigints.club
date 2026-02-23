@@ -1,14 +1,12 @@
-import { BackendStorage } from "../storage/providers/BackendStorage";
-import { InMemoryMetadata } from "../metadata/providers/InMemoryMetadata";
+import { InMemorySignalStore } from "../signals";
 import { SignalService } from "../services/SignalService";
 import { ListenerService } from "../services/ListenerService";
 import { generateX25519Keypair } from "../crypto/hybrid";
 
 async function main() {
-  const storage = new BackendStorage();
-  const metadata = new InMemoryMetadata();
-  const signalService = new SignalService(storage, metadata);
-  const listenerService = new ListenerService(storage);
+  const signalStore = new InMemorySignalStore();
+  const signalService = new SignalService(signalStore);
+  const listenerService = new ListenerService(signalStore);
 
   const s1 = generateX25519Keypair();
   const s2 = generateX25519Keypair();
@@ -23,7 +21,7 @@ async function main() {
     ]
   );
 
-  const signals = await metadata.listSignals("stream-eth");
+  const signals = await signalStore.listSignals("stream-eth");
   const latest = signals[signals.length - 1];
 
   const decrypted1 = await listenerService.decryptLatestSignal(latest, {

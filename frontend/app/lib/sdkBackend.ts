@@ -159,6 +159,13 @@ export function fetchUserProfile<T = any>(wallet: string): Promise<T> {
   return getClient().fetchUserProfile<T>(wallet);
 }
 
+export function updateUserProfile<T = any>(
+  wallet: string,
+  payload: { displayName?: string; bio?: string }
+): Promise<T> {
+  return getClient().updateUserProfile<T>(wallet, payload);
+}
+
 export function loginUser(wallet: string): Promise<void> {
   return getClient().loginUser(wallet);
 }

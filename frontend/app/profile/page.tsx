@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchStreams } from "../lib/api/streams";
 import { fetchOnchainSubscriptions } from "../lib/api/subscriptions";
-import { fetchUserProfile, fetchBots, createBot as sdkCreateBot } from "../lib/sdkBackend";
+import { fetchUserProfile, fetchBots, createBot as sdkCreateBot, updateUserProfile } from "../lib/sdkBackend";
 import type { BotProfile, OnChainSubscription, StreamDetail, StreamTier } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
@@ -29,6 +29,10 @@ function ProfilePageInner() {
   const { needsWalletKey } = useWalletKeyStatus();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editStatus, setEditStatus] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [makerBots, setMakerBots] = useState<BotProfile[]>([]);
   const [listenerBots, setListenerBots] = useState<BotProfile[]>([]);
   const [subscriptions, setSubscriptions] = useState<OnChainSubscription[]>([]);
@@ -87,6 +91,12 @@ function ProfilePageInner() {
       }
     }
   }, [walletAddr]);
+
+  useEffect(() => {
+    if (!walletAddr) return;
+    setEditDisplayName(profile?.displayName ?? "");
+    setEditBio(profile?.bio ?? "");
+  }, [walletAddr, profile?.displayName, profile?.bio]);
 
   useEffect(() => {
     if (!walletAddr) return;
@@ -192,6 +202,37 @@ function ProfilePageInner() {
     }
   }
 
+  async function saveProfile() {
+    if (!walletAddr) {
+      setEditStatus("Connect your wallet first.");
+      return;
+    }
+    setEditStatus(null);
+    const nextDisplayName = editDisplayName;
+    const nextBio = editBio;
+    const payload: { displayName?: string; bio?: string } = {};
+    if (nextDisplayName !== (profile?.displayName ?? "")) {
+      payload.displayName = nextDisplayName;
+    }
+    if (nextBio !== (profile?.bio ?? "")) {
+      payload.bio = nextBio;
+    }
+    if (Object.keys(payload).length === 0) {
+      setEditStatus("No changes to save.");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await updateUserProfile<{ user: UserProfile }>(walletAddr, payload);
+      setProfile(res.user);
+      setEditStatus("Profile updated.");
+    } catch (err: any) {
+      setEditStatus(err?.message ?? "Failed to update profile.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   const allBots = [...makerBots, ...listenerBots];
 
   return (
@@ -280,6 +321,35 @@ function ProfilePageInner() {
             {activeTab === "actions" && (
               <div className="profile-tab-content profile-tab-content--actions">
                 <div className="profile-actions">
+                  <div className="profile-actions-section">
+                    <div className="x-rail-module">
+                      <h3 className="x-rail-heading">Edit Profile</h3>
+                      <input
+                        className="input"
+                        value={editDisplayName}
+                        onChange={(e) => setEditDisplayName(e.target.value)}
+                        placeholder="Username"
+                        style={{ marginBottom: 8 }}
+                      />
+                      <textarea
+                        className="input"
+                        value={editBio}
+                        onChange={(e) => setEditBio(e.target.value)}
+                        placeholder="Bio"
+                        rows={3}
+                        style={{ resize: "vertical", marginBottom: 10 }}
+                      />
+                      <button
+                        className="button secondary"
+                        onClick={saveProfile}
+                        disabled={editSaving}
+                        style={{ width: "100%" }}
+                      >
+                        {editSaving ? "Saving..." : "Save Profile"}
+                      </button>
+                      {editStatus && <p className="subtext" style={{ marginTop: 8 }}>{editStatus}</p>}
+                    </div>
+                  </div>
                   <div className="profile-actions-section">
                     <KeyManager variant="plain" />
                   </div>

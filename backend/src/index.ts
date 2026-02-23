@@ -1,10 +1,12 @@
 import "./env";
 import { createApp } from "./app";
 import { maybeSeedDemoData } from "./seed/demo";
+import { initDb } from "./db";
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3001;
 
 async function start() {
+  await initDb();
   await maybeSeedDemoData();
   const app = createApp();
   app.listen(port, () => {

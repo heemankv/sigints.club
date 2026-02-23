@@ -1,5 +1,6 @@
 import { ListenerService } from "../services/ListenerService";
-import { BackendStorage } from "../storage/providers/BackendStorage";
+import { getDb } from "../db";
+import { SqlSignalStore } from "../signals";
 
 const API = process.env.API_URL ?? "http://localhost:3001";
 
@@ -19,8 +20,8 @@ async function main() {
     return;
   }
 
-  const storage = new BackendStorage();
-  const listener = new ListenerService(storage);
+  const signalStore = new SqlSignalStore(getDb());
+  const listener = new ListenerService(signalStore);
   const latest = signals[signals.length - 1];
   if (latest.visibility !== "public" && (!privKey || !pubKey)) {
     throw new Error("Set PRIVKEY_BASE64 and PUBKEY_BASE64 env vars for private stream signals");

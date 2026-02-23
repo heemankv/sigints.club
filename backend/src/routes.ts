@@ -11,16 +11,16 @@ import fs from "fs";
 import path from "path";
 import {
   signalService,
-  metadataStore,
   discoveryService,
   onChainSubscriptionClient,
-  storageProvider,
+  signalStore,
   userProfileStore,
   botProfileStore,
   subscriptionProfileStore,
   socialServiceInstance,
   streamRegistry,
   tapestryStreamServiceInstance,
+  tapestryClient,
 } from "./services/ServiceContainer";
 import { decodeSubscriptionAccount, type OnChainSubscription } from "./services/OnChainSubscriptionClient";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
@@ -76,6 +76,20 @@ function resolveWalletName(req: { query?: any; header?: (name: string) => string
 
 router.get("/health", (_req, res) => {
   return res.json({ ok: true, timestamp: Date.now() });
+});
+
+router.get("/config/solana", (_req, res) => {
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  const streamRegistryProgramId = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
+  if (!subscriptionProgramId || !streamRegistryProgramId) {
+    return res.status(503).json({ error: "solana program ids not configured" });
+  }
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  return res.json({
+    subscriptionProgramId,
+    streamRegistryProgramId,
+    rpcUrl,
+  });
 });
 
 router.get("/test-wallet", (req, res) => {
@@ -280,7 +294,7 @@ router.get("/signals", async (req, res) => {
   if (!streamId || typeof streamId !== "string") {
     return res.status(400).json({ error: "streamId required" });
   }
-  const signals = await metadataStore.listSignals(streamId);
+  const signals = await signalStore.listSignals(streamId);
   return res.json({ signals });
 });
 
@@ -289,7 +303,7 @@ router.get("/signals/latest", async (req, res) => {
   if (!streamId || typeof streamId !== "string") {
     return res.status(400).json({ error: "streamId required" });
   }
-  const signals = await metadataStore.listSignals(streamId);
+  const signals = await signalStore.listSignals(streamId);
   const latest = signals.sort((a, b) => b.createdAt - a.createdAt)[0];
   if (!latest) {
     return res.status(404).json({ error: "no signals" });
@@ -299,8 +313,7 @@ router.get("/signals/latest", async (req, res) => {
 
 router.get("/signals/by-hash/:hash", async (req, res) => {
   const hash = req.params.hash;
-  const signals = await metadataStore.listAllSignals();
-  const match = signals.find((s) => s.signalHash === hash);
+  const match = await signalStore.getSignalByHash(hash);
   if (!match) {
     return res.status(404).json({ error: "signal not found" });
   }
@@ -310,9 +323,10 @@ router.get("/signals/by-hash/:hash", async (req, res) => {
 router.get("/storage/ciphertext/:sha", async (req, res) => {
   const sha = req.params.sha;
   try {
-    const pointer = { id: `backend://ciphertext/${sha}`, sha256: sha };
-    const bytes = await storageProvider.getCiphertext(pointer);
-    const payload = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    const payload = await signalStore.getPayloadByHash(sha);
+    if (!payload || !("ciphertext" in payload)) {
+      return res.status(404).json({ error: "ciphertext not found" });
+    }
     return res.json({ payload });
   } catch (error: any) {
     return res.status(404).json({ error: error.message ?? "ciphertext not found" });
@@ -322,9 +336,10 @@ router.get("/storage/ciphertext/:sha", async (req, res) => {
 router.get("/storage/public/:sha", async (req, res) => {
   const sha = req.params.sha;
   try {
-    const pointer = { id: `backend://public/${sha}`, sha256: sha };
-    const bytes = await storageProvider.getPublic(pointer);
-    const payload = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    const payload = await signalStore.getPayloadByHash(sha);
+    if (!payload || !("plaintext" in payload)) {
+      return res.status(404).json({ error: "public payload not found" });
+    }
     return res.json({ payload });
   } catch (error: any) {
     return res.status(404).json({ error: error.message ?? "public payload not found" });
@@ -343,9 +358,10 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       process.env.NODE_ENV === "test" &&
       process.env.TEST_KEYBOX_BYPASS === "true"
     ) {
-      const pointer = { id: `backend://keybox/${sha}`, sha256: sha };
-      const bytes = await storageProvider.getKeybox(pointer);
-      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as any;
+      const parsed = await signalStore.getKeyboxByHash(sha);
+      if (!parsed) {
+        return res.status(404).json({ error: "keybox not found" });
+      }
       if (subscriberId) {
         const entry = Array.isArray(parsed)
           ? parsed.find((k) => k.subscriberId === subscriberId)
@@ -358,8 +374,7 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       return res.json({ keybox: parsed });
     }
 
-    const signals = await metadataStore.listAllSignals();
-    const meta = signals.find((signal) => signal.keyboxHash === sha);
+    const meta = await signalStore.getSignalByKeyboxHash(sha);
     if (!meta) {
       return res.status(404).json({ error: "keybox not found" });
     }
@@ -444,9 +459,10 @@ router.get("/storage/keybox/:sha", async (req, res) => {
     const onchainDer = x25519RawToDer(onchainEncPub);
     const subscriberIdFinal = subscriberIdFromPubkey(onchainDer);
 
-    const pointer = { id: `backend://keybox/${sha}`, sha256: sha };
-    const bytes = await storageProvider.getKeybox(pointer);
-    const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as any;
+    const parsed = await signalStore.getKeyboxByHash(sha);
+    if (!parsed) {
+      return res.status(404).json({ error: "keybox not found" });
+    }
     const entry = Array.isArray(parsed)
       ? parsed.find((k) => k.subscriberId === subscriberIdFinal)
       : parsed[subscriberIdFinal];
@@ -460,7 +476,7 @@ router.get("/storage/keybox/:sha", async (req, res) => {
 });
 
 router.get("/feed", async (_req, res) => {
-  const signals = await metadataStore.listAllSignals();
+  const signals = await signalStore.listAllSignals();
   const feed = [];
   const recent = signals.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
   for (const signal of recent) {
@@ -632,6 +648,45 @@ const loginSchema = z.object({
   bio: z.string().optional(),
 });
 
+async function fetchTapestryProfileByWallet(wallet: string, cachedProfileId?: string) {
+  if (cachedProfileId) {
+    try {
+      const details = await tapestryClient.getProfileDetails(cachedProfileId);
+      if (details?.profile?.id) {
+        const isStream = await tapestryClient.isStreamProfile(details.profile.id);
+        if (!isStream) return details.profile;
+      }
+    } catch (error) {
+      console.warn("Tapestry profile details lookup failed", error);
+    }
+  }
+
+  try {
+    const entry = await tapestryClient.findUserProfileByWallet(wallet);
+    if (entry?.profile?.id) return entry.profile;
+  } catch (error) {
+    console.warn("Tapestry profile lookup by wallet failed", error);
+  }
+
+  return null;
+}
+
+function readCustomProperty(profile: any, key: string): string | undefined {
+  const raw = profile?.customProperties;
+  if (!raw) return undefined;
+  if (Array.isArray(raw)) {
+    const match = raw.find((item) => item?.key === key);
+    if (match?.value === undefined || match?.value === null) return undefined;
+    return String(match.value);
+  }
+  if (typeof raw === "object") {
+    const value = raw[key];
+    if (value === undefined || value === null) return undefined;
+    return String(value);
+  }
+  return undefined;
+}
+
 router.post("/users/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -655,11 +710,23 @@ router.post("/users/login", async (req, res) => {
 });
 
 router.get("/users/:wallet", async (req, res) => {
-  const user = await userProfileStore.getUser(req.params.wallet);
-  if (!user) {
-    return res.status(404).json({ error: "user not found" });
+  const wallet = req.params.wallet;
+  const cached = await userProfileStore.getUser(wallet);
+  const profile = await fetchTapestryProfileByWallet(wallet, cached?.tapestryProfileId);
+  if (profile) {
+    const displayName = readCustomProperty(profile, "displayName") ?? profile.username;
+    const bio = readCustomProperty(profile, "bio") ?? profile.bio;
+    const updated = await userProfileStore.upsertUser(wallet, {
+      displayName: displayName ?? undefined,
+      bio: bio ?? undefined,
+      tapestryProfileId: profile.id,
+    });
+    return res.json({ user: updated });
   }
-  return res.json({ user });
+  if (cached) {
+    return res.json({ user: cached });
+  }
+  return res.status(404).json({ error: "user not found" });
 });
 
 const updateUserSchema = z.object({
@@ -672,11 +739,46 @@ router.patch("/users/:wallet", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const user = await userProfileStore.updateUser(req.params.wallet, parsed.data);
-  if (!user) {
-    return res.status(404).json({ error: "user not found" });
+  if (parsed.data.displayName === undefined && parsed.data.bio === undefined) {
+    return res.status(400).json({ error: "no profile updates provided" });
   }
-  return res.json({ user });
+  const wallet = req.params.wallet;
+  const cached = await userProfileStore.getUser(wallet);
+  let profileId = cached?.tapestryProfileId;
+
+  if (!profileId) {
+    const entry = await fetchTapestryProfileByWallet(wallet);
+    profileId = entry?.id;
+  }
+
+  if (!profileId) {
+    profileId = await socialServiceInstance.ensureProfile(wallet, parsed.data.displayName ?? cached?.displayName);
+  }
+
+  if (!profileId) {
+    return res.status(500).json({ error: "unable to resolve tapestry profile" });
+  }
+
+  if (parsed.data.displayName === undefined && parsed.data.bio === undefined) {
+    return res.status(400).json({ error: "no profile updates provided" });
+  }
+
+  try {
+    await tapestryClient.updateProfileCore({
+      profileId,
+      username: parsed.data.displayName,
+      bio: parsed.data.bio,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message ?? "tapestry profile update failed" });
+  }
+
+  const updated = await userProfileStore.upsertUser(wallet, {
+    displayName: parsed.data.displayName ?? cached?.displayName,
+    bio: parsed.data.bio ?? cached?.bio,
+    tapestryProfileId: profileId,
+  });
+  return res.json({ user: updated });
 });
 
 const botSchema = z.object({

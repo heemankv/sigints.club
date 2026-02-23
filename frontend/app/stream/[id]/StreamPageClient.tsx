@@ -17,6 +17,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
     "authority" in stream &&
     stream.authority &&
     publicKey.toBase58() === stream.authority;
+  const onchainAddress = "onchainAddress" in stream ? stream.onchainAddress : undefined;
 
   return (
     <div className="stream-detail">
@@ -25,6 +26,11 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         {stream.domain && <span className="kicker">{stream.domain}</span>}
         <h1 className="stream-detail-title">{stream.name}</h1>
         {stream.description && <p className="subtext">{stream.description}</p>}
+        {onchainAddress && (
+          <p className="subtext">
+            On-chain stream address: <span className="mono">{onchainAddress}</span>
+          </p>
+        )}
         <div className="badges">
           {stream.accuracy && <span className="badge">Accuracy {stream.accuracy}</span>}
           {stream.latency && <span className="badge">Latency {stream.latency}</span>}
@@ -46,7 +52,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
             tierId={stream.tiers[0]?.tierId ?? "tier"}
             tiers={stream.tiers as StreamDetail["tiers"]}
             streamVisibility={"visibility" in stream ? stream.visibility : undefined}
-            streamOnchainAddress={"onchainAddress" in stream ? stream.onchainAddress : undefined}
+            streamOnchainAddress={onchainAddress}
           />
         </div>
       ) : (
@@ -79,7 +85,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                       evidenceLevel={tier.evidenceLevel}
                       price={tier.price}
                       quota={tier.quota}
-                      streamOnchainAddress={"onchainAddress" in stream ? stream.onchainAddress : undefined}
+                      streamOnchainAddress={onchainAddress}
                       streamAuthority={"authority" in stream ? stream.authority : undefined}
                       streamDao={"dao" in stream ? stream.dao : undefined}
                       streamVisibility={"visibility" in stream ? stream.visibility : undefined}
