@@ -4,6 +4,9 @@ export class InMemorySubscriberDirectory implements SubscriberDirectory {
   private records: SubscriberRecord[] = [];
 
   async addSubscriber(record: SubscriberRecord): Promise<void> {
+    this.records = this.records.filter(
+      (r) => !(r.streamId === record.streamId && r.subscriberId === record.subscriberId)
+    );
     this.records.push(record);
   }
 

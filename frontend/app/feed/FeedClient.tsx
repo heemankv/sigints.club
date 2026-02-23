@@ -690,6 +690,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                   streamOnchainAddress={activeStream.onchainAddress}
                   streamAuthority={activeStream.authority}
                   streamDao={activeStream.dao}
+                  streamVisibility={activeStream.visibility}
                 />
               </>
             )}

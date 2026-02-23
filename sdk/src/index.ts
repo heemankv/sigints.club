@@ -12,6 +12,13 @@ import {
   type PrepareSignalInput,
   type RecordSignalParams,
 } from "./publish";
+import {
+  registerSubscription as registerSubscriptionRequest,
+  syncWalletKey as syncWalletKeyRequest,
+  fetchStream as fetchStreamRequest,
+  type SubscribeResponse,
+  type SyncWalletKeyResponse,
+} from "./backend";
 
 export type StreamSdkConfig = {
   rpcUrl: string;
@@ -104,20 +111,28 @@ export class SigintsClient {
     if (!subscriberWallet) {
       throw new Error("subscriberWallet is required to register encryption key");
     }
-    const res = await fetch(`${this.backendUrl}/subscribe`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        streamId,
-        encPubKeyDerBase64: publicKeyDerBase64,
-        subscriberWallet,
-      }),
+    const resp = await syncWalletKeyRequest(this.backendUrl, {
+      wallet: subscriberWallet,
+      streamId,
+      encPubKeyDerBase64: publicKeyDerBase64,
     });
-    if (!res.ok) {
-      throw new Error(`backend subscribe failed (${res.status})`);
-    }
-    const data = (await res.json()) as { subscriberId: string };
-    return data.subscriberId;
+    return resp.subscriberId;
+  }
+
+  async registerSubscription(streamId: string, subscriberWallet: string): Promise<SubscribeResponse> {
+    return registerSubscriptionRequest(this.backendUrl, { streamId, subscriberWallet });
+  }
+
+  async syncWalletKey(
+    wallet: string,
+    streamId?: string,
+    encPubKeyDerBase64?: string
+  ): Promise<SyncWalletKeyResponse> {
+    return syncWalletKeyRequest(this.backendUrl, { wallet, streamId, encPubKeyDerBase64 });
+  }
+
+  async fetchStream<T = any>(streamId: string): Promise<T> {
+    return fetchStreamRequest<T>(this.backendUrl, streamId);
   }
 
   async fetchLatestSignal(streamId: string): Promise<SignalMetadata | null> {
@@ -380,6 +395,9 @@ export { generateX25519Keypair, subscriberIdFromPubkey, WrappedKey };
 export {
   prepareSignalRequest as prepareSignal,
   buildRecordSignalIx as buildRecordSignalInstruction,
+  registerSubscriptionRequest as registerSubscription,
+  syncWalletKeyRequest as syncWalletKey,
+  fetchStreamRequest as fetchStream,
 };
 
 export const __testing = {

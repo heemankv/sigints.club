@@ -11,8 +11,11 @@ export class FileSubscriberDirectory implements SubscriberDirectory {
 
   async addSubscriber(record: SubscriberRecord): Promise<void> {
     const data = await this.readAll();
-    data.push(record);
-    await this.writeAll(data);
+    const filtered = data.filter(
+      (r) => !(r.streamId === record.streamId && r.subscriberId === record.subscriberId)
+    );
+    filtered.push(record);
+    await this.writeAll(filtered);
   }
 
   async listSubscribers(streamId: string): Promise<SubscriberRecord[]> {

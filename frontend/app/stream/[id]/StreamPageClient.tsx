@@ -82,6 +82,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                       streamOnchainAddress={"onchainAddress" in stream ? stream.onchainAddress : undefined}
                       streamAuthority={"authority" in stream ? stream.authority : undefined}
                       streamDao={"dao" in stream ? stream.dao : undefined}
+                      streamVisibility={"visibility" in stream ? stream.visibility : undefined}
                     />
                   </div>
                 ))}

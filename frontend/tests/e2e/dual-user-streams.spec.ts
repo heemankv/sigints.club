@@ -27,7 +27,12 @@ async function ensureConnected(page: Page) {
   await expect(addressBtn).toBeVisible({ timeout: 15_000 });
 }
 
-async function registerStream(page: Page, streamId: string, name: string) {
+async function registerStream(
+  page: Page,
+  streamId: string,
+  name: string,
+  visibility: "public" | "private"
+) {
   await page.goto("/register-stream");
   await ensureConnected(page);
   await expect(page.getByRole("heading", { name: /Streams & Signals/i })).toBeVisible();
@@ -42,6 +47,7 @@ async function registerStream(page: Page, streamId: string, name: string) {
   await page.getByRole("button", { name: /Next/i }).click();
   await expect(page.getByRole("heading", { name: /Deploy Stream/i })).toBeVisible();
 
+  await page.getByRole("combobox", { name: /Visibility/i }).selectOption(visibility);
   await page.getByRole("button", { name: /Deploy Stream/i }).click();
 
   const status = page.locator(".step-content .subtext", {
@@ -72,28 +78,24 @@ test.describe.serial("dual-user stream flows", () => {
     const streamId = `stream-private-${Date.now()}`;
     const streamName = `Private Stream ${Date.now()}`;
 
-    await registerStream(makerUser.page, streamId, streamName);
+    await registerStream(makerUser.page, streamId, streamName, "private");
     await waitForStreamAvailable(streamId, request, 90_000);
 
     await takerUser.page.goto(`/stream/${streamId}`);
     await ensureConnected(takerUser.page);
 
     const keyCard = takerUser.page.locator(".card", { hasText: "Wallet Key Manager" });
-    await keyCard.getByRole("button", { name: /Generate Keypair/i }).click();
-    await expect(keyCard.getByText(/Generated new keypair/i)).toBeVisible();
+    const { publicKey } = await (await import("node:crypto")).generateKeyPairSync("x25519");
+    const pubKeyValue = publicKey.export({ type: "spki", format: "der" }).toString("base64");
+    await keyCard.locator("textarea").first().fill(pubKeyValue);
     await keyCard.getByRole("button", { name: /Register Key On-chain/i }).click();
     await expect(keyCard.getByText(/Registered on-chain key/i)).toBeVisible({ timeout: 30_000 });
-
-    const pubKeyValue = await keyCard.locator("textarea").first().inputValue();
+    await expect(keyCard.getByText(/Backend sync complete/i)).toBeVisible({ timeout: 30_000 });
 
     const subscribeOnchainBtn = takerUser.page.getByRole("button", { name: /Subscribe on-chain/i });
     await expect(subscribeOnchainBtn).toBeEnabled();
     await subscribeOnchainBtn.click();
-    await expect(takerUser.page.getByText(/On-chain subscription submitted/i)).toBeVisible({ timeout: 60_000 });
-
-    await takerUser.page.getByPlaceholder("Base64 X25519 public key").fill(pubKeyValue);
-    await takerUser.page.getByRole("button", { name: /^Subscribe$/i }).click();
-    await expect(takerUser.page.getByText(/Subscribed\. Subscriber ID/i)).toBeVisible();
+    await expect(takerUser.page.getByText(/Subscribed and registered/i)).toBeVisible({ timeout: 60_000 });
 
     await makerUser.page.goto("/register-stream");
     await ensureConnected(makerUser.page);
@@ -102,12 +104,13 @@ test.describe.serial("dual-user stream flows", () => {
     await expect(streamCard.getByText(/subscribers/i)).toContainText("1", { timeout: 60_000 });
 
     await makerUser.page.goto(`/stream/${streamId}`);
-    const makerOps = makerUser.page.locator(".module", { hasText: "Maker Operations" });
-    await makerOps.locator("select").selectOption("private");
+    const makerOps = makerUser.page.locator(".stream-detail-section", { hasText: "Publish Signal" });
     const message = `private-signal-${Date.now()}`;
     await makerOps.locator("textarea").fill(message);
-    await makerOps.getByRole("button", { name: /^Publish$/i }).click();
-    await expect(makerOps.getByText(/Published signal/i)).toBeVisible({ timeout: 30_000 });
+    await makerOps.getByRole("button", { name: /Prepare Signal/i }).click();
+    await expect(makerOps.getByText(/Prepared signal/i)).toBeVisible({ timeout: 30_000 });
+    await makerOps.getByRole("button", { name: /Publish On-chain/i }).click();
+    await expect(makerOps.getByText(/On-chain publish/i)).toBeVisible({ timeout: 60_000 });
 
     const latestRes = await request.get(`${BACKEND_URL}/signals/latest?streamId=${streamId}`);
     expect(latestRes.ok()).toBeTruthy();
@@ -127,7 +130,7 @@ test.describe.serial("dual-user stream flows", () => {
     const streamId = `stream-public-${Date.now()}`;
     const streamName = `Public Stream ${Date.now()}`;
 
-    await registerStream(makerUser.page, streamId, streamName);
+    await registerStream(makerUser.page, streamId, streamName, "public");
     await waitForStreamAvailable(streamId, request, 90_000);
 
     await takerUser.page.goto(`/stream/${streamId}`);
@@ -136,18 +139,16 @@ test.describe.serial("dual-user stream flows", () => {
     const subscribeOnchainBtn = takerUser.page.getByRole("button", { name: /Subscribe on-chain/i });
     await expect(subscribeOnchainBtn).toBeEnabled();
     await subscribeOnchainBtn.click();
-    await expect(takerUser.page.getByText(/On-chain subscription submitted/i)).toBeVisible({ timeout: 60_000 });
-
-    await takerUser.page.getByRole("button", { name: /^Subscribe$/i }).click();
-    await expect(takerUser.page.getByText(/Subscribed\. Subscriber ID/i)).toBeVisible();
+    await expect(takerUser.page.getByText(/Subscribed and registered/i)).toBeVisible({ timeout: 60_000 });
 
     await makerUser.page.goto(`/stream/${streamId}`);
-    const makerOps = makerUser.page.locator(".module", { hasText: "Maker Operations" });
-    await makerOps.locator("select").selectOption("public");
+    const makerOps = makerUser.page.locator(".stream-detail-section", { hasText: "Publish Signal" });
     const message = `public-signal-${Date.now()}`;
     await makerOps.locator("textarea").fill(message);
-    await makerOps.getByRole("button", { name: /^Publish$/i }).click();
-    await expect(makerOps.getByText(/Published signal/i)).toBeVisible({ timeout: 30_000 });
+    await makerOps.getByRole("button", { name: /Prepare Signal/i }).click();
+    await expect(makerOps.getByText(/Prepared signal/i)).toBeVisible({ timeout: 30_000 });
+    await makerOps.getByRole("button", { name: /Publish On-chain/i }).click();
+    await expect(makerOps.getByText(/On-chain publish/i)).toBeVisible({ timeout: 60_000 });
 
     const latestRes = await request.get(`${BACKEND_URL}/signals/latest?streamId=${streamId}`);
     expect(latestRes.ok()).toBeTruthy();

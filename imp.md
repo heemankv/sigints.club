@@ -51,3 +51,4 @@ Date: 2026-02-15
 48. Tapestry is mandatory for discovery and social; backend no longer falls back to local stores for stream lists or feeds.
 49. Private keybox access is now gated by **wallet signature + Token-2022 NFT ownership**; backend only returns the caller’s keybox entry.
 50. Signal visibility is **stream-level only** (set at stream creation). Publish flow does not allow per-signal visibility; backend derives visibility from the stream and ignores client-provided values.
+51. Global wallet key only: per-subscription keys are disabled. Private subscriptions require a registered WalletKey PDA, and key rotation is supported via `/wallet-key/sync`.

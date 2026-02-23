@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { postJson } from "../../lib/api";
+import { useState, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import {
@@ -11,10 +10,12 @@ import {
   resolveStreamPubkey,
   resolvePricingType,
   resolveProgramId,
+  deriveWalletKeyPda,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
 import { explorerTx } from "../../lib/constants";
 import { parseQuota } from "../../lib/utils";
+import { registerSubscription } from "../../lib/sdkBackend";
 
 export default function SubscribeForm({
   streamId,
@@ -26,6 +27,7 @@ export default function SubscribeForm({
   streamOnchainAddress,
   streamAuthority,
   streamDao,
+  streamVisibility,
 }: {
   streamId: string;
   tierId: string;
@@ -36,34 +38,46 @@ export default function SubscribeForm({
   streamOnchainAddress?: string;
   streamAuthority?: string;
   streamDao?: string;
+  streamVisibility?: "public" | "private";
 }) {
-  const [pubKey, setPubKey] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
   const [chainTx, setChainTx] = useState<string | null>(null);
+  const [walletKeyReady, setWalletKeyReady] = useState<boolean | null>(null);
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
 
-  async function submit() {
-    setLoading(true);
-    setStatus(null);
-    try {
+  const visibility = streamVisibility ?? "private";
+  const requiresKey = visibility === "private";
+  const keyReady = !requiresKey || walletKeyReady === true;
+
+  useEffect(() => {
+    let active = true;
+    async function checkWalletKey() {
       if (!publicKey) {
-        throw new Error("Connect your wallet first.");
+        setWalletKeyReady(null);
+        return;
       }
-      const data = await postJson<{ subscriberId: string }>("/subscribe", {
-        streamId,
-        ...(pubKey ? { encPubKeyDerBase64: pubKey } : {}),
-        subscriberWallet: publicKey.toBase58(),
-      });
-      setStatus(`Subscribed. Subscriber ID: ${data.subscriberId}`);
-    } catch (err: any) {
-      setStatus(err.message ?? "Failed");
-    } finally {
-      setLoading(false);
+      if (!requiresKey) {
+        setWalletKeyReady(true);
+        return;
+      }
+      try {
+        const programId = resolveProgramId();
+        const walletKeyPda = deriveWalletKeyPda(programId, publicKey);
+        const account = await connection.getAccountInfo(walletKeyPda);
+        if (!active) return;
+        setWalletKeyReady(!!account);
+      } catch {
+        if (!active) return;
+        setWalletKeyReady(false);
+      }
     }
-  }
+    void checkWalletKey();
+    return () => {
+      active = false;
+    };
+  }, [publicKey, connection, requiresKey]);
 
   async function submitOnchain() {
     setLoading(true);
@@ -72,6 +86,9 @@ export default function SubscribeForm({
     try {
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
+      }
+      if (requiresKey && walletKeyReady === false) {
+        throw new Error("Register your wallet key before subscribing to private streams.");
       }
       if (!streamOnchainAddress || !streamAuthority || !streamDao) {
         throw new Error("On-chain stream or payout accounts not configured.");
@@ -97,7 +114,11 @@ export default function SubscribeForm({
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
       setChainTx(signature);
-      setChainStatus("On-chain subscription submitted.");
+      await registerSubscription(process.env.NEXT_PUBLIC_BACKEND_URL ?? "", {
+        streamId,
+        subscriberWallet: publicKey.toBase58(),
+      });
+      setChainStatus("Subscribed and registered.");
     } catch (err: any) {
       setChainStatus(err.message ?? "On-chain subscribe failed");
     } finally {
@@ -109,25 +130,27 @@ export default function SubscribeForm({
     <div className="card">
       <div className="hud-corners" />
       <h3>Subscribe to {tierId}</h3>
-      <p>Paste your encryption public key (base64) or leave blank to use your wallet key.</p>
-      <input
-        value={pubKey}
-        onChange={(e) => setPubKey(e.target.value)}
-        placeholder="Base64 X25519 public key"
-        className="input"
-      />
-      <button className="button primary" onClick={submit} disabled={loading}>
-        {loading ? "Subscribing…" : "Subscribe"}
-      </button>
-      {status && <p className="subtext">{status}</p>}
-      <div className="divider" />
       <p className="subtext">
-        On-chain subscription mints a 1-of-1 NFT to your wallet.
+        {requiresKey
+          ? "Private stream: register your wallet key first."
+          : "Public stream: no encryption key required."}
       </p>
+      {requiresKey && walletKeyReady === null && (
+        <p className="subtext">Checking wallet key status…</p>
+      )}
+      {requiresKey && walletKeyReady === false && (
+        <p className="subtext">Wallet key missing. Register it in Profile → Actions.</p>
+      )}
       <button
         className="button ghost"
         onClick={submitOnchain}
-        disabled={loading || !streamOnchainAddress || !streamAuthority || !streamDao}
+        disabled={
+          loading ||
+          !streamOnchainAddress ||
+          !streamAuthority ||
+          !streamDao ||
+          !keyReady
+        }
       >
         {loading ? "Submitting…" : "Subscribe on-chain"}
       </button>

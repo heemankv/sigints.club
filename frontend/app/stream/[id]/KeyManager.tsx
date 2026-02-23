@@ -5,12 +5,14 @@ import { subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../li
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { buildRegisterWalletKeyInstruction, resolveProgramId } from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
+import { syncWalletKey } from "../../lib/sdkBackend";
 
 export default function KeyManager() {
   const [pubKey, setPubKey] = useState("");
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
@@ -32,6 +34,7 @@ export default function KeyManager() {
 
   async function registerOnchain() {
     setChainStatus(null);
+    setSyncStatus(null);
     try {
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
@@ -52,6 +55,10 @@ export default function KeyManager() {
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
       setChainStatus(`Registered on-chain key: ${signature.slice(0, 10)}…`);
+      await syncWalletKey(process.env.NEXT_PUBLIC_BACKEND_URL ?? "", {
+        wallet: publicKey.toBase58(),
+      });
+      setSyncStatus("Backend sync complete.");
     } catch (err: any) {
       setChainStatus(err?.message ?? "Failed to register on-chain key.");
     }
@@ -103,6 +110,7 @@ openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
       </button>
       {!publicKey && <p className="subtext">Connect wallet to register your key.</p>}
       {chainStatus && <p className="subtext">{chainStatus}</p>}
+      {syncStatus && <p className="subtext">{syncStatus}</p>}
     </div>
   );
 }
