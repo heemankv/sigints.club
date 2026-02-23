@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ComponentProps } from "react";
+import { Suspense, useEffect, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { fetchJson, postJson } from "../lib/api";
 import { fetchStreams } from "../lib/api/streams";
 import { fetchOnchainSubscriptions } from "../lib/api/subscriptions";
+import { fetchUserProfile, fetchBots, createBot as sdkCreateBot } from "../lib/sdkBackend";
 import type { BotProfile, OnChainSubscription, StreamDetail, StreamTier } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
@@ -21,7 +21,7 @@ type UserProfile = {
   bio?: string;
 };
 
-export default function ProfilePage() {
+function ProfilePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { publicKey } = useWallet();
@@ -64,20 +64,21 @@ export default function ProfilePage() {
     if (!walletAddr) return;
     void load();
     async function load() {
+      const wallet = walletAddr!;
       try {
-        const u = await fetchJson<{ user: UserProfile }>(`/users/${walletAddr}`);
+        const u = await fetchUserProfile<{ user: UserProfile }>(wallet);
         setProfile(u.user);
       } catch {
-        setProfile({ wallet: walletAddr! });
+        setProfile({ wallet });
       }
       try {
-        const m = await fetchJson<{ bots: BotProfile[] }>(`/bots?owner=${walletAddr}&role=maker`);
+        const m = await fetchBots<{ bots: BotProfile[] }>({ owner: wallet, role: "maker" });
         setMakerBots(m.bots);
       } catch {
         setMakerBots([]);
       }
       try {
-        const l = await fetchJson<{ bots: BotProfile[] }>(`/bots?owner=${walletAddr}&role=listener`);
+        const l = await fetchBots<{ bots: BotProfile[] }>({ owner: wallet, role: "listener" });
         setListenerBots(l.bots);
       } catch {
         setListenerBots([]);
@@ -87,7 +88,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!walletAddr) return;
-    void loadSubscriptions();
+    const dirty =
+      typeof window !== "undefined" && window.localStorage.getItem("subscriptionsDirty") === "1";
+    void loadSubscriptions(dirty);
+    if (dirty && typeof window !== "undefined") {
+      window.localStorage.removeItem("subscriptionsDirty");
+    }
   }, [walletAddr]);
 
   async function buildTierIndex(stream: StreamDetail): Promise<Map<string, StreamTier>> {
@@ -100,13 +106,13 @@ export default function ProfilePage() {
     return new Map(entries);
   }
 
-  async function loadSubscriptions() {
+  async function loadSubscriptions(forceFresh = false) {
     if (!walletAddr) return;
     setSubsLoading(true);
     setSubsError(null);
     try {
       const [subsRes, streamsRes] = await Promise.all([
-        fetchOnchainSubscriptions(walletAddr),
+        fetchOnchainSubscriptions(walletAddr, { fresh: forceFresh }),
         fetchStreams({ includeTiers: true }),
       ]);
       const subs = subsRes.subscriptions ?? [];
@@ -123,7 +129,7 @@ export default function ProfilePage() {
       const cards: ComponentProps<typeof OwnedSubscriptionCard>[] = [];
 
       for (const sub of subs) {
-        if (sub.status !== 1) continue;
+        if (sub.status !== 0) continue;
         const streamMeta = streamByPda.get(sub.stream);
         let tierMatch: StreamTier | undefined;
         if (streamMeta) {
@@ -166,7 +172,7 @@ export default function ProfilePage() {
     if (!walletAddr) { setBotStatus("Connect your wallet first."); return; }
     setBotStatus(null);
     try {
-      const res = await postJson<{ bot: BotProfile }>("/bots", {
+      const res = await sdkCreateBot<{ bot: BotProfile }>({
         ownerWallet: walletAddr,
         name: botName,
         domain: botDomain,
@@ -238,6 +244,15 @@ export default function ProfilePage() {
 
             {activeTab === "subscriptions" && (
               <div className="profile-tab-content">
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <button
+                    className="button ghost"
+                    onClick={() => void loadSubscriptions(true)}
+                    disabled={subsLoading}
+                  >
+                    Refresh
+                  </button>
+                </div>
                 <div className="data-grid">
                   {subsLoading && <p className="subtext">Loading subscriptions…</p>}
                   {subsError && <p className="subtext">{subsError}</p>}
@@ -357,5 +372,13 @@ export default function ProfilePage() {
         )}
       </div>
     </section>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="social-shell"><div className="social-main"><p className="subtext">Loading profile…</p></div></div>}>
+      <ProfilePageInner />
+    </Suspense>
   );
 }

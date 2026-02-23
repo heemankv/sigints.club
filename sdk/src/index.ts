@@ -7,7 +7,6 @@ import {
   WrappedKey,
 } from "./crypto";
 import {
-  prepareSignal as prepareSignalRequest,
   buildRecordSignalInstruction as buildRecordSignalIx,
   type PrepareSignalInput,
   type RecordSignalParams,
@@ -16,6 +15,12 @@ import {
   registerSubscription as registerSubscriptionRequest,
   syncWalletKey as syncWalletKeyRequest,
   fetchStream as fetchStreamRequest,
+  prepareSignal as prepareSignalRequest,
+  fetchLatestSignal as fetchLatestSignalRequest,
+  fetchSignalByHash as fetchSignalByHashRequest,
+  fetchCiphertext as fetchCiphertextRequest,
+  fetchPublicPayload as fetchPublicPayloadRequest,
+  fetchKeyboxEntry as fetchKeyboxEntryRequest,
   type SubscribeResponse,
   type SyncWalletKeyResponse,
 } from "./backend";
@@ -136,23 +141,19 @@ export class SigintsClient {
   }
 
   async fetchLatestSignal(streamId: string): Promise<SignalMetadata | null> {
-    const res = await fetch(`${this.backendUrl}/signals/latest?streamId=${encodeURIComponent(streamId)}`);
-    if (res.status === 404) {
-      return null;
+    try {
+      const data = await fetchLatestSignalRequest<SignalMetadata>(this.backendUrl, streamId);
+      return normalizeMetadata(data.signal);
+    } catch (err: any) {
+      if (typeof err?.message === "string" && err.message.includes("404")) {
+        return null;
+      }
+      throw err;
     }
-    if (!res.ok) {
-      throw new Error(`backend latest signal failed (${res.status})`);
-    }
-    const data = (await res.json()) as { signal: SignalMetadata };
-    return normalizeMetadata(data.signal);
   }
 
   async fetchSignalByHash(signalHash: string): Promise<SignalMetadata> {
-    const res = await fetch(`${this.backendUrl}/signals/by-hash/${signalHash}`);
-    if (!res.ok) {
-      throw new Error(`backend signal lookup failed (${res.status})`);
-    }
-    const data = (await res.json()) as { signal: SignalMetadata };
+    const data = await fetchSignalByHashRequest<SignalMetadata>(this.backendUrl, signalHash);
     return normalizeMetadata(data.signal);
   }
 
@@ -161,11 +162,7 @@ export class SigintsClient {
     if (!sha) {
       throw new Error("invalid signal pointer");
     }
-    const res = await fetch(`${this.backendUrl}/storage/ciphertext/${sha}`);
-    if (!res.ok) {
-      throw new Error(`ciphertext fetch failed (${res.status})`);
-    }
-    const data = (await res.json()) as { payload: SignalPayload };
+    const data = await fetchCiphertextRequest<SignalPayload>(this.backendUrl, sha);
     return data.payload;
   }
 
@@ -174,11 +171,7 @@ export class SigintsClient {
     if (!sha) {
       throw new Error("invalid public signal pointer");
     }
-    const res = await fetch(`${this.backendUrl}/storage/public/${sha}`);
-    if (!res.ok) {
-      throw new Error(`public payload fetch failed (${res.status})`);
-    }
-    const data = (await res.json()) as { payload: PublicSignalPayload };
+    const data = await fetchPublicPayloadRequest<PublicSignalPayload>(this.backendUrl, sha);
     return data.payload;
   }
 
@@ -193,16 +186,11 @@ export class SigintsClient {
     const message = Buffer.from(`sigints:keybox:${sha}`, "utf8");
     const signatureBytes = await Promise.resolve(this.keyboxAuth.signMessage(message));
     const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
-    const res = await fetch(
-      `${this.backendUrl}/storage/keybox/${sha}` +
-        `?wallet=${encodeURIComponent(this.keyboxAuth.walletPubkey)}` +
-        `&signature=${encodeURIComponent(signatureBase64)}` +
-        `&encPubKeyDerBase64=${encodeURIComponent(encPubKeyDerBase64)}`
-    );
-    if (!res.ok) {
-      throw new Error(`keybox fetch failed (${res.status})`);
-    }
-    const data = (await res.json()) as { entry: WrappedKey };
+    const data = await fetchKeyboxEntryRequest<WrappedKey>(this.backendUrl, sha, {
+      wallet: this.keyboxAuth.walletPubkey,
+      signatureBase64,
+      encPubKeyDerBase64,
+    });
     return data.entry;
   }
 
@@ -391,9 +379,9 @@ function hexToBytes(input: string, label: string): Uint8Array {
   return bytes;
 }
 
-export { generateX25519Keypair, subscriberIdFromPubkey, WrappedKey };
+export { generateX25519Keypair, subscriberIdFromPubkey };
+export type { WrappedKey };
 export {
-  prepareSignalRequest as prepareSignal,
   buildRecordSignalIx as buildRecordSignalInstruction,
   registerSubscriptionRequest as registerSubscription,
   syncWalletKeyRequest as syncWalletKey,
@@ -404,6 +392,7 @@ export {
   getJson,
   postJson,
   deleteJson,
+  createBackendClient,
   fetchStreams,
   fetchStreamSubscribers,
   createStream,
@@ -422,6 +411,7 @@ export {
   fetchFollowingFeed,
   fetchTrendingFeed,
   fetchPost,
+  prepareSignal,
   createIntent,
   createSlashReport,
   addLike,
@@ -436,6 +426,8 @@ export {
   fetchUserProfile,
   loginUser,
 } from "./backend";
+
+export * from "./solana/index";
 
 export const __testing = {
   decodeSignalRecord,

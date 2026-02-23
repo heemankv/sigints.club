@@ -1,3 +1,6 @@
+import { Buffer } from "buffer";
+import type { PrepareSignalInput, PrepareSignalResponse } from "./publish";
+
 export type SubscribeResponse = {
   subscriberId: string | null;
   public?: boolean;
@@ -94,11 +97,13 @@ export async function createStream<T = any>(backendUrl: string, payload: unknown
 
 export async function fetchOnchainSubscriptions<T = any>(
   backendUrl: string,
-  subscriber: string
+  subscriber: string,
+  opts?: { fresh?: boolean }
 ): Promise<{ subscriptions: T[] }> {
+  const fresh = opts?.fresh ? "&fresh=true" : "";
   return getJson<{ subscriptions: T[] }>(
     backendUrl,
-    `/subscriptions/onchain?subscriber=${encodeURIComponent(subscriber)}`
+    `/subscriptions/onchain?subscriber=${encodeURIComponent(subscriber)}${fresh}`
   );
 }
 
@@ -292,4 +297,75 @@ export async function fetchUserProfile<T = any>(backendUrl: string, wallet: stri
 
 export async function loginUser(backendUrl: string, wallet: string): Promise<void> {
   await postJson(backendUrl, "/users/login", { wallet });
+}
+
+export async function prepareSignal(
+  backendUrl: string,
+  input: PrepareSignalInput
+): Promise<PrepareSignalResponse["metadata"]> {
+  const payload = {
+    streamId: input.streamId,
+    tierId: input.tierId,
+    visibility: input.visibility ?? "private",
+    plaintextBase64: Buffer.from(input.plaintext, "utf8").toString("base64"),
+  };
+  const res = await postJson<PrepareSignalResponse>(backendUrl, "/signals/prepare", payload);
+  return res.metadata;
+}
+
+export function createBackendClient(backendUrl: string) {
+  const url = normalizeBackendUrl(backendUrl);
+  if (!url) {
+    throw new Error("backendUrl is required");
+  }
+  return {
+    getJson: <T>(path: string) => getJson<T>(url, path),
+    postJson: <T>(path: string, body: unknown) => postJson<T>(url, path, body),
+    deleteJson: <T>(path: string, body: unknown) => deleteJson<T>(url, path, body),
+    registerSubscription: (input: { streamId: string; subscriberWallet: string }) =>
+      registerSubscription(url, input),
+    syncWalletKey: (input: { wallet: string; streamId?: string; encPubKeyDerBase64?: string }) =>
+      syncWalletKey(url, input),
+    fetchStream: <T = any>(streamId: string) => fetchStream<T>(url, streamId),
+    fetchStreams: <T = any>(includeTiers?: boolean) => fetchStreams<T>(url, includeTiers),
+    fetchStreamSubscribers: (streamId: string) => fetchStreamSubscribers(url, streamId),
+    createStream: <T = any>(payload: unknown) => createStream<T>(url, payload),
+    fetchOnchainSubscriptions: <T = any>(subscriber: string, opts?: { fresh?: boolean }) =>
+      fetchOnchainSubscriptions<T>(url, subscriber, opts),
+    fetchSignals: <T = any>(streamId: string) => fetchSignals<T>(url, streamId),
+    fetchLatestSignal: <T = any>(streamId: string) => fetchLatestSignal<T>(url, streamId),
+    fetchSignalByHash: <T = any>(signalHash: string) => fetchSignalByHash<T>(url, signalHash),
+    fetchCiphertext: <T = any>(sha: string) => fetchCiphertext<T>(url, sha),
+    fetchPublicPayload: <T = any>(sha: string) => fetchPublicPayload<T>(url, sha),
+    fetchKeyboxEntry: <T = any>(sha: string, params: { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }) =>
+      fetchKeyboxEntry<T>(url, sha, params),
+    fetchHealth: () => fetchHealth(url),
+    getTestWallet: (walletName?: string) => getTestWallet(url, walletName),
+    testWalletSend: (payload: { transactionBase64: string; skipPreflight?: boolean }, walletName?: string) =>
+      testWalletSend(url, payload, walletName),
+    testWalletSignMessage: (payload: { messageBase64: string }, walletName?: string) =>
+      testWalletSignMessage(url, payload, walletName),
+    fetchFeed: <T = any>(type?: "intent" | "slash") => fetchFeed<T>(url, type),
+    fetchFollowingFeed: <T = any>(wallet: string, type?: "intent" | "slash") => fetchFollowingFeed<T>(url, wallet, type),
+    fetchTrendingFeed: <T = any>(limit = 6) => fetchTrendingFeed<T>(url, limit),
+    fetchPost: <T = any>(contentId: string) => fetchPost<T>(url, contentId),
+    prepareSignal: (input: PrepareSignalInput) => prepareSignal(url, input),
+    createIntent: (params: { wallet: string; content: string; topic?: string; tags?: string[] }) =>
+      createIntent(url, params),
+    createSlashReport: (params: { wallet: string; content: string; streamId?: string; makerWallet?: string; challengeTx?: string }) =>
+      createSlashReport(url, params),
+    addLike: (wallet: string, contentId: string) => addLike(url, wallet, contentId),
+    removeLike: (wallet: string, contentId: string) => removeLike(url, wallet, contentId),
+    fetchLikeCount: (contentId: string) => fetchLikeCount(url, contentId),
+    fetchComments: <T = any>(contentId: string, page = 1, pageSize = 3) =>
+      fetchComments<T>(url, contentId, page, pageSize),
+    addComment: (wallet: string, contentId: string, comment: string) =>
+      addComment(url, wallet, contentId, comment),
+    followProfile: (wallet: string, targetProfileId: string) => followProfile(url, wallet, targetProfileId),
+    searchBots: <T = any>(query: string) => searchBots<T>(url, query),
+    fetchBots: <T = any>(params: { owner?: string; role?: string; search?: string }) => fetchBots<T>(url, params),
+    createBot: <T = any>(payload: unknown) => createBot<T>(url, payload),
+    fetchUserProfile: <T = any>(wallet: string) => fetchUserProfile<T>(url, wallet),
+    loginUser: (wallet: string) => loginUser(url, wallet),
+  };
 }

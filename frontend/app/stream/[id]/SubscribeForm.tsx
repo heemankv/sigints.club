@@ -114,11 +114,14 @@ export default function SubscribeForm({
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
       setChainTx(signature);
-      await registerSubscription(process.env.NEXT_PUBLIC_BACKEND_URL ?? "", {
+      await registerSubscription({
         streamId,
         subscriberWallet: publicKey.toBase58(),
       });
       setChainStatus("Subscribed and registered.");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("subscriptionsDirty", "1");
+      }
     } catch (err: any) {
       setChainStatus(err.message ?? "On-chain subscribe failed");
     } finally {

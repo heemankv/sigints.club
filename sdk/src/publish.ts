@@ -112,7 +112,7 @@ async function sha256Bytes(input: string): Promise<Uint8Array> {
   if (!globalThis.crypto?.subtle) {
     throw new Error("WebCrypto not available for SHA-256");
   }
-  const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer);
   return new Uint8Array(hash);
 }
 

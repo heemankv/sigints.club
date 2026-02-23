@@ -5,8 +5,7 @@ import { ConnectionProvider, WalletProvider, useWallet } from "@solana/wallet-ad
 import { type WalletName } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import { TestWalletAdapter } from "./lib/TestWalletAdapter";
-import { backendUrl } from "./lib/api";
-import { getTestWallet } from "./lib/sdkBackend";
+import { configureBackend, getTestWallet } from "./lib/sdkBackend";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName;
 const TEST_WALLET_FLAG = process.env.NEXT_PUBLIC_TEST_WALLET === "true";
@@ -51,6 +50,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [providerKey, setProviderKey] = useState(0);
 
   useEffect(() => {
+    configureBackend(process.env.NEXT_PUBLIC_BACKEND_URL);
     if (typeof window === "undefined") return;
     try {
       const stored = localStorage.getItem(TEST_WALLET_ACCOUNT_KEY);
@@ -64,7 +64,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setTestWalletActive(true);
     }
     let cancelled = false;
-    getTestWallet(backendUrl(), testWalletAccount)
+    getTestWallet(testWalletAccount)
       .then((data) => {
         if (cancelled) return;
         setTestWalletPubkey(data.wallet ?? null);

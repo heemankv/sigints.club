@@ -10,7 +10,6 @@ import {
 import type { Connection, TransactionSignature, TransactionVersion } from "@solana/web3.js";
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { Buffer } from "buffer";
-import { backendUrl } from "./api";
 import { testWalletSend, testWalletSignMessage } from "./sdkBackend";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName<"TestWallet">;
@@ -74,7 +73,6 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
       ? transaction.serialize()
       : transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
     const data = await testWalletSend(
-      backendUrl(),
       {
         transactionBase64: Buffer.from(serialized).toString("base64"),
         skipPreflight: options?.skipPreflight ?? false,
@@ -89,7 +87,6 @@ export class TestWalletAdapter extends BaseWalletAdapter<"TestWallet"> {
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
     const data = await testWalletSignMessage(
-      backendUrl(),
       { messageBase64: Buffer.from(message).toString("base64") },
       this.walletName
     );

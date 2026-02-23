@@ -37,7 +37,7 @@ mkdir -p "$LOG_DIR"
 
 if $FRESH; then
   if command -v lsof >/dev/null 2>&1; then
-    EXISTING_PIDS="$(lsof -ti tcp:8899 || true)"
+    EXISTING_PIDS="$(lsof -tiTCP:8899 -sTCP:LISTEN || true)"
     if [ -n "$EXISTING_PIDS" ]; then
       log "Stopping existing validator on :8899 ($EXISTING_PIDS)"
       kill $EXISTING_PIDS 2>/dev/null || true

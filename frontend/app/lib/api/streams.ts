@@ -1,6 +1,6 @@
-// Typed API layer for stream endpoints.
+// Typed API layer for stream endpoints (SDK-backed).
 
-import { fetchJson } from "../api";
+import { fetchStream as sdkFetchStream, fetchStreams as sdkFetchStreams, fetchStreamSubscribers as sdkFetchStreamSubscribers } from "../sdkBackend";
 import type { StreamDetail } from "../types";
 
 const STREAMS_CACHE_KEY = "streams_cache_v1";
@@ -41,18 +41,16 @@ function writeStreamsCache(data: { streams: StreamDetail[] }) {
 export async function fetchStreams(opts?: {
   includeTiers?: boolean;
 }): Promise<{ streams: StreamDetail[] }> {
-  const query = opts?.includeTiers ? "?includeTiers=true" : "";
-  const data = await fetchJson<{ streams: StreamDetail[] }>(`/streams${query}`);
+  const data = await sdkFetchStreams<StreamDetail>(opts?.includeTiers);
   writeStreamsCache(data);
   return data;
 }
 
 export async function fetchStream(id: string): Promise<{ stream: StreamDetail }> {
-  return fetchJson<{ stream: StreamDetail }>(`/streams/${encodeURIComponent(id)}?includeTiers=true`);
+  const stream = await sdkFetchStream<StreamDetail>(id);
+  return { stream };
 }
 
 export async function fetchStreamSubscribers(streamId: string): Promise<{ count: number }> {
-  return fetchJson<{ count: number }>(
-    `/streams/${encodeURIComponent(streamId)}/subscribers`
-  );
+  return sdkFetchStreamSubscribers(streamId);
 }

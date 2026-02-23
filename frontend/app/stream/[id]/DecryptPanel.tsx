@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { fetchJson } from "../../lib/api";
+import { fetchSignals, fetchPublicPayload, fetchKeyboxEntry, fetchCiphertext } from "../../lib/sdkBackend";
 import { decryptAesGcm, deriveSharedKey, fromBase64, importX25519PrivateKey, importX25519PublicKey, subscriberIdFromPubkey } from "../../lib/crypto";
 
 const storageKey = (streamId: string) => `stream.keys.${streamId}`;
@@ -30,14 +30,12 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
     setStatus(null);
     setPlaintext(null);
     try {
-      const { signals } = await fetchJson<{
-        signals: Array<{
-          signalHash: string;
-          signalPointer: string;
-          keyboxPointer?: string | null;
-          visibility?: "public" | "private";
-        }>;
-      }>(`/signals?streamId=${streamId}`);
+      const { signals } = await fetchSignals<{
+        signalHash: string;
+        signalPointer: string;
+        keyboxPointer?: string | null;
+        visibility?: "public" | "private";
+      }>(streamId);
       if (!signals.length) {
         setStatus("No signals available");
         return;
@@ -46,7 +44,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
 
       if (latest.visibility === "public") {
         const signalSha = latest.signalPointer.split("/").pop();
-        const signalRes = await fetchJson<{ payload: { plaintext: string } }>(`/storage/public/${signalSha}`);
+        const signalRes = await fetchPublicPayload<{ plaintext: string }>(signalSha!);
         setPlaintext(atob(signalRes.payload.plaintext));
         return;
       }
@@ -75,12 +73,14 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       const signature = await signMessage(message);
       const signatureBase64 = Buffer.from(signature).toString("base64");
       const subId = await subscriberIdFromPubkey(pubKey);
-      const keyboxRes = await fetchJson<{ entry: { subscriberId: string; epk: string; encKey: string; iv: string; tag: string } }>(
-        `/storage/keybox/${keyboxSha}` +
-          `?wallet=${encodeURIComponent(publicKey.toBase58())}` +
-          `&signature=${encodeURIComponent(signatureBase64)}` +
-          `&encPubKeyDerBase64=${encodeURIComponent(pubKey)}` +
-          `&subscriberId=${encodeURIComponent(subId)}`
+      const keyboxRes = await fetchKeyboxEntry<{ subscriberId: string; epk: string; encKey: string; iv: string; tag: string }>(
+        keyboxSha,
+        {
+          wallet: publicKey.toBase58(),
+          signatureBase64,
+          encPubKeyDerBase64: pubKey,
+          subscriberId: subId,
+        }
       );
       const entry = keyboxRes.entry;
 
@@ -92,9 +92,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       const tag = fromBase64(entry.tag);
       const symKeyRaw = await decryptAesGcm(shared, iv, encKey, tag);
 
-      const signalRes = await fetchJson<{ payload: { iv: string; tag: string; ciphertext: string } }>(
-        `/storage/ciphertext/${signalSha}`
-      );
+      const signalRes = await fetchCiphertext<{ iv: string; tag: string; ciphertext: string }>(signalSha!);
       const payload = signalRes.payload;
 
       const symKey = await crypto.subtle.importKey(

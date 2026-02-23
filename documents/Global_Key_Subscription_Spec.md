@@ -129,7 +129,7 @@ This is **optional** for MVP since enforcement can be done in SDK + backend.
 ## 6) Open Questions
 
 1. Should we force a **re‑subscribe** when key rotates (strict), or allow seamless update (recommended)?
-2. Do we want to **backfill** subscriber directory for all subscriptions on startup (cache warm)?
+2. Do we want to **backfill** subscriber directory for all subscriptions on startup?
 
 ---
 
@@ -139,4 +139,3 @@ This is **optional** for MVP since enforcement can be done in SDK + backend.
 - Per‑subscription keys are ignored everywhere.
 - Registering a new wallet key changes encryption for the **next** tick.
 - Frontend never calls backend directly.
-

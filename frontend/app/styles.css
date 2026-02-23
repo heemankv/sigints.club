@@ -1632,6 +1632,32 @@ textarea {
   opacity: 0.85;
 }
 
+/* Intent tag toggle chip in composer */
+.composer-tag-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: "Space Grotesk", sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-right: auto;
+}
+
+.composer-tag-btn:hover {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.composer-tag-btn--active {
+  background: rgba(29, 176, 166, 0.14);
+  border-color: rgba(29, 176, 166, 0.5);
+  color: var(--accent-2);
+}
+
 /* ─── X-style status / empty ─── */
 .x-status-msg {
   padding: 12px 16px;

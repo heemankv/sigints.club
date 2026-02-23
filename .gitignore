@@ -31,6 +31,7 @@ target/
 
 backend/storage/ciphertext/
 backend/storage/keybox/
+backend/storage/public/
 backend/data/bots.json
 backend/data/demo_seed.json
 backend/data/metadata.json
@@ -46,3 +47,6 @@ backend/idl/persona_registry.json
 
 .localnet-ledger*
 accounts
+
+frontend/test-results/
+frontend/tests/e2e/.artifacts/

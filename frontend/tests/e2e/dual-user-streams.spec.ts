@@ -41,13 +41,13 @@ async function registerStream(
   await page.getByPlaceholder("Stream name").fill(name);
   await page.getByPlaceholder("Domain (e.g. pricing, crypto)").fill("e2e");
   await page.getByPlaceholder("Short description of your stream").fill("E2E stream registration test.");
+  await page.getByRole("combobox", { name: /Visibility/i }).selectOption(visibility);
 
   await page.getByRole("button", { name: /Next/i }).click();
   await expect(page.getByRole("heading", { name: /Subscription Tiers/i })).toBeVisible();
   await page.getByRole("button", { name: /Next/i }).click();
   await expect(page.getByRole("heading", { name: /Deploy Stream/i })).toBeVisible();
 
-  await page.getByRole("combobox", { name: /Visibility/i }).selectOption(visibility);
   await page.getByRole("button", { name: /Deploy Stream/i }).click();
 
   const status = page.locator(".step-content .subtext", {
@@ -81,10 +81,11 @@ test.describe.serial("dual-user stream flows", () => {
     await registerStream(makerUser.page, streamId, streamName, "private");
     await waitForStreamAvailable(streamId, request, 90_000);
 
-    await takerUser.page.goto(`/stream/${streamId}`);
+    await takerUser.page.goto(`/profile?tab=actions`);
     await ensureConnected(takerUser.page);
 
     const keyCard = takerUser.page.locator(".card", { hasText: "Wallet Key Manager" });
+    await expect(keyCard).toBeVisible({ timeout: 30_000 });
     const { publicKey } = await (await import("node:crypto")).generateKeyPairSync("x25519");
     const pubKeyValue = publicKey.export({ type: "spki", format: "der" }).toString("base64");
     await keyCard.locator("textarea").first().fill(pubKeyValue);
@@ -92,16 +93,17 @@ test.describe.serial("dual-user stream flows", () => {
     await expect(keyCard.getByText(/Registered on-chain key/i)).toBeVisible({ timeout: 30_000 });
     await expect(keyCard.getByText(/Backend sync complete/i)).toBeVisible({ timeout: 30_000 });
 
+    await takerUser.page.goto(`/stream/${streamId}`);
+    await ensureConnected(takerUser.page);
     const subscribeOnchainBtn = takerUser.page.getByRole("button", { name: /Subscribe on-chain/i });
     await expect(subscribeOnchainBtn).toBeEnabled();
     await subscribeOnchainBtn.click();
     await expect(takerUser.page.getByText(/Subscribed and registered/i)).toBeVisible({ timeout: 60_000 });
 
-    await makerUser.page.goto("/register-stream");
+    await makerUser.page.goto("/profile?tab=streams");
     await ensureConnected(makerUser.page);
-    await makerUser.page.getByRole("button", { name: /My Streams/i }).click();
     const streamCard = makerUser.page.locator(".stream-card", { hasText: streamName });
-    await expect(streamCard.getByText(/subscribers/i)).toContainText("1", { timeout: 60_000 });
+    await expect(streamCard.getByText(/subs/i)).toContainText("1", { timeout: 60_000 });
 
     await makerUser.page.goto(`/stream/${streamId}`);
     const makerOps = makerUser.page.locator(".stream-detail-section", { hasText: "Publish Signal" });

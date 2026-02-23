@@ -1,7 +1,22 @@
-// Typed API layer for social endpoints.
+// Typed API layer for social endpoints (SDK-backed).
 // All social data fetching goes through here — no raw fetchJson/postJson in components.
 
-import { fetchJson, postJson, deleteJson } from "../api";
+import {
+  fetchFeed as sdkFetchFeed,
+  fetchFollowingFeed as sdkFetchFollowingFeed,
+  fetchTrendingFeed as sdkFetchTrendingFeed,
+  fetchPost as sdkFetchPost,
+  createIntent as sdkCreateIntent,
+  createSlashReport as sdkCreateSlashReport,
+  addLike as sdkAddLike,
+  removeLike as sdkRemoveLike,
+  fetchLikeCount as sdkFetchLikeCount,
+  fetchComments as sdkFetchComments,
+  addComment as sdkAddComment,
+  followProfile as sdkFollowProfile,
+  searchBots as sdkSearchBots,
+  loginUser as sdkLoginUser,
+} from "../sdkBackend";
 import type { SocialPost, CommentEntry, BotProfile } from "../types";
 
 // ─── Feed ─────────────────────────────────────────────────────────────────────
@@ -13,22 +28,18 @@ type FeedResponse = {
 };
 
 export async function fetchFeed(type?: "intent" | "slash"): Promise<FeedResponse> {
-  const query = type ? `?type=${type}` : "";
-  return fetchJson<FeedResponse>(`/social/feed${query}`);
+  return sdkFetchFeed<FeedResponse>(type);
 }
 
 export async function fetchFollowingFeed(
   wallet: string,
   type?: "intent" | "slash"
 ): Promise<FeedResponse> {
-  const query = type ? `&type=${type}` : "";
-  return fetchJson<FeedResponse>(
-    `/social/feed?scope=following&wallet=${encodeURIComponent(wallet)}${query}`
-  );
+  return sdkFetchFollowingFeed<FeedResponse>(wallet, type);
 }
 
 export async function fetchTrendingFeed(limit = 6): Promise<FeedResponse> {
-  return fetchJson<FeedResponse>(`/social/feed/trending?limit=${limit}`);
+  return sdkFetchTrendingFeed<FeedResponse>(limit);
 }
 
 // ─── Posts ────────────────────────────────────────────────────────────────────
@@ -36,9 +47,7 @@ export async function fetchTrendingFeed(limit = 6): Promise<FeedResponse> {
 export async function fetchPost(
   contentId: string
 ): Promise<{ post: SocialPost; likeCount?: number }> {
-  return fetchJson<{ post: SocialPost; likeCount?: number }>(
-    `/social/posts/${encodeURIComponent(contentId)}`
-  );
+  return sdkFetchPost<{ post: SocialPost; likeCount?: number }>(contentId);
 }
 
 export async function createIntent(params: {
@@ -47,7 +56,7 @@ export async function createIntent(params: {
   topic?: string;
   tags?: string[];
 }): Promise<void> {
-  await postJson("/social/intents", params);
+  await sdkCreateIntent(params);
 }
 
 export async function createSlashReport(params: {
@@ -57,24 +66,21 @@ export async function createSlashReport(params: {
   makerWallet?: string;
   challengeTx?: string;
 }): Promise<void> {
-  await postJson("/social/slash", params);
+  await sdkCreateSlashReport(params);
 }
 
 // ─── Likes ────────────────────────────────────────────────────────────────────
 
 export async function addLike(wallet: string, contentId: string): Promise<void> {
-  await postJson("/social/likes", { wallet, contentId });
+  await sdkAddLike(wallet, contentId);
 }
 
 export async function removeLike(wallet: string, contentId: string): Promise<void> {
-  await deleteJson("/social/likes", { wallet, contentId });
+  await sdkRemoveLike(wallet, contentId);
 }
 
 export async function fetchLikeCount(contentId: string): Promise<number> {
-  const data = await fetchJson<{ count: number }>(
-    `/social/likes?contentId=${encodeURIComponent(contentId)}`
-  );
-  return data.count;
+  return sdkFetchLikeCount(contentId);
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
@@ -90,9 +96,7 @@ export async function fetchComments(
   page = 1,
   pageSize = 3
 ): Promise<CommentsResponse> {
-  return fetchJson<CommentsResponse>(
-    `/social/comments?contentId=${encodeURIComponent(contentId)}&page=${page}&pageSize=${pageSize}`
-  );
+  return sdkFetchComments<CommentsResponse>(contentId, page, pageSize);
 }
 
 export async function addComment(
@@ -100,23 +104,23 @@ export async function addComment(
   contentId: string,
   comment: string
 ): Promise<void> {
-  await postJson("/social/comments", { wallet, contentId, comment });
+  await sdkAddComment(wallet, contentId, comment);
 }
 
 // ─── Follow ───────────────────────────────────────────────────────────────────
 
 export async function followProfile(wallet: string, targetProfileId: string): Promise<void> {
-  await postJson("/social/follow", { wallet, targetProfileId });
+  await sdkFollowProfile(wallet, targetProfileId);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
 export async function searchBots(query: string): Promise<{ bots: BotProfile[] }> {
-  return fetchJson<{ bots: BotProfile[] }>(`/bots?search=${encodeURIComponent(query)}`);
+  return sdkSearchBots<{ bots: BotProfile[] }>(query);
 }
 
 // ─── User / Auth ──────────────────────────────────────────────────────────────
 
 export async function loginUser(wallet: string): Promise<void> {
-  await postJson("/users/login", { wallet });
+  await sdkLoginUser(wallet);
 }

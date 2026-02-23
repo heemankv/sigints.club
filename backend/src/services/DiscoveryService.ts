@@ -2,11 +2,6 @@ import { StreamTier } from "../streams";
 import { hashTiersHex } from "../streams/tiersHash";
 import { StreamRegistryClient } from "./StreamRegistryClient";
 import { TapestryStreamService } from "./TapestryStreamService";
-import { tapestryCache } from "./TapestryCache";
-
-// Cache TTLs
-const TTL_STREAMS_LIST = 30_000;   // 30 s — kept warm by background poller
-const TTL_STREAM_DETAIL = 60_000;  // 60 s per individual stream
 
 export type StreamSummary = {
   id: string;
@@ -63,22 +58,14 @@ export class DiscoveryService {
     if (!this.tapestryStreams) {
       throw new Error("Tapestry is required for stream discovery");
     }
-    return tapestryCache.swr(
-      "streams:all",
-      TTL_STREAMS_LIST,
-      () => this._rawListStreamDetails()
-    );
+    return this._rawListStreamDetails();
   }
 
   async getStream(id: string): Promise<StreamDetail | null> {
     if (!this.tapestryStreams) {
       throw new Error("Tapestry is required for stream discovery");
     }
-    return tapestryCache.swr(
-      `stream:${id}`,
-      TTL_STREAM_DETAIL,
-      () => this._rawGetStream(id)
-    );
+    return this._rawGetStream(id);
   }
 
   async listRequests(): Promise<RequestSummary[]> {
@@ -105,17 +92,10 @@ export class DiscoveryService {
    * Call once on server startup.
    */
   startBackgroundRefresh(intervalMs = 20_000): void {
-    tapestryCache.startPoller(
-      "streams:all",
-      intervalMs,
-      intervalMs + 5_000,
-      () => this._rawListStreamDetails()
-    );
-    // eslint-disable-next-line no-console
-    console.log(`[TapestryCache] Streams background refresh started (interval: ${intervalMs}ms)`);
+    void intervalMs;
   }
 
-  // ─── Private raw fetchers (bypass cache, used by swr + poller) ───────────
+  // ─── Private raw fetchers ───────────
 
   private async _rawListStreamDetails(): Promise<StreamDetail[]> {
     const streams = await this.tapestryStreams!.listStreams();

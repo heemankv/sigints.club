@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Transaction } from "@solana/web3.js";
-import { postJson } from "../lib/api";
+import { createStream as sdkCreateStream } from "../lib/sdkBackend";
 import {
   buildCreateStreamInstruction,
   buildUpsertTierInstruction,
   deriveStreamPda,
   resolveStreamRegistryProgramId,
 } from "../lib/streamRegistry";
-import { TierInput } from "../lib/tiersHash";
+import type { TierInput } from "../lib/streamRegistry";
 import { parseSolLamports } from "../lib/pricing";
 
 type StreamPayload = {
@@ -138,7 +138,7 @@ export default function RegisterStreamForm() {
         ownerWallet: publicKey.toBase58(),
         tiers,
       };
-      await postJson("/streams", payload);
+      await sdkCreateStream(payload);
       if (signature) {
         setStatus(`Stream registered on-chain. Tx ${signature.slice(0, 10)}…`);
       } else {
@@ -180,6 +180,7 @@ export default function RegisterStreamForm() {
         <select
           className="input"
           value={visibility}
+          aria-label="Visibility"
           onChange={(e) => setVisibility(e.target.value as "public" | "private")}
         >
           <option value="private">Private stream</option>

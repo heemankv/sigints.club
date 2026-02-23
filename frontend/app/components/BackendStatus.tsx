@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { backendUrl } from "../lib/api";
 import { fetchHealth } from "../lib/sdkBackend";
 
 export default function BackendStatus() {
@@ -11,7 +10,7 @@ export default function BackendStatus() {
     let cancelled = false;
     async function check() {
       try {
-        const res = await fetchHealth(backendUrl());
+        const res = await fetchHealth();
         if (!cancelled) {
           setStatus(res.ok ? "online" : "offline");
         }

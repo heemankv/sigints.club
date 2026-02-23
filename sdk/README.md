@@ -48,6 +48,22 @@ const stop = await client.listenForSignals({
 });
 ```
 
+## Backend Client (No Frontend Dependencies)
+If you only need backend calls (streams, feed, storage, test wallet), use the backend client.
+
+```ts
+import { createBackendClient } from "@sigints/sdk";
+
+const backend = createBackendClient("http://localhost:3001");
+
+const { streams } = await backend.fetchStreams(true);
+const { signal } = await backend.fetchLatestSignal("stream-eth");
+const { payload } = await backend.fetchPublicPayload("PUBLIC_SHA");
+```
+
+This keeps the SDK environment‑agnostic: the caller supplies the backend URL at startup
+and the SDK does not assume any frontend globals.
+
 ### Public streams
 If a stream is public, `subscriberKeys` are optional. The SDK will fetch the plaintext payload directly from `/storage/public`.
 

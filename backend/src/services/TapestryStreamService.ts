@@ -1,6 +1,5 @@
 import { TapestryClient } from "../tapestry/TapestryClient";
 import { StreamTier } from "../streams/StreamStore";
-import { tapestryCache } from "./TapestryCache";
 
 type StreamMetaInput = {
   streamId: string;
@@ -48,8 +47,6 @@ export class TapestryStreamService {
         // ignore follow conflicts
       }
     }
-    // Bust the streams list cache so the next request sees the new stream.
-    tapestryCache.invalidatePrefix("streams:");
     return profileId;
   }
 

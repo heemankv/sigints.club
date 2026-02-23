@@ -30,7 +30,7 @@ type FeedClientProps = {
   initialTab?: FeedTab;
 };
 
-type FeedTab = "feed" | "streams" | "intents" | "slashing";
+type FeedTab = "feed" | "streams" | "slashing";
 
 function AvatarCircle({ seed }: { seed: string }) {
   const char = seed?.[0]?.toUpperCase() ?? "?";
@@ -68,14 +68,15 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [subscribeStreamId, setSubscribeStreamId] = useState<string | null>(null);
   const [subscribeTierId, setSubscribeTierId] = useState<string | null>(null);
 
-  const [composerMode, setComposerMode] = useState<"intent" | "slash">("intent");
-  const [intentText, setIntentText] = useState("");
-  const [intentTopic, setIntentTopic] = useState("");
-  const [intentTags, setIntentTags] = useState("");
+  // Composer state
+  const [postText, setPostText] = useState("");
+  const [isIntentTag, setIsIntentTag] = useState(false);
   const [slashText, setSlashText] = useState("");
   const [slashStream, setSlashStream] = useState("");
   const [slashMakerWallet, setSlashMakerWallet] = useState("");
   const [slashTx, setSlashTx] = useState("");
+
+  const isSlashMode = activeTab === "slashing";
 
   const searchLabel = useMemo(() => searchQuery.trim(), [searchQuery]);
   const streamById = useMemo(
@@ -92,11 +93,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   }, [initialTab]);
 
   useEffect(() => {
-    if (activeTab === "slashing") {
-      setComposerMode("slash");
-    } else if (activeTab === "intents" || activeTab === "feed") {
-      setComposerMode("intent");
-    }
     if (activeTab === "streams") {
       setLoading(false);
       setStatus(null);
@@ -150,10 +146,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     setLoading(true);
     setStatus(null);
     setOpenComments({});
-    const type =
-      activeTab === "intents" ? "intent" as const :
-      activeTab === "slashing" ? "slash" as const :
-      undefined;
+    const type = activeTab === "slashing" ? "slash" as const : undefined;
     try {
       const data = await fetchFeed(type);
       setFeed(data.posts ?? []);
@@ -167,19 +160,19 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     }
   }
 
-  async function postIntent() {
+  async function postContent() {
     if (!wallet) { openWalletModal(false); return; }
     setStatus(null);
     try {
       await createIntent({
         wallet,
-        content: intentText,
-        topic: intentTopic || undefined,
-        tags: intentTags ? intentTags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+        content: postText,
+        tags: isIntentTag ? ["intent"] : undefined,
       });
-      setIntentText(""); setIntentTopic(""); setIntentTags("");
+      setPostText("");
+      setIsIntentTag(false);
       await loadFeed();
-    } catch (err: any) { setStatus(err.message ?? "Failed to post intent"); }
+    } catch (err: any) { setStatus(err.message ?? "Failed to post"); }
   }
 
   async function postSlash() {
@@ -295,7 +288,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
       <LeftNav />
 
-      {/* ─── Center: tabs + composer + feed ─── */}
+      {/* ─── Center: composer + feed ─── */}
       <div className="social-main">
 
         {/* Composer */}
@@ -305,52 +298,31 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               <AvatarCircle seed={wallet ?? "?"} />
             </div>
             <div className="x-composer-body">
-              <div className="x-composer-mode-tabs">
-                <button
-                  className={`x-mode-tab${composerMode === "intent" ? " x-mode-tab--active" : ""}`}
-                  onClick={() => setComposerMode("intent")}
-                >
-                  Intent
-                </button>
-                <button
-                  className={`x-mode-tab${composerMode === "slash" ? " x-mode-tab--active" : ""}`}
-                  onClick={() => setComposerMode("slash")}
-                >
-                  Slash report
-                </button>
-              </div>
 
-              {composerMode === "intent" ? (
+              {!isSlashMode ? (
+                /* Unified post composer */
                 <>
                   <textarea
                     className="x-composer-textarea"
-                    value={intentText}
-                    onChange={(e) => setIntentText(e.target.value)}
+                    value={postText}
+                    onChange={(e) => setPostText(e.target.value)}
                     placeholder="Share your market intelligence..."
                     rows={2}
                   />
-                  <div className="x-composer-fields">
-                    <input
-                      className="input"
-                      value={intentTopic}
-                      onChange={(e) => setIntentTopic(e.target.value)}
-                      placeholder="Topic (optional)"
-                    />
-                    <input
-                      className="input"
-                      value={intentTags}
-                      onChange={(e) => setIntentTags(e.target.value)}
-                      placeholder="Tags: eth, alerts, drop"
-                    />
-                  </div>
                   <div className="x-composer-footer">
-                    <span className="subtext">Visible to all makers on the network.</span>
-                    <button className="x-submit-btn" onClick={postIntent} disabled={!intentText}>
+                    <button
+                      className={`composer-tag-btn${isIntentTag ? " composer-tag-btn--active" : ""}`}
+                      onClick={() => setIsIntentTag((v) => !v)}
+                    >
+                      # Intent
+                    </button>
+                    <button className="x-submit-btn" onClick={postContent} disabled={!postText}>
                       Post
                     </button>
                   </div>
                 </>
               ) : (
+                /* Slash report composer */
                 <>
                   <textarea
                     className="x-composer-textarea"
@@ -372,6 +344,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                   </div>
                 </>
               )}
+
             </div>
             {!wallet && (
               <div className="composer-gate">
@@ -429,7 +402,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
             {!loading && !feed.length && (
               <div className="x-empty-state">
-                <p>No posts yet. Be the first to post an intent or slash report.</p>
+                <p>No posts yet. Be the first to share your market intelligence.</p>
               </div>
             )}
 
@@ -460,9 +433,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                       <Link href={`/post/${post.contentId}`} className="xpost-time" title="View post">
                         · {timeAgo(post.createdAt)}
                       </Link>
-                      <span className={`xpost-type-badge ${post.type}`}>
-                        {post.type === "slash" ? "Slash" : "Intent"}
-                      </span>
+                      {post.type === "slash" && (
+                        <span className="xpost-type-badge slash">Slash</span>
+                      )}
                     </div>
 
                     <p className="xpost-content">{post.content}</p>

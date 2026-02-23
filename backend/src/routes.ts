@@ -24,7 +24,6 @@ import {
   tapestryStreamServiceInstance,
 } from "./services/ServiceContainer";
 import { decodeSubscriptionAccount } from "./services/OnChainSubscriptionClient";
-import { tapestryCache } from "./services/TapestryCache";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 import { hashTiersHex } from "./streams/tiersHash";
 
@@ -1304,13 +1303,7 @@ router.get("/subscriptions/onchain", async (req, res) => {
     return res.status(400).json({ error: "subscriber required" });
   }
   try {
-    const cacheKey = `onchain:subs:${subscriber}`;
-    const ttlMs = 15_000;
-    const subscriptions = await tapestryCache.swr(
-      cacheKey,
-      ttlMs,
-      () => onChainSubscriptionClient.listSubscriptionsFor(subscriber)
-    );
+    const subscriptions = await onChainSubscriptionClient.listSubscriptionsFor(subscriber);
     return res.json({ subscriptions });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "on-chain list failed" });

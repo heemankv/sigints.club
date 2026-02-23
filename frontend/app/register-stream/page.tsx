@@ -4,14 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Transaction } from "@solana/web3.js";
-import { postJson } from "../lib/api";
+import { createStream as sdkCreateStream } from "../lib/sdkBackend";
 import {
   buildCreateStreamInstruction,
   buildUpsertTierInstruction,
   deriveStreamPda,
   resolveStreamRegistryProgramId,
 } from "../lib/streamRegistry";
-import type { TierInput } from "../lib/tiersHash";
+import type { TierInput } from "../lib/streamRegistry";
 import { parseSolLamports } from "../lib/pricing";
 import { explorerTx } from "../lib/constants";
 import { parseQuota } from "../lib/utils";
@@ -166,7 +166,7 @@ export default function RegisterStreamPage() {
       }
 
       setDeployStatus("Publishing to backend…");
-      await postJson("/streams", {
+      await sdkCreateStream({
         id: streamId,
         name,
         domain,
@@ -288,6 +288,7 @@ export default function RegisterStreamPage() {
                 <select
                   className="input"
                   value={visibility}
+                  aria-label="Visibility"
                   onChange={(e) => setVisibility(e.target.value as "public" | "private")}
                 >
                   <option value="private">Private stream (encrypted signals)</option>

@@ -1,4 +1,4 @@
-import { fetchJson } from "../lib/api";
+import { fetchSignals } from "../lib/sdkBackend";
 import { explorerTx } from "../lib/constants";
 
 export default async function SignalsPage() {
@@ -11,16 +11,14 @@ export default async function SignalsPage() {
     onchainTx?: string;
   }> = [];
   try {
-    const data = await fetchJson<{
-      signals: Array<{
-        streamId: string;
-        signalHash: string;
-        createdAt: number;
-        tierId: string;
-        visibility?: "public" | "private";
-        onchainTx?: string;
-      }>;
-    }>("/signals?streamId=stream-eth");
+    const data = await fetchSignals<{
+      streamId: string;
+      signalHash: string;
+      createdAt: number;
+      tierId: string;
+      visibility?: "public" | "private";
+      onchainTx?: string;
+    }>("stream-eth");
     signals = data.signals;
   } catch {
   }

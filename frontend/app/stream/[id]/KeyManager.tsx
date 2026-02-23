@@ -55,7 +55,7 @@ export default function KeyManager() {
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
       setChainStatus(`Registered on-chain key: ${signature.slice(0, 10)}…`);
-      await syncWalletKey(process.env.NEXT_PUBLIC_BACKEND_URL ?? "", {
+      await syncWalletKey({
         wallet: publicKey.toBase58(),
       });
       setSyncStatus("Backend sync complete.");

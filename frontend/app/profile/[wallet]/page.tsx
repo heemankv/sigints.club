@@ -5,8 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import LeftNav from "../../components/LeftNav";
 import StreamCard from "../../components/StreamCard";
-import { fetchJson } from "../../lib/api";
 import { fetchStreams } from "../../lib/api/streams";
+import { fetchUserProfile } from "../../lib/sdkBackend";
 import type { StreamDetail } from "../../lib/types";
 import { shortWallet } from "../../lib/utils";
 
@@ -36,7 +36,7 @@ export default function PublicProfilePage() {
       setLoading(true);
       setStatus(null);
       try {
-        const u = await fetchJson<{ user: UserProfile }>(`/users/${wallet}`);
+        const u = await fetchUserProfile<{ user: UserProfile }>(wallet);
         setProfile(u.user);
       } catch {
         setProfile({ wallet });

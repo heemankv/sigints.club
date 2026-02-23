@@ -42,7 +42,7 @@ export default function PublishSignal({
     setPreparedMeta(null);
     setTxSig(null);
     try {
-      const meta = await prepareSignal(process.env.NEXT_PUBLIC_BACKEND_URL ?? "", {
+      const meta = await prepareSignal({
         streamId,
         tierId: selectedTier,
         plaintext: message,

@@ -35,13 +35,13 @@ require_cmd solana-keygen
 mkdir -p "$LOG_DIR"
 
 if command -v lsof >/dev/null 2>&1; then
-  EXISTING_WEB="$(lsof -ti tcp:3000 || true)"
+  EXISTING_WEB="$(lsof -tiTCP:3000 -sTCP:LISTEN || true)"
   if [ -n "$EXISTING_WEB" ]; then
     log "Stopping existing frontend on :3000 ($EXISTING_WEB)"
     kill $EXISTING_WEB 2>/dev/null || true
     sleep 1
   fi
-  EXISTING_BACKEND="$(lsof -ti tcp:3001 || true)"
+  EXISTING_BACKEND="$(lsof -tiTCP:3001 -sTCP:LISTEN || true)"
   if [ -n "$EXISTING_BACKEND" ]; then
     log "Stopping existing backend on :3001 ($EXISTING_BACKEND)"
     kill $EXISTING_BACKEND 2>/dev/null || true
