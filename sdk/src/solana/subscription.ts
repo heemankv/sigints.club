@@ -12,6 +12,9 @@ const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183
 const REGISTER_KEY_DISCRIMINATOR = new Uint8Array([56, 8, 67, 97, 128, 122, 80, 213]);
 const REGISTER_WALLET_KEY_DISCRIMINATOR = new Uint8Array([245, 147, 210, 179, 245, 73, 184, 9]);
 const REGISTER_SUBSCRIPTION_KEY_DISCRIMINATOR = new Uint8Array([63, 198, 90, 133, 166, 115, 25, 198]);
+const X25519_SPKI_PREFIX = new Uint8Array([
+  0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00,
+]);
 
 export function resolvePricingType(value: string): number {
   const mapped = PRICING_TYPE_MAP[value];
@@ -282,6 +285,23 @@ export type DecodedSubscription = {
   nftMint: string;
 };
 
+export type DecodedSubscriptionKey = {
+  subscriptionKey: string;
+  subscriber: string;
+  stream: string;
+  encPubkeyRawBase64: string;
+  encPubkeyDerBase64: string;
+  updatedAt: number;
+  bump: number;
+};
+
+function x25519RawToDerBase64(raw: Uint8Array): string {
+  const combined = new Uint8Array(X25519_SPKI_PREFIX.length + raw.length);
+  combined.set(X25519_SPKI_PREFIX, 0);
+  combined.set(raw, X25519_SPKI_PREFIX.length);
+  return Buffer.from(combined).toString("base64");
+}
+
 export function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): DecodedSubscription | null {
   if (data.length < 152) {
     return null;
@@ -315,5 +335,31 @@ export function decodeSubscriptionAccount(pubkey: PublicKey, data: Buffer): Deco
     quotaRemaining,
     status,
     nftMint: nftMint.toBase58(),
+  };
+}
+
+export function decodeSubscriptionKeyAccount(pubkey: PublicKey, data: Buffer): DecodedSubscriptionKey | null {
+  if (data.length < 113) {
+    return null;
+  }
+  let offset = 8;
+  const subscriber = new PublicKey(data.slice(offset, offset + 32));
+  offset += 32;
+  const stream = new PublicKey(data.slice(offset, offset + 32));
+  offset += 32;
+  const encPubkey = data.slice(offset, offset + 32);
+  offset += 32;
+  const updatedAt = Number(data.readBigInt64LE(offset));
+  offset += 8;
+  const bump = data[offset];
+  const encPubkeyRawBase64 = Buffer.from(encPubkey).toString("base64");
+  return {
+    subscriptionKey: pubkey.toBase58(),
+    subscriber: subscriber.toBase58(),
+    stream: stream.toBase58(),
+    encPubkeyRawBase64,
+    encPubkeyDerBase64: x25519RawToDerBase64(encPubkey),
+    updatedAt,
+    bump,
   };
 }

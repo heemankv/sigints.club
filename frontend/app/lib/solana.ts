@@ -21,7 +21,9 @@ export {
   resolvePricingType,
   resolveEvidenceLevel,
   decodeSubscriptionAccount,
+  decodeSubscriptionKeyAccount,
   type DecodedSubscription,
+  type DecodedSubscriptionKey,
 } from "../../../sdk/src/solana/subscription";
 
 export {

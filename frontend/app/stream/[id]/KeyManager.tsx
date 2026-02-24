@@ -5,7 +5,8 @@ import { subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../li
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   buildRegisterSubscriptionKeyInstruction,
-  hasRegisteredSubscriptionKey,
+  decodeSubscriptionKeyAccount,
+  deriveSubscriptionKeyPda,
   resolveProgramId,
   resolveStreamPubkey,
 } from "../../lib/solana";
@@ -41,17 +42,32 @@ export default function KeyManager({ streamId, streamOnchainAddress, variant = "
       }
       if (!streamOnchainAddress) {
         setKeyRegistered(false);
+        setRegisteredKey(null);
         return;
       }
       try {
         const programId = resolveProgramId();
         const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
-        const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, publicKey);
+        const subscriptionKey = deriveSubscriptionKeyPda(programId, streamPubkey, publicKey);
+        const account = await connection.getAccountInfo(subscriptionKey, "confirmed");
         if (!active) return;
-        setKeyRegistered(registered);
+        if (!account) {
+          setKeyRegistered(false);
+          setRegisteredKey(null);
+          return;
+        }
+        const decoded = decodeSubscriptionKeyAccount(subscriptionKey, account.data);
+        if (!decoded) {
+          setKeyRegistered(false);
+          setRegisteredKey(null);
+          return;
+        }
+        setKeyRegistered(true);
+        setRegisteredKey(decoded.encPubkeyDerBase64);
       } catch {
         if (!active) return;
         setKeyRegistered(false);
+        setRegisteredKey(null);
       }
     }
     void checkKeyStatus();

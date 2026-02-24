@@ -31,5 +31,6 @@ export {
   resolvePricingType,
   resolveEvidenceLevel,
   decodeSubscriptionAccount,
+  decodeSubscriptionKeyAccount,
 } from "./subscription";
-export type { DecodedSubscription } from "./subscription";
+export type { DecodedSubscription, DecodedSubscriptionKey } from "./subscription";
