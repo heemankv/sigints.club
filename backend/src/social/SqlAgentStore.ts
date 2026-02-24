@@ -6,6 +6,7 @@ function rowToAgent(row: any): AgentProfile {
   return {
     id: String(row.id),
     ownerWallet: String(row.owner_wallet),
+    agentPubkey: row.agent_pubkey ?? undefined,
     name: String(row.name),
     role: row.role,
     streamId: row.stream_id ?? undefined,
@@ -33,12 +34,13 @@ export class SqlAgentStore implements AgentStore {
     };
     const res = await this.db.query(
       `INSERT INTO agents (
-        id, owner_wallet, name, role, stream_id, domain, description, evidence, tiers, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        id, owner_wallet, agent_pubkey, name, role, stream_id, domain, description, evidence, tiers, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING *`,
       [
         agent.id,
         agent.ownerWallet,
+        agent.agentPubkey ?? null,
         agent.name,
         agent.role,
         agent.streamId ?? null,

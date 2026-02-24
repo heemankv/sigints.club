@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import Link from "next/link";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { fetchStreams, readStreamsCache } from "../lib/api/streams";
 import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
 import {
@@ -21,7 +22,13 @@ import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier } from "
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
 import KeyManager from "../stream/[id]/KeyManager";
-import { sha256Bytes } from "../lib/solana";
+import {
+  sha256Bytes,
+  buildGrantPublisherInstruction,
+  buildRevokePublisherInstruction,
+  deriveStreamPda,
+  resolveStreamRegistryId,
+} from "../lib/solana";
 import { toHex } from "../lib/utils";
 import LeftNav from "../components/LeftNav";
 import StreamsRail from "../components/StreamsRail";
@@ -39,7 +46,8 @@ type OwnedSubscriptionOption = {
 export type ProfileTab = "subscriptions" | "streams" | "agents" | "actions";
 
 export default function ProfileContent({ initialTab = "subscriptions" }: { initialTab?: ProfileTab }) {
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
   const { profile, setProfile, followCounts, followCountsLoading } = useUserProfile();
 
   const [editDisplayName, setEditDisplayName] = useState("");
@@ -60,9 +68,12 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [agentStreamId, setAgentStreamId] = useState("");
   const [agentRole, setAgentRole] = useState<"maker" | "listener">("listener");
   const [agentEvidence, setAgentEvidence] = useState<"trust" | "verifier" | "hybrid">("trust");
+  const [agentPubkey, setAgentPubkey] = useState("");
+  const [agentSecretKey, setAgentSecretKey] = useState("");
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [linkSelections, setLinkSelections] = useState<Record<string, string>>({});
   const [linkStatus, setLinkStatus] = useState<Record<string, string | null>>({});
+  const [publishStatus, setPublishStatus] = useState<Record<string, string | null>>({});
 
   const activeTab = initialTab;
   const [actionsTab, setActionsTab] = useState<"editProfile" | "registerKey">("editProfile");
@@ -236,10 +247,15 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
       setAgentStatus("Stream ID is required for sender agents.");
       return;
     }
+    if (!agentPubkey.trim()) {
+      setAgentStatus("Generate or paste an agent public key.");
+      return;
+    }
     setAgentStatus(null);
     try {
       await sdkCreateAgent({
         ownerWallet: walletAddr,
+        agentPubkey: agentPubkey.trim(),
         name: agentName,
         domain: agentDomain,
         description: "",
@@ -251,10 +267,19 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
       setAgentName("");
       setAgentDomain("");
       setAgentStreamId("");
+      setAgentPubkey("");
+      setAgentSecretKey("");
       setAgentStatus("Agent created.");
     } catch (err: any) {
       setAgentStatus(err.message ?? "Failed to create agent");
     }
+  }
+
+  function generateAgentKeypair() {
+    const kp = Keypair.generate();
+    setAgentPubkey(kp.publicKey.toBase58());
+    setAgentSecretKey(JSON.stringify(Array.from(kp.secretKey)));
+    setAgentStatus("Agent keypair generated. Store the secret key safely.");
   }
 
   async function linkSubscription(agentId: string) {
@@ -298,6 +323,66 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
       setLinkStatus((prev) => ({ ...prev, [agentId]: "Subscription removed." }));
     } catch (err: any) {
       setLinkStatus((prev) => ({ ...prev, [agentId]: err?.message ?? "Failed to remove subscription." }));
+    }
+  }
+
+  async function grantPublisher(agent: AgentProfile) {
+    try {
+      if (!publicKey) {
+        throw new Error("Connect your wallet first.");
+      }
+      if (!agent.streamId) {
+        throw new Error("Agent is missing a publish stream.");
+      }
+      if (!agent.agentPubkey) {
+        throw new Error("Agent public key is missing.");
+      }
+      const programId = resolveStreamRegistryId();
+      const streamPda = await deriveStreamPda(programId, agent.streamId);
+      const ix = await buildGrantPublisherInstruction({
+        programId,
+        stream: streamPda,
+        authority: publicKey,
+        agent: new PublicKey(agent.agentPubkey),
+      });
+      const tx = new Transaction().add(ix);
+      tx.feePayer = publicKey;
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      const signature = await sendTransaction(tx, connection);
+      setPublishStatus((prev) => ({ ...prev, [agent.id]: `Publish granted (${signature.slice(0, 10)}…)` }));
+    } catch (err: any) {
+      setPublishStatus((prev) => ({ ...prev, [agent.id]: err?.message ?? "Failed to grant publish." }));
+    }
+  }
+
+  async function revokePublisher(agent: AgentProfile) {
+    try {
+      if (!publicKey) {
+        throw new Error("Connect your wallet first.");
+      }
+      if (!agent.streamId) {
+        throw new Error("Agent is missing a publish stream.");
+      }
+      if (!agent.agentPubkey) {
+        throw new Error("Agent public key is missing.");
+      }
+      const programId = resolveStreamRegistryId();
+      const streamPda = await deriveStreamPda(programId, agent.streamId);
+      const ix = await buildRevokePublisherInstruction({
+        programId,
+        stream: streamPda,
+        authority: publicKey,
+        agent: new PublicKey(agent.agentPubkey),
+      });
+      const tx = new Transaction().add(ix);
+      tx.feePayer = publicKey;
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      const signature = await sendTransaction(tx, connection);
+      setPublishStatus((prev) => ({ ...prev, [agent.id]: `Publish revoked (${signature.slice(0, 10)}…)` }));
+    } catch (err: any) {
+      setPublishStatus((prev) => ({ ...prev, [agent.id]: err?.message ?? "Failed to revoke publish." }));
     }
   }
 
@@ -456,6 +541,32 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                     placeholder="Domain (e.g. pricing)"
                     style={{ marginBottom: 8 }}
                   />
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input
+                      className="input"
+                      value={agentPubkey}
+                      onChange={(e) => setAgentPubkey(e.target.value)}
+                      placeholder="Agent public key"
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      className="button ghost"
+                      type="button"
+                      onClick={generateAgentKeypair}
+                      style={{ whiteSpace: "nowrap" }}
+                    >
+                      Generate
+                    </button>
+                  </div>
+                  {agentSecretKey && (
+                    <textarea
+                      className="input"
+                      value={agentSecretKey}
+                      readOnly
+                      rows={3}
+                      style={{ marginBottom: 8 }}
+                    />
+                  )}
                   {agentRole === "maker" && (
                     <>
                       <input
@@ -530,10 +641,37 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                             {agent.domain} · {agent.role === "maker" ? "sender" : "listener"}
                           </span>
                           <strong className="x-trend-topic">{agent.name}</strong>
-                          {agent.role === "maker" && agent.streamId && (
-                            <span className="x-trend-meta">Stream: {agent.streamId}</span>
+                          {agent.streamId && (
+                            <span className="x-trend-meta">Publish stream: {agent.streamId}</span>
                           )}
                           <span className="x-trend-meta">{agent.evidence}</span>
+                          {agent.agentPubkey && (
+                            <span className="x-trend-meta">
+                              Agent key: {agent.agentPubkey.slice(0, 6)}…{agent.agentPubkey.slice(-4)}
+                            </span>
+                          )}
+
+                          {agent.streamId && (
+                            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                              <button
+                                className="button secondary"
+                                onClick={() => void grantPublisher(agent)}
+                                style={{ padding: "4px 10px", fontSize: 11 }}
+                              >
+                                Grant Publish
+                              </button>
+                              <button
+                                className="button ghost"
+                                onClick={() => void revokePublisher(agent)}
+                                style={{ padding: "4px 10px", fontSize: 11 }}
+                              >
+                                Revoke Publish
+                              </button>
+                              {publishStatus[agent.id] && (
+                                <span className="subtext">{publishStatus[agent.id]}</span>
+                              )}
+                            </div>
+                          )}
 
                           <div style={{ marginTop: 10 }}>
                             <span className="subtext">Linked subscriptions</span>
@@ -559,42 +697,40 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                             )}
                           </div>
 
-                          {agent.role === "listener" && (
-                            <div style={{ marginTop: 12 }}>
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <select
-                                  className="input"
-                                  value={linkSelections[agent.id] ?? ""}
-                                  onChange={(e) =>
-                                    setLinkSelections((prev) => ({ ...prev, [agent.id]: e.target.value }))
-                                  }
-                                >
-                                  <option value="">Select a subscription</option>
-                                  {availableOptions.map((option) => (
-                                    <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
-                                      {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  className="button secondary"
-                                  onClick={() => void linkSubscription(agent.id)}
-                                  disabled={availableOptions.length === 0}
-                                  style={{ whiteSpace: "nowrap" }}
-                                >
-                                  Link
-                                </button>
-                              </div>
-                              {availableOptions.length === 0 && (
-                                <p className="subtext" style={{ marginTop: 6 }}>
-                                  No unlinked subscriptions available.
-                                </p>
-                              )}
-                              {linkStatus[agent.id] && (
-                                <p className="subtext" style={{ marginTop: 6 }}>{linkStatus[agent.id]}</p>
-                              )}
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <select
+                                className="input"
+                                value={linkSelections[agent.id] ?? ""}
+                                onChange={(e) =>
+                                  setLinkSelections((prev) => ({ ...prev, [agent.id]: e.target.value }))
+                                }
+                              >
+                                <option value="">Select a subscription</option>
+                                {availableOptions.map((option) => (
+                                  <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
+                                    {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                className="button secondary"
+                                onClick={() => void linkSubscription(agent.id)}
+                                disabled={availableOptions.length === 0}
+                                style={{ whiteSpace: "nowrap" }}
+                              >
+                                Link
+                              </button>
                             </div>
-                          )}
+                            {availableOptions.length === 0 && (
+                              <p className="subtext" style={{ marginTop: 6 }}>
+                                No unlinked subscriptions available.
+                              </p>
+                            )}
+                            {linkStatus[agent.id] && (
+                              <p className="subtext" style={{ marginTop: 6 }}>{linkStatus[agent.id]}</p>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

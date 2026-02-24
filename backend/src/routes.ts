@@ -827,6 +827,7 @@ async function ensureAnyActiveSubscription(ownerWallet: string): Promise<void> {
 
 const agentSchema = z.object({
   ownerWallet: z.string(),
+  agentPubkey: z.string().optional(),
   name: z.string(),
   role: z.enum(["maker", "listener"]).default("maker"),
   streamId: z.string().optional(),
@@ -913,9 +914,6 @@ router.post("/agent-subscriptions", async (req, res) => {
   }
   if (agent.ownerWallet !== parsed.data.ownerWallet) {
     return res.status(403).json({ error: "agent owner mismatch" });
-  }
-  if (agent.role !== "listener") {
-    return res.status(400).json({ error: "only listener agents can be linked to subscriptions" });
   }
   try {
     await ensureActiveSubscription(parsed.data.ownerWallet, parsed.data.streamId);

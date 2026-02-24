@@ -8,8 +8,10 @@ import {
 } from "./crypto";
 import {
   buildRecordSignalInstruction as buildRecordSignalIx,
+  buildRecordSignalDelegatedInstruction as buildRecordSignalDelegatedIx,
   type PrepareSignalInput,
   type RecordSignalParams,
+  type RecordSignalDelegatedParams,
 } from "./publish";
 import {
   registerSubscription as registerSubscriptionRequest,
@@ -324,6 +326,19 @@ export class SigintsClient {
       streamRegistryProgramId: this.streamRegistryProgramId,
     });
   }
+
+  async buildRecordSignalDelegatedInstruction(
+    params: Omit<RecordSignalDelegatedParams, "programId" | "streamRegistryProgramId">
+  ): Promise<import("@solana/web3.js").TransactionInstruction> {
+    if (!this.streamRegistryProgramId) {
+      throw new Error("streamRegistryProgramId not configured");
+    }
+    return buildRecordSignalDelegatedIx({
+      ...params,
+      programId: this.programId,
+      streamRegistryProgramId: this.streamRegistryProgramId,
+    });
+  }
 }
 
 type DecodedSignalRecord = {
@@ -399,6 +414,7 @@ export { generateX25519Keypair, subscriberIdFromPubkey };
 export type { WrappedKey };
 export {
   buildRecordSignalIx as buildRecordSignalInstruction,
+  buildRecordSignalDelegatedIx as buildRecordSignalDelegatedInstruction,
   registerSubscriptionRequest as registerSubscription,
   syncWalletKeyRequest as syncWalletKey,
   fetchStreamRequest as fetchStream,

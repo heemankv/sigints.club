@@ -22,6 +22,7 @@ ALTER TABLE IF EXISTS agents ADD COLUMN IF NOT EXISTS stream_id TEXT;
 ALTER TABLE IF EXISTS agent_subscriptions ADD COLUMN IF NOT EXISTS stream_id TEXT;
 ALTER TABLE IF EXISTS agent_subscriptions ADD COLUMN IF NOT EXISTS visibility TEXT;
 ALTER TABLE IF EXISTS agent_subscriptions ADD COLUMN IF NOT EXISTS updated_at BIGINT;
+ALTER TABLE IF EXISTS agents ADD COLUMN IF NOT EXISTS agent_pubkey TEXT;
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS wallet_key_registered_at BIGINT;
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS wallet_key_public_key TEXT;
 
@@ -89,6 +90,7 @@ CREATE TABLE IF NOT EXISTS streams (
 CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   owner_wallet TEXT NOT NULL,
+  agent_pubkey TEXT,
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('maker','listener')),
   stream_id TEXT,

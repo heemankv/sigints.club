@@ -8,6 +8,9 @@ export {
   deriveTierConfigPda,
   buildCreateStreamInstruction,
   buildUpsertTierInstruction,
+  derivePublisherDelegatePda,
+  buildGrantPublisherInstruction,
+  buildRevokePublisherInstruction,
 } from "./streamRegistry";
 export {
   defaultExpiryMs,

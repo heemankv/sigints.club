@@ -1,6 +1,7 @@
 export type AgentProfile = {
   id: string;
   ownerWallet: string;
+  agentPubkey?: string;
   name: string;
   role: "maker" | "listener";
   streamId?: string;

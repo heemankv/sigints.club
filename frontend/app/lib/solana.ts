@@ -21,6 +21,13 @@ export {
   type DecodedSubscription,
 } from "../../../sdk/src/solana/subscription";
 
+export {
+  deriveStreamPda,
+  derivePublisherDelegatePda,
+  buildGrantPublisherInstruction,
+  buildRevokePublisherInstruction,
+} from "../../../sdk/src/solana/streamRegistry";
+
 export { PRICING_TYPE_MAP, EVIDENCE_LEVEL_MAP } from "../../../sdk/src/solana/constants";
 export { sha256Bytes } from "../../../sdk/src/solana/shared";
 

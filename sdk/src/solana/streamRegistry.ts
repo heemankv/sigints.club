@@ -32,6 +32,17 @@ export async function deriveTierConfigPda(
   )[0];
 }
 
+export function derivePublisherDelegatePda(
+  programId: PublicKey,
+  stream: PublicKey,
+  agent: PublicKey
+): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("publisher"), stream.toBuffer(), agent.toBuffer()],
+    programId
+  )[0];
+}
+
 export async function buildCreateStreamInstruction(params: {
   programId: PublicKey;
   authority: PublicKey;
@@ -98,4 +109,50 @@ export async function buildUpsertTierInstruction(params: {
     ],
     data: Buffer.from(data),
   });
+}
+
+export async function buildGrantPublisherInstruction(params: {
+  programId: PublicKey;
+  stream: PublicKey;
+  authority: PublicKey;
+  agent: PublicKey;
+}): Promise<TransactionInstruction> {
+  const discriminator = await anchorDiscriminator("grant_publisher");
+  const delegatePda = derivePublisherDelegatePda(params.programId, params.stream, params.agent);
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: params.stream, isSigner: false, isWritable: true },
+      { pubkey: params.agent, isSigner: false, isWritable: false },
+      { pubkey: delegatePda, isSigner: false, isWritable: true },
+      { pubkey: params.authority, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(discriminator),
+  });
+}
+
+export async function buildRevokePublisherInstruction(params: {
+  programId: PublicKey;
+  stream: PublicKey;
+  authority: PublicKey;
+  agent: PublicKey;
+}): Promise<TransactionInstruction> {
+  const discriminator = await anchorDiscriminator("revoke_publisher");
+  const delegatePda = derivePublisherDelegatePda(params.programId, params.stream, params.agent);
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: params.stream, isSigner: false, isWritable: true },
+      { pubkey: params.agent, isSigner: false, isWritable: false },
+      { pubkey: delegatePda, isSigner: false, isWritable: true },
+      { pubkey: params.authority, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.from(discriminator),
+  });
+}
+
+async function anchorDiscriminator(ixName: string): Promise<Uint8Array> {
+  const hash = await sha256Bytes(`global:${ixName}`);
+  return hash.slice(0, 8);
 }

@@ -21,6 +21,15 @@ export type RecordSignalParams = {
   metadata: SignalMetadata;
 };
 
+export type RecordSignalDelegatedParams = {
+  programId: PublicKey;
+  streamRegistryProgramId: PublicKey;
+  publisher: PublicKey;
+  streamId?: string;
+  streamPubkey?: PublicKey;
+  metadata: SignalMetadata;
+};
+
 const ZERO_32 = new Uint8Array(32);
 
 export async function prepareSignal(backendUrl: string, input: PrepareSignalInput): Promise<SignalMetadata> {
@@ -90,6 +99,66 @@ export async function buildRecordSignalInstruction(params: RecordSignalParams): 
       { pubkey: params.streamRegistryProgramId, isSigner: false, isWritable: false },
       { pubkey: streamState, isSigner: false, isWritable: true },
       { pubkey: params.authority, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+export async function buildRecordSignalDelegatedInstruction(
+  params: RecordSignalDelegatedParams
+): Promise<TransactionInstruction> {
+  const streamPubkey =
+    params.streamPubkey ??
+    (params.streamId
+      ? await deriveStreamPda(params.streamRegistryProgramId, params.streamId)
+      : null);
+  if (!streamPubkey) {
+    throw new Error("streamPubkey or streamId is required");
+  }
+
+  const signalHash = toBytes32(params.metadata.signalHash, "signalHash");
+  const signalPointerHash = toBytes32(
+    await sha256Hex(params.metadata.signalPointer),
+    "signalPointerHash"
+  );
+  const keyboxHash = params.metadata.keyboxHash
+    ? toBytes32(params.metadata.keyboxHash, "keyboxHash")
+    : ZERO_32;
+  const keyboxPointerHash = params.metadata.keyboxPointer
+    ? toBytes32(await sha256Hex(params.metadata.keyboxPointer), "keyboxPointerHash")
+    : ZERO_32;
+
+  const discriminator = await anchorDiscriminator("record_signal_delegated");
+  const data = new Uint8Array(8 + 32 + 32 + 32 + 32);
+  data.set(discriminator, 0);
+  data.set(signalHash, 8);
+  data.set(signalPointerHash, 40);
+  data.set(keyboxHash, 72);
+  data.set(keyboxPointerHash, 104);
+
+  const [signalPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("signal_latest"), streamPubkey.toBuffer()],
+    params.programId
+  );
+  const [streamState] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stream_state"), streamPubkey.toBuffer()],
+    params.programId
+  );
+  const [publisherDelegate] = PublicKey.findProgramAddressSync(
+    [Buffer.from("publisher"), streamPubkey.toBuffer(), params.publisher.toBuffer()],
+    params.streamRegistryProgramId
+  );
+
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: signalPda, isSigner: false, isWritable: true },
+      { pubkey: streamPubkey, isSigner: false, isWritable: false },
+      { pubkey: params.streamRegistryProgramId, isSigner: false, isWritable: false },
+      { pubkey: streamState, isSigner: false, isWritable: true },
+      { pubkey: publisherDelegate, isSigner: false, isWritable: false },
+      { pubkey: params.publisher, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data: Buffer.from(data),

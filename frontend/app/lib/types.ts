@@ -76,6 +76,7 @@ export type OnChainSubscription = {
 export type AgentProfile = {
   id: string;
   ownerWallet: string;
+  agentPubkey?: string;
   name: string;
   domain: string;
   description?: string;

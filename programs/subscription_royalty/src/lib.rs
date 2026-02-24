@@ -348,6 +348,44 @@ pub mod subscription_royalty {
         signal.bump = ctx.bumps.signal;
         Ok(())
     }
+
+    pub fn record_signal_delegated(
+        ctx: Context<RecordSignalDelegated>,
+        signal_hash: [u8; 32],
+        signal_pointer_hash: [u8; 32],
+        keybox_hash: [u8; 32],
+        keybox_pointer_hash: [u8; 32],
+    ) -> Result<()> {
+        let stream_config = validate_stream(&ctx.accounts.stream, &ctx.accounts.stream_registry_program)?;
+        require!(
+            stream_config.status == StreamStatus::Active as u8,
+            ErrorCode::StreamInactive
+        );
+        validate_publisher_delegate(
+            &ctx.accounts.publisher_delegate,
+            &ctx.accounts.stream,
+            &ctx.accounts.publisher,
+            &ctx.accounts.stream_registry_program,
+        )?;
+
+        let stream_state = &mut ctx.accounts.stream_state;
+        if stream_state.stream == Pubkey::default() {
+            stream_state.stream = ctx.accounts.stream.key();
+            stream_state.subscription_count = 0;
+            stream_state.bump = ctx.bumps.stream_state;
+        }
+
+        let signal = &mut ctx.accounts.signal;
+        signal.stream = ctx.accounts.stream.key();
+        signal.signal_hash = signal_hash;
+        signal.signal_pointer_hash = signal_pointer_hash;
+        signal.keybox_hash = keybox_hash;
+        signal.keybox_pointer_hash = keybox_pointer_hash;
+        let clock = Clock::get()?;
+        signal.created_at = clock.unix_timestamp.saturating_mul(1_000);
+        signal.bump = ctx.bumps.signal;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -485,6 +523,36 @@ pub struct RecordSignal<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct RecordSignalDelegated<'info> {
+    #[account(
+        init_if_needed,
+        payer = publisher,
+        space = SignalRecord::SPACE,
+        seeds = [b"signal_latest", stream.key().as_ref()],
+        bump
+    )]
+    pub signal: Account<'info, SignalRecord>,
+    /// CHECK: validated in handler against stream registry
+    pub stream: AccountInfo<'info>,
+    /// CHECK: executable stream registry program (validated in handler)
+    #[account(executable)]
+    pub stream_registry_program: AccountInfo<'info>,
+    #[account(
+        init_if_needed,
+        payer = publisher,
+        space = StreamState::SPACE,
+        seeds = [b"stream_state", stream.key().as_ref()],
+        bump
+    )]
+    pub stream_state: Account<'info, StreamState>,
+    /// CHECK: validated in handler as publisher delegate PDA
+    pub publisher_delegate: AccountInfo<'info>,
+    #[account(mut)]
+    pub publisher: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 pub struct Subscription {
     pub subscriber: Pubkey,
@@ -515,6 +583,15 @@ pub struct SubscriberKey {
 
 impl SubscriberKey {
     pub const SPACE: usize = 8 + 32 + 32 + 32 + 32 + 8 + 1;
+}
+
+#[account]
+pub struct PublisherDelegate {
+    pub stream: Pubkey,
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    pub status: u8,
+    pub bump: u8,
 }
 
 #[account]
@@ -632,6 +709,8 @@ pub enum ErrorCode {
     SubscriptionInactive,
     #[msg("Wallet encryption key missing for private stream")]
     WalletKeyMissing,
+    #[msg("Publisher delegate is missing or inactive")]
+    UnauthorizedPublisher,
 }
 
 fn require_wallet_key(
@@ -715,6 +794,32 @@ fn validate_tier(
     .0;
     require_keys_eq!(expected, *account.key, ErrorCode::InvalidTier);
     Ok(cfg)
+}
+
+fn validate_publisher_delegate(
+    publisher_delegate: &AccountInfo,
+    stream: &AccountInfo,
+    publisher: &Signer,
+    registry_program: &AccountInfo,
+) -> Result<()> {
+    let expected = Pubkey::find_program_address(
+        &[b"publisher", stream.key().as_ref(), publisher.key().as_ref()],
+        registry_program.key,
+    )
+    .0;
+    require_keys_eq!(expected, *publisher_delegate.key, ErrorCode::UnauthorizedPublisher);
+    require_keys_eq!(*publisher_delegate.owner, *registry_program.key, ErrorCode::UnauthorizedPublisher);
+    let data = publisher_delegate.data.borrow();
+    if data.len() < 8 {
+        return Err(error!(ErrorCode::UnauthorizedPublisher));
+    }
+    let mut data: &[u8] = &data[8..];
+    let decoded = PublisherDelegate::deserialize(&mut data)
+        .map_err(|_| error!(ErrorCode::UnauthorizedPublisher))?;
+    require_keys_eq!(decoded.stream, *stream.key, ErrorCode::UnauthorizedPublisher);
+    require_keys_eq!(decoded.agent, publisher.key(), ErrorCode::UnauthorizedPublisher);
+    require!(decoded.status == 1, ErrorCode::UnauthorizedPublisher);
+    Ok(())
 }
 
 #[cfg(test)]
