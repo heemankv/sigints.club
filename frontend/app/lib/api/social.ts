@@ -12,6 +12,7 @@ import {
   removeLike as sdkRemoveLike,
   fetchLikeCount as sdkFetchLikeCount,
   fetchFollowCounts as sdkFetchFollowCounts,
+  fetchFollowingIds as sdkFetchFollowingIds,
   fetchComments as sdkFetchComments,
   addComment as sdkAddComment,
   deleteComment as sdkDeleteComment,
@@ -128,6 +129,54 @@ export async function fetchFollowCounts(
   wallet: string
 ): Promise<{ counts: { followers: number; following: number } }> {
   return sdkFetchFollowCounts(wallet);
+}
+
+// ─── Following ───────────────────────────────────────────────────────────────
+
+const FOLLOWING_CACHE_KEY = "following_cache_v1";
+const FOLLOWING_CACHE_TTL_MS = 30_000;
+
+type FollowingCache = {
+  wallet: string;
+  following: string[];
+  expiresAt: number;
+};
+
+export function readFollowingCache(wallet: string): string[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FOLLOWING_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as FollowingCache;
+    if (!parsed?.following || !Array.isArray(parsed.following)) return null;
+    if (parsed.wallet !== wallet) return null;
+    if (Date.now() > parsed.expiresAt) return null;
+    return parsed.following;
+  } catch {
+    return null;
+  }
+}
+
+function writeFollowingCache(wallet: string, following: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: FollowingCache = {
+      wallet,
+      following,
+      expiresAt: Date.now() + FOLLOWING_CACHE_TTL_MS,
+    };
+    window.localStorage.setItem(FOLLOWING_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export async function fetchFollowingIds(
+  wallet: string
+): Promise<{ following: string[] }> {
+  const data = await sdkFetchFollowingIds(wallet);
+  writeFollowingCache(wallet, data.following ?? []);
+  return data;
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────

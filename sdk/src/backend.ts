@@ -298,6 +298,16 @@ export async function fetchFollowCounts(
   );
 }
 
+export async function fetchFollowingIds(
+  backendUrl: string,
+  wallet: string
+): Promise<{ following: string[] }> {
+  return getJson<{ following: string[] }>(
+    backendUrl,
+    `/social/following-ids?wallet=${encodeURIComponent(wallet)}`
+  );
+}
+
 export async function fetchComments<T = any>(
   backendUrl: string,
   contentId: string,
@@ -470,6 +480,7 @@ export function createBackendClient(backendUrl: string) {
     removeLike: (wallet: string, contentId: string) => removeLike(url, wallet, contentId),
     fetchLikeCount: (contentId: string) => fetchLikeCount(url, contentId),
     fetchFollowCounts: (wallet: string) => fetchFollowCounts(url, wallet),
+    fetchFollowingIds: (wallet: string) => fetchFollowingIds(url, wallet),
     fetchComments: <T = any>(contentId: string, page = 1, pageSize = 3) =>
       fetchComments<T>(url, contentId, page, pageSize),
     addComment: (wallet: string, contentId: string, comment: string) =>

@@ -438,6 +438,7 @@ export {
   removeLike,
   fetchLikeCount,
   fetchFollowCounts,
+  fetchFollowingIds,
   fetchComments,
   addComment,
   followProfile,

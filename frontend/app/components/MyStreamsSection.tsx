@@ -20,14 +20,13 @@ export default function MyStreamsSection() {
   }, [walletAddr]);
 
   async function load() {
-    setLoading(true);
-
     // Show cached streams instantly
     const cached = readStreamsCache();
     if (cached?.streams?.length) {
       const cachedMine = cached.streams.filter((s) => s.authority === walletAddr);
       if (cachedMine.length) setMyStreams(cachedMine);
     }
+    if (cached === null) setLoading(true);
 
     try {
       const data = await fetchStreams({ includeTiers: true });

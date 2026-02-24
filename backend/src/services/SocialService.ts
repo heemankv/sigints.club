@@ -316,6 +316,18 @@ export class SocialService {
     }
   }
 
+  async listFollowingIds(wallet: string): Promise<string[]> {
+    const profileId = await this.ensureProfile(wallet);
+    if (!profileId) {
+      throw new Error("Unable to resolve profile for following list");
+    }
+    const followRes = await withTimeout(
+      this.client.listFollowing({ profileId, pageSize: 200 }),
+      6_000
+    );
+    return extractFollowingProfileIds(followRes);
+  }
+
   async unlike(wallet: string, contentId: string, displayName?: string) {
     const profileId = await this.ensureProfile(wallet, displayName);
     if (!profileId) {

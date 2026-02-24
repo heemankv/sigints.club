@@ -1178,6 +1178,19 @@ router.get("/social/follow-counts", async (req, res) => {
   }
 });
 
+router.get("/social/following-ids", async (req, res) => {
+  const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+  if (!wallet) {
+    return res.status(400).json({ error: "wallet required" });
+  }
+  try {
+    const following = await socialServiceInstance.listFollowingIds(wallet);
+    return res.json({ following });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "following list failed" });
+  }
+});
+
 router.delete("/social/posts/:id", async (req, res) => {
   const parsed = deletePostSchema.safeParse(req.body);
   if (!parsed.success) {

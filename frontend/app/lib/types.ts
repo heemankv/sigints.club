@@ -42,6 +42,7 @@ export type StreamDetail = {
   accuracy?: string;
   latency?: string;
   price?: string;
+  createdAt?: number;
   onchainAddress?: string;
   authority?: string;
   dao?: string;

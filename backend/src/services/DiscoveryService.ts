@@ -11,6 +11,7 @@ export type StreamSummary = {
   latency: string;
   price: string;
   evidence: string;
+  createdAt?: number;
   onchainAddress?: string;
   tapestryProfileId?: string;
 };

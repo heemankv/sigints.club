@@ -20,6 +20,7 @@ type StreamMetaInput = {
 export type TapestryStreamProfile = StreamMetaInput & {
   id: string;
   tapestryProfileId: string;
+  createdAt: number;
   tiers: StreamTier[];
 };
 
@@ -192,6 +193,11 @@ export class TapestryStreamService {
     const metaEntry = metaResponse.contents?.[0];
     const meta = extractContent(metaEntry);
     if (!meta) return null;
+    const createdAtRaw =
+      metaEntry?.content?.created_at ??
+      metaEntry?.data?.content?.created_at ??
+      meta?.created_at;
+    const createdAt = createdAtRaw ? Number(createdAtRaw) : Date.now();
     const streamId = String(meta.streamId ?? "").trim();
     if (!streamId) return null;
 
@@ -210,6 +216,7 @@ export class TapestryStreamService {
     return {
       id: streamId,
       tapestryProfileId: profileId,
+      createdAt,
       streamId,
       name: String(meta.name ?? meta.text ?? meta.streamId ?? "Stream"),
       domain: String(meta.domain ?? "general"),

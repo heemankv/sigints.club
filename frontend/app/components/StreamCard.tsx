@@ -6,6 +6,7 @@ type StreamCardProps = {
   stream: StreamDetail;
   onSubscribe?: (streamId: string) => void;
   viewerWallet?: string | null;
+  highlight?: boolean;
 };
 
 function formatTierLabel(tierId: string): string {
@@ -23,7 +24,7 @@ function formatPricingLabel(pricingType?: string): string {
   return pricingType.replace(/_/g, " ");
 }
 
-export default function StreamCard({ stream, onSubscribe, viewerWallet }: StreamCardProps) {
+export default function StreamCard({ stream, onSubscribe, viewerWallet, highlight }: StreamCardProps) {
   const primaryTier = stream.tiers?.[0];
   const tierId = primaryTier?.tierId ?? "tier";
   const tierLabel = formatTierLabel(tierId);
@@ -38,7 +39,7 @@ export default function StreamCard({ stream, onSubscribe, viewerWallet }: Stream
   const canSubscribe = hasTier && !isOwner;
 
   return (
-    <div className="data-card data-card--compact data-card--side">
+    <div className={`data-card data-card--compact data-card--side${highlight ? " data-card--highlight" : ""}`}>
       <div className="data-card__media">
         <img src={artUrl} alt={`${stream.name} art`} />
         <div className="data-card__overlay">

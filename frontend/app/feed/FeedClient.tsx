@@ -22,6 +22,8 @@ import {
   deleteComment,
   deletePost,
   followProfile,
+  fetchFollowingIds,
+  readFollowingCache,
   searchAgents,
 } from "../lib/api/social";
 import { fetchSignalEvents } from "../lib/api/signals";
@@ -75,6 +77,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [status, setStatus] = useState<string | null>(null);
   const [likes, setLikes] = useState<Record<string, number>>({});
   const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   const [comments, setComments] = useState<Record<string, CommentEntry[]>>({});
   const [commentTotals, setCommentTotals] = useState<Record<string, number>>({});
   const [commentPages, setCommentPages] = useState<Record<string, number>>({});
@@ -89,6 +92,8 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const streamingPoll = useRef<number | null>(null);
   const subscriberCountFetchedAt = useRef<Record<string, number>>({});
 
+  const [streamSearch, setStreamSearch] = useState("");
+
   // Composer state
   const [postText, setPostText] = useState("");
   const [isIntentTag, setIsIntentTag] = useState(false);
@@ -102,6 +107,32 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     () => new Map(streams.map((stream) => [stream.id, stream])),
     [streams]
   );
+  const latestStreams = useMemo(() => {
+    return [...streams]
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, 6);
+  }, [streams]);
+  const streamSearchNorm = streamSearch.trim().toLowerCase();
+  const streamMatchSet = useMemo(() => {
+    if (!streamSearchNorm) return new Set<string>();
+    return new Set(
+      streams
+        .filter(
+          (s) =>
+            s.name.toLowerCase().includes(streamSearchNorm) ||
+            s.id.toLowerCase().includes(streamSearchNorm)
+        )
+        .map((s) => s.id)
+    );
+  }, [streams, streamSearchNorm]);
+  const sortedStreams = useMemo(() => {
+    if (!streamSearchNorm) return streams;
+    return [...streams].sort((a, b) => {
+      const aMatch = streamMatchSet.has(a.id) ? 0 : 1;
+      const bMatch = streamMatchSet.has(b.id) ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  }, [streams, streamSearchNorm, streamMatchSet]);
   const activeStream = subscribeStreamId ? streamById.get(subscribeStreamId) : undefined;
   const activeTier =
     activeStream?.tiers.find((tier) => tier.tierId === subscribeTierId) ??
@@ -125,6 +156,31 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   useEffect(() => {
     void loadSidebar();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!wallet) {
+      setFollowingIds(new Set());
+      return;
+    }
+    setFollowingIds(new Set());
+    const cached = readFollowingCache(wallet);
+    if (cached?.length) {
+      setFollowingIds(new Set(cached));
+    }
+    (async () => {
+      try {
+        const data = await fetchFollowingIds(wallet);
+        if (!active) return;
+        setFollowingIds(new Set(data.following ?? []));
+      } catch {
+        // ignore follow list fetch failures
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [wallet]);
 
   useEffect(() => {
     let mounted = true;
@@ -246,12 +302,12 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   async function loadSidebar() {
     try {
-      setStreamsLoading(true);
       const { fetchStreams, readStreamsCache } = await import("../lib/api/streams");
       const cached = readStreamsCache();
       if (cached?.streams?.length) {
         setStreams(cached.streams);
       }
+      if (cached === null) setStreamsLoading(true);
       const data = await fetchStreams({ includeTiers: true });
       setStreams(data.streams ?? []);
     } catch { setStreams([]); }
@@ -259,7 +315,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   }
 
   async function loadFeed() {
-    setLoading(true);
     setStatus(null);
     setOpenComments({});
     const cached = readFeedCache();
@@ -268,6 +323,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       setLikes((prev) => ({ ...prev, ...(cached.likeCounts ?? {}) }));
       setCommentTotals((prev) => ({ ...prev, ...(cached.commentCounts ?? {}) }));
     }
+    if (cached === null) setLoading(true);
     const type = undefined;
     try {
       const data = await fetchFeed(type);
@@ -343,8 +399,14 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   async function followAuthor(profileId: string) {
     if (!wallet) { openWalletModal(true); return; }
+    if (!profileId) return;
     try {
       await followProfile(wallet, profileId);
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        next.add(profileId);
+        return next;
+      });
       setStatus("Following profile.");
     } catch (err: any) { setStatus(err.message ?? "Follow failed"); }
   }
@@ -517,13 +579,23 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
         {activeTab !== "streams" && status && <div className="x-status-msg">{status}</div>}
 
         {activeTab === "streams" ? (
-          <div className="data-grid data-grid--single" style={{ marginTop: 32, marginInline: 16 }}>
-            {streams.map((stream) => (
+          <>
+          <div className="streams-search-bar">
+            <input
+              type="text"
+              placeholder="Search streams…"
+              value={streamSearch}
+              onChange={(e) => setStreamSearch(e.target.value)}
+            />
+          </div>
+          <div className="data-grid data-grid--single" style={{ marginTop: 16, marginInline: 16 }}>
+            {sortedStreams.map((stream) => (
               <StreamCard
                 key={stream.id}
                 stream={stream}
                 onSubscribe={openSubscribe}
                 viewerWallet={wallet}
+                highlight={streamSearchNorm !== "" && streamMatchSet.has(stream.id)}
               />
             ))}
             {streamsLoading && !streams.length && (
@@ -550,6 +622,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               </div>
             )}
           </div>
+          </>
         ) : (
           <div className="feed-list">
             {feed.map((post) => {
@@ -571,6 +644,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               const isOwnerPost =
                 (wallet && post.authorWallet && post.authorWallet === wallet) ||
                 (currentProfileId && post.profileId === currentProfileId);
+              const canFollow =
+                Boolean(wallet && post.profileId && post.authorWallet && post.authorWallet !== wallet);
+              const isFollowing = Boolean(post.profileId && followingIds.has(post.profileId));
 
               return (
                 <div className="xpost" key={post.id} onClick={() => router.push(`/feed/${post.contentId}`)}>
@@ -657,7 +733,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                       </button>
 
                       {/* Follow */}
-                      {wallet !== post.authorWallet && (
+                      {canFollow && !isFollowing && (
                         <button
                           className="xpost-action-btn"
                           title="Follow maker"
@@ -667,6 +743,18 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
                           </svg>
                           <span>Follow</span>
+                        </button>
+                      )}
+                      {canFollow && isFollowing && (
+                        <button
+                          className="xpost-action-btn following"
+                          title="Already following"
+                          disabled
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" />
+                          </svg>
+                          <span>Following</span>
                         </button>
                       )}
 
@@ -811,18 +899,22 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       {/* ─── Right: Discovery panels ─── */}
       <aside className="social-rail">
 
-        {/* Top makers */}
+        {/* Latest streams */}
         <div className="x-rail-module">
-          <h3 className="x-rail-heading">Top makers</h3>
-          {streams.slice(0, 4).map((stream) => (
+          <h3 className="x-rail-heading">Latest Streams</h3>
+          {latestStreams.map((stream) => {
+            const createdAt = stream.createdAt ?? 0;
+            const timeLabel = createdAt ? `${timeAgo(createdAt)} ago` : "new";
+            return (
             <div className="x-trend-item" key={stream.id}>
-              <span className="x-trend-category">{stream.domain} · Maker</span>
+              <span className="x-trend-category">{stream.domain} · {timeLabel}</span>
               <strong className="x-trend-topic">{stream.name}</strong>
               <span className="x-trend-meta">{stream.evidence} evidence</span>
             </div>
-          ))}
-          {!streams.length && <span className="x-trend-category">No stream data yet.</span>}
-          <Link className="x-rail-link" href="/">Open discovery →</Link>
+            );
+          })}
+          {!latestStreams.length && <span className="x-trend-category">No stream data yet.</span>}
+          
         </div>
 
         {/* What's streaming */}

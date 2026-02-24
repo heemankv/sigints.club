@@ -16,6 +16,7 @@ import { parseSolLamports } from "../lib/pricing";
 import { explorerTx } from "../lib/constants";
 import { parseQuota } from "../lib/utils";
 import LeftNav from "../components/LeftNav";
+import StreamsRail from "../components/StreamsRail";
 
 const DEFAULT_TIER: TierInput = {
   tierId: "tier-basic",
@@ -479,6 +480,8 @@ export default function RegisterStreamPage() {
           )}
         </div>
       </div>
+
+      <StreamsRail />
     </section>
   );
 }

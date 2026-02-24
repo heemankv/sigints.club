@@ -908,6 +908,34 @@ main {
   overflow: hidden;
 }
 
+.data-card--highlight {
+  border-color: rgba(255, 107, 53, 0.35);
+}
+
+.streams-search-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px;
+  margin-top: 24px;
+}
+
+.streams-search-bar input {
+  width: 240px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.streams-search-bar input:focus {
+  border-color: rgba(29, 176, 166, 0.5);
+  box-shadow: 0 0 0 3px rgba(29, 176, 166, 0.18);
+}
+
 .form-grid {
   display: grid;
   gap: 10px;
@@ -1980,6 +2008,17 @@ textarea {
   color: #ff6b6b;
 }
 
+.xpost-action-btn.following {
+  color: rgba(155, 170, 190, 0.85);
+  background: rgba(29, 176, 166, 0.08);
+  cursor: default;
+}
+
+.xpost-action-btn.following:hover {
+  color: rgba(155, 170, 190, 0.85);
+  background: rgba(29, 176, 166, 0.08);
+}
+
 .confirm-toggle {
   display: inline-flex;
   align-items: center;
@@ -2432,6 +2471,8 @@ textarea {
 
 .social-main .xview-shell {
   max-width: none;
+  width: 100%;
+  margin: 0;
   border-left: none;
   border-right: none;
 }
@@ -2450,7 +2491,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 0 24px;
+  padding: 0 32px;
   height: 53px;
   background: var(--glass-strong);
   backdrop-filter: blur(12px);
@@ -2484,7 +2525,7 @@ textarea {
 /* ── Post body ── */
 
 .xview-post-body {
-  padding: 20px 24px;
+  padding: 24px 32px;
   border-bottom: 1px solid var(--stroke);
 }
 
@@ -2532,15 +2573,15 @@ textarea {
 .xview-timestamp {
   font-size: 14px;
   color: var(--muted);
-  margin-top: 20px;
-  padding-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--stroke);
 }
 
 .xview-stats {
   display: flex;
-  gap: 24px;
-  padding: 14px 0;
+  gap: 28px;
+  padding: 16px 0;
   border-bottom: 1px solid var(--stroke);
   font-size: 14px;
   color: var(--muted);
@@ -2554,7 +2595,7 @@ textarea {
 .xview-actions {
   display: flex;
   justify-content: space-around;
-  padding: 2px 0;
+  padding: 8px 0;
 }
 
 .xview-action {
@@ -2586,7 +2627,7 @@ textarea {
 /* ── Status toast ── */
 
 .xview-status {
-  padding: 10px 24px;
+  padding: 12px 32px;
   font-size: 13px;
   color: var(--muted);
   background: rgba(255, 107, 53, 0.06);
@@ -2597,8 +2638,8 @@ textarea {
 
 .xview-composer {
   display: flex;
-  gap: 12px;
-  padding: 16px 24px;
+  gap: 14px;
+  padding: 20px 32px;
   border-bottom: 1px solid var(--stroke);
   align-items: flex-start;
 }
@@ -2684,15 +2725,15 @@ textarea {
 }
 
 .xview-loading-replies {
-  padding: 20px 16px;
+  padding: 20px 32px;
   color: var(--muted);
   font-size: 14px;
 }
 
 .xview-reply {
   display: flex;
-  gap: 12px;
-  padding: 14px 24px;
+  gap: 14px;
+  padding: 16px 32px;
   border-bottom: 1px solid var(--stroke);
   transition: background 0.12s;
 }
@@ -2787,7 +2828,7 @@ textarea {
 }
 
 .xview-empty {
-  padding: 48px 24px;
+  padding: 48px 32px;
   text-align: center;
   color: var(--muted);
   font-size: 15px;

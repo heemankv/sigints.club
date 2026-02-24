@@ -139,6 +139,10 @@ export function fetchFollowCounts(wallet: string): Promise<{ counts: { followers
   return getClient().fetchFollowCounts(wallet);
 }
 
+export function fetchFollowingIds(wallet: string): Promise<{ following: string[] }> {
+  return getClient().fetchFollowingIds(wallet);
+}
+
 export function fetchComments<T = any>(contentId: string, page = 1, pageSize = 3): Promise<T> {
   return getClient().fetchComments<T>(contentId, page, pageSize);
 }

@@ -24,6 +24,7 @@ import KeyManager from "../stream/[id]/KeyManager";
 import { sha256Bytes } from "../lib/solana";
 import { toHex } from "../lib/utils";
 import LeftNav from "../components/LeftNav";
+import StreamsRail from "../components/StreamsRail";
 import { useUserProfile, type UserProfile } from "../lib/userProfile";
 
 type OwnedSubscriptionOption = {
@@ -54,7 +55,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [subsError, setSubsError] = useState<string | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
 
-  const [railStreams, setRailStreams] = useState<StreamDetail[]>([]);
   const [agentName, setAgentName] = useState("");
   const [agentDomain, setAgentDomain] = useState("");
   const [agentStreamId, setAgentStreamId] = useState("");
@@ -69,20 +69,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   const walletAddr = publicKey?.toBase58();
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
-
-  useEffect(() => {
-    async function loadRailStreams() {
-      try {
-        const cached = readStreamsCache();
-        if (cached?.streams?.length) setRailStreams(cached.streams);
-        const data = await fetchStreams({ includeTiers: true });
-        setRailStreams(data.streams ?? []);
-      } catch {
-        setRailStreams([]);
-      }
-    }
-    loadRailStreams();
-  }, []);
 
   useEffect(() => {
     if (!walletAddr) return;
@@ -188,16 +174,18 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   async function loadSubscriptions(forceFresh = false) {
     if (!walletAddr) return;
-    setSubsLoading(true);
     setSubsError(null);
 
-    // Show cached data instantly
+    // Show cached data instantly before setting loading
     const cachedSubs = readSubscriptionsCache(walletAddr);
     const cachedStreams = readStreamsCache();
+    const hasCacheHit = cachedSubs !== null && cachedStreams !== null;
     if (cachedSubs?.subscriptions?.length && cachedStreams?.streams?.length) {
       await processSubscriptions(cachedSubs.subscriptions, cachedStreams.streams);
     }
 
+    // Only show loading UI if there's no cache at all
+    if (!hasCacheHit) setSubsLoading(true);
     try {
       const [subsRes, streamsRes] = await Promise.all([
         fetchOnchainSubscriptions(walletAddr, { fresh: forceFresh }),
@@ -217,9 +205,9 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   async function loadAgents() {
     if (!walletAddr) return;
-    setAgentsLoading(true);
     const cached = readAgentsCache(walletAddr);
     if (cached?.length) setAgents(cached);
+    if (cached === null) setAgentsLoading(true);
     try {
       const res = await fetchAgents({ owner: walletAddr });
       setAgents(res.agents ?? []);
@@ -678,20 +666,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
         )}
       </div>
 
-      <aside className="social-rail">
-        <div className="x-rail-module">
-          <h3 className="x-rail-heading">Top makers</h3>
-          {railStreams.slice(0, 4).map((stream) => (
-            <div className="x-trend-item" key={stream.id}>
-              <span className="x-trend-category">{stream.domain} · Maker</span>
-              <strong className="x-trend-topic">{stream.name}</strong>
-              <span className="x-trend-meta">{stream.evidence} evidence</span>
-            </div>
-          ))}
-          {!railStreams.length && <span className="x-trend-category">No stream data yet.</span>}
-          <Link className="x-rail-link" href="/">Open discovery →</Link>
-        </div>
-      </aside>
+      <StreamsRail />
     </section>
   );
 }
