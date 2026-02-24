@@ -3514,6 +3514,64 @@ textarea {
   margin: 0;
 }
 
+.hero-badges-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.hero-tapestry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 107, 53, 0.75);
+  background: rgba(255, 107, 53, 0.08);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  padding: 5px 12px;
+  border-radius: 999px;
+  width: fit-content;
+  letter-spacing: 0.04em;
+}
+
+.hero-solana-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(153, 69, 255, 0.75);
+  background: rgba(153, 69, 255, 0.08);
+  border: 1px solid rgba(153, 69, 255, 0.2);
+  padding: 5px 12px;
+  border-radius: 999px;
+  width: fit-content;
+  letter-spacing: 0.04em;
+}
+
+.footer-badges-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.footer-tapestry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 107, 53, 0.75);
+  background: rgba(255, 107, 53, 0.08);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  padding: 5px 12px;
+  border-radius: 999px;
+  width: fit-content;
+  letter-spacing: 0.04em;
+}
+
 .footer-solana-badge {
   display: inline-flex;
   align-items: center;
