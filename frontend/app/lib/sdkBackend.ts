@@ -1,4 +1,10 @@
-import { createBackendClient, type SubscribeResponse, type SyncWalletKeyResponse, type LoginUserResponse } from "../../../sdk/src/backend";
+import {
+  createBackendClient,
+  buildPublicPayloadMessage as sdkBuildPublicPayloadMessage,
+  type SubscribeResponse,
+  type SyncWalletKeyResponse,
+  type LoginUserResponse,
+} from "../../../sdk/src/backend";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 
@@ -71,8 +77,15 @@ export function fetchCiphertext<T = any>(sha: string): Promise<{ payload: T }> {
   return getClient().fetchCiphertext<T>(sha);
 }
 
-export function fetchPublicPayload<T = any>(sha: string): Promise<{ payload: T }> {
-  return getClient().fetchPublicPayload<T>(sha);
+export function fetchPublicPayload<T = any>(
+  sha: string,
+  auth?: { wallet: string; signatureBase64: string } | { agentId: string; signatureBase64: string }
+): Promise<{ payload: T }> {
+  return getClient().fetchPublicPayload<T>(sha, auth);
+}
+
+export function buildPublicPayloadMessage(sha: string): Uint8Array {
+  return sdkBuildPublicPayloadMessage(sha);
 }
 
 export function fetchKeyboxEntry<T = any>(sha: string, params: { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }): Promise<{ entry: T }> {

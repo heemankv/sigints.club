@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { webcrypto } from "node:crypto";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import nacl from "tweetnacl";
 import {
   SigintsClient,
   buildCreateStreamInstruction,
@@ -103,7 +104,11 @@ async function runPublisher() {
   const maker = loadKeypair(makerKey);
   const config = await fetchSolanaConfig(backendUrl);
   const connection = new Connection(config.rpcUrl, "confirmed");
-  const client = await SigintsClient.fromBackend(backendUrl);
+  const keyboxAuth = {
+    walletPubkey: listener.publicKey.toBase58(),
+    signMessage: (message: Uint8Array) => nacl.sign.detached(message, listener.secretKey),
+  };
+  const client = await SigintsClient.fromBackend(backendUrl, { keyboxAuth });
 
   let tick = 0;
   let inFlight = false;

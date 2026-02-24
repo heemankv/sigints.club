@@ -27,7 +27,16 @@ export async function decryptLatestSignal(
     const pointer = meta.signalPointer as string;
     const sha = pointer.split("/").pop();
     if (!sha) throw new Error("invalid public signal pointer");
-    const payload = await backendClient.fetchPublicPayload<{ plaintext: string }>(sha);
+    const wallet = await backendClient.getTestWallet(walletName);
+    const message = Buffer.from(`sigints:public:${sha}`, "utf8");
+    const signature = await backendClient.testWalletSignMessage(
+      { messageBase64: message.toString("base64") },
+      walletName
+    );
+    const payload = await backendClient.fetchPublicPayload<{ plaintext: string }>(sha, {
+      wallet: wallet.wallet,
+      signatureBase64: signature.signatureBase64,
+    });
     return Buffer.from(payload.payload.plaintext, "base64").toString("utf8");
   }
 

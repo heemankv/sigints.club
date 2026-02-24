@@ -178,8 +178,27 @@ export async function fetchCiphertext<T = any>(backendUrl: string, sha: string):
   return getJson<{ payload: T }>(backendUrl, `/storage/ciphertext/${encodeURIComponent(sha)}`);
 }
 
-export async function fetchPublicPayload<T = any>(backendUrl: string, sha: string): Promise<{ payload: T }> {
-  return getJson<{ payload: T }>(backendUrl, `/storage/public/${encodeURIComponent(sha)}`);
+export type PublicPayloadAuth =
+  | { wallet: string; signatureBase64: string }
+  | { agentId: string; signatureBase64: string };
+
+export function buildPublicPayloadMessage(sha: string): Uint8Array {
+  return new TextEncoder().encode(`sigints:public:${sha}`);
+}
+
+export async function fetchPublicPayload<T = any>(
+  backendUrl: string,
+  sha: string,
+  auth?: PublicPayloadAuth
+): Promise<{ payload: T }> {
+  const query = auth
+    ? "?" +
+      ("wallet" in auth
+        ? `wallet=${encodeURIComponent(auth.wallet)}`
+        : `agentId=${encodeURIComponent(auth.agentId)}`) +
+      `&signature=${encodeURIComponent(auth.signatureBase64)}`
+    : "";
+  return getJson<{ payload: T }>(backendUrl, `/storage/public/${encodeURIComponent(sha)}${query}`);
 }
 
 export async function fetchKeyboxEntry<T = any>(
@@ -458,7 +477,7 @@ export function createBackendClient(backendUrl: string) {
     fetchLatestSignal: <T = any>(streamId: string) => fetchLatestSignal<T>(url, streamId),
     fetchSignalByHash: <T = any>(signalHash: string) => fetchSignalByHash<T>(url, signalHash),
     fetchCiphertext: <T = any>(sha: string) => fetchCiphertext<T>(url, sha),
-    fetchPublicPayload: <T = any>(sha: string) => fetchPublicPayload<T>(url, sha),
+    fetchPublicPayload: <T = any>(sha: string, auth?: PublicPayloadAuth) => fetchPublicPayload<T>(url, sha, auth),
     fetchKeyboxEntry: <T = any>(sha: string, params: { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }) =>
       fetchKeyboxEntry<T>(url, sha, params),
     fetchHealth: () => fetchHealth(url),

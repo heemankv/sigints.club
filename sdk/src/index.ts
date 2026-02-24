@@ -27,6 +27,7 @@ import {
   type SubscribeResponse,
   type SyncWalletKeyResponse,
   type LoginUserResponse,
+  type PublicPayloadAuth,
 } from "./backend";
 
 export type StreamSdkConfig = {
@@ -35,10 +36,16 @@ export type StreamSdkConfig = {
   programId: string;
   streamRegistryProgramId?: string;
   keyboxAuth?: KeyboxAuth;
+  agentAuth?: AgentAuth;
 };
 
 export type KeyboxAuth = {
   walletPubkey: string;
+  signMessage: (message: Uint8Array) => Promise<Uint8Array> | Uint8Array;
+};
+
+export type AgentAuth = {
+  agentId: string;
   signMessage: (message: Uint8Array) => Promise<Uint8Array> | Uint8Array;
 };
 
@@ -96,6 +103,7 @@ export class SigintsClient {
   private streamRegistryProgramId?: PublicKey;
   private backendUrl: string;
   private keyboxAuth?: KeyboxAuth;
+  private agentAuth?: AgentAuth;
   private seenSignals = new Set<string>();
 
   constructor(cfg: StreamSdkConfig) {
@@ -106,11 +114,12 @@ export class SigintsClient {
       : undefined;
     this.backendUrl = cfg.backendUrl.replace(/\/$/, "");
     this.keyboxAuth = cfg.keyboxAuth;
+    this.agentAuth = cfg.agentAuth;
   }
 
   static async fromBackend(
     backendUrl: string,
-    options?: { keyboxAuth?: KeyboxAuth }
+    options?: { keyboxAuth?: KeyboxAuth; agentAuth?: AgentAuth }
   ): Promise<SigintsClient> {
     const config = await fetchSolanaConfigRequest(backendUrl);
     return new SigintsClient({
@@ -119,6 +128,7 @@ export class SigintsClient {
       programId: config.subscriptionProgramId,
       streamRegistryProgramId: config.streamRegistryProgramId,
       keyboxAuth: options?.keyboxAuth,
+      agentAuth: options?.agentAuth,
     });
   }
 
@@ -189,7 +199,8 @@ export class SigintsClient {
     if (!sha) {
       throw new Error("invalid public signal pointer");
     }
-    const data = await fetchPublicPayloadRequest<PublicSignalPayload>(this.backendUrl, sha);
+    const auth = await this.buildPublicAuth(sha);
+    const data = await fetchPublicPayloadRequest<PublicSignalPayload>(this.backendUrl, sha, auth);
     return data.payload;
   }
 
@@ -339,6 +350,21 @@ export class SigintsClient {
       streamRegistryProgramId: this.streamRegistryProgramId,
     });
   }
+
+  private async buildPublicAuth(sha: string): Promise<PublicPayloadAuth> {
+    const message = new TextEncoder().encode(`sigints:public:${sha}`);
+    if (this.agentAuth) {
+      const signatureBytes = await Promise.resolve(this.agentAuth.signMessage(message));
+      const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
+      return { agentId: this.agentAuth.agentId, signatureBase64 };
+    }
+    if (this.keyboxAuth) {
+      const signatureBytes = await Promise.resolve(this.keyboxAuth.signMessage(message));
+      const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
+      return { wallet: this.keyboxAuth.walletPubkey, signatureBase64 };
+    }
+    throw new Error("public payload auth not configured");
+  }
 }
 
 type DecodedSignalRecord = {
@@ -411,7 +437,7 @@ function hexToBytes(input: string, label: string): Uint8Array {
 }
 
 export { generateX25519Keypair, subscriberIdFromPubkey };
-export type { WrappedKey };
+export type { WrappedKey, AgentAuth };
 export {
   buildRecordSignalIx as buildRecordSignalInstruction,
   buildRecordSignalDelegatedIx as buildRecordSignalDelegatedInstruction,
@@ -436,6 +462,7 @@ export {
   fetchSignalByHash,
   fetchCiphertext,
   fetchPublicPayload,
+  buildPublicPayloadMessage,
   fetchKeyboxEntry,
   fetchHealth,
   getTestWallet,
@@ -467,6 +494,7 @@ export {
   fetchUserProfile,
   loginUser,
   type LoginUserResponse,
+  type PublicPayloadAuth,
 } from "./backend";
 
 export * from "./solana/index";

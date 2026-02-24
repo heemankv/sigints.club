@@ -223,12 +223,10 @@ async function runScenario(visibility: "public" | "private") {
     throw new Error(`Stream ${streamId} missing on-chain address.`);
   }
 
-  const keyboxAuth = visibility === "private"
-    ? {
-        walletPubkey: listener.publicKey.toBase58(),
-        signMessage: (message: Uint8Array) => nacl.sign.detached(message, listener.secretKey),
-      }
-    : undefined;
+  const keyboxAuth = {
+    walletPubkey: listener.publicKey.toBase58(),
+    signMessage: (message: Uint8Array) => nacl.sign.detached(message, listener.secretKey),
+  };
 
   const client = await SigintsClient.fromBackend(BACKEND_URL, { keyboxAuth });
 

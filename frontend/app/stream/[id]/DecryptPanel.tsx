@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { fetchSignals, fetchPublicPayload, fetchKeyboxEntry, fetchCiphertext } from "../../lib/sdkBackend";
+import {
+  fetchSignals,
+  fetchPublicPayload,
+  fetchKeyboxEntry,
+  fetchCiphertext,
+  buildPublicPayloadMessage,
+} from "../../lib/sdkBackend";
 import { decryptAesGcm, deriveSharedKey, fromBase64, importX25519PrivateKey, importX25519PublicKey, subscriberIdFromPubkey } from "../../lib/crypto";
 
 const storageKey = (streamId: string) => `stream.keys.${streamId}`;
@@ -44,7 +50,21 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
 
       if (latest.visibility === "public") {
         const signalSha = latest.signalPointer.split("/").pop();
-        const signalRes = await fetchPublicPayload<{ plaintext: string }>(signalSha!);
+        if (!publicKey) {
+          setStatus("Connect wallet to access public stream signals");
+          return;
+        }
+        if (!signMessage) {
+          setStatus("Wallet does not support message signing");
+          return;
+        }
+        const message = buildPublicPayloadMessage(signalSha!);
+        const signature = await signMessage(message);
+        const signatureBase64 = Buffer.from(signature).toString("base64");
+        const signalRes = await fetchPublicPayload<{ plaintext: string }>(signalSha!, {
+          wallet: publicKey.toBase58(),
+          signatureBase64,
+        });
         setPlaintext(atob(signalRes.payload.plaintext));
         return;
       }

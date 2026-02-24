@@ -353,6 +353,72 @@ router.get("/storage/ciphertext/:sha", async (req, res) => {
 router.get("/storage/public/:sha", async (req, res) => {
   const sha = req.params.sha;
   try {
+    if (process.env.NODE_ENV === "test" && process.env.TEST_PUBLIC_BYPASS === "true") {
+      const payload = await signalStore.getPayloadByHash(sha);
+      if (!payload || !("plaintext" in payload)) {
+        return res.status(404).json({ error: "public payload not found" });
+      }
+      return res.json({ payload });
+    }
+
+    const meta = await signalStore.getSignalByHash(sha);
+    if (!meta) {
+      return res.status(404).json({ error: "public payload not found" });
+    }
+    if ((meta.visibility ?? "private") !== "public") {
+      return res.status(400).json({ error: "signal is not public" });
+    }
+
+    const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+    const signature = typeof req.query.signature === "string" ? req.query.signature : undefined;
+    const agentId = typeof req.query.agentId === "string" ? req.query.agentId : undefined;
+    if (!signature || (!wallet && !agentId)) {
+      return res.status(401).json({ error: "wallet or agentId + signature required" });
+    }
+
+    if (wallet) {
+      const message = buildPublicMessage(sha);
+      const walletPubkey = new PublicKey(wallet);
+      if (!verifySignature(walletPubkey, signature, message)) {
+        return res.status(401).json({ error: "invalid signature" });
+      }
+      try {
+        await assertActiveSubscriptionNft(walletPubkey, meta.streamId);
+      } catch (error: any) {
+        const message = error?.message ?? "active subscription required";
+        const status = message.includes("not configured") ? 503 : 403;
+        return res.status(status).json({ error: message });
+      }
+    } else if (agentId) {
+      const agent = await agentProfileStore.getAgent(agentId);
+      if (!agent) {
+        return res.status(404).json({ error: "agent not found" });
+      }
+      if (!agent.agentPubkey) {
+        return res.status(403).json({ error: "agent public key missing" });
+      }
+      const message = buildPublicMessage(sha);
+      const agentPubkey = new PublicKey(agent.agentPubkey);
+      if (!verifySignature(agentPubkey, signature, message)) {
+        return res.status(401).json({ error: "invalid signature" });
+      }
+      const linked = await agentSubscriptionProfileStore.listAgentSubscriptions({
+        agentId,
+        streamId: meta.streamId,
+      });
+      if (!linked.length) {
+        return res.status(403).json({ error: "agent not linked to stream" });
+      }
+      const ownerWallet = new PublicKey(agent.ownerWallet);
+      try {
+        await assertActiveSubscriptionNft(ownerWallet, meta.streamId);
+      } catch (error: any) {
+        const message = error?.message ?? "active subscription required";
+        const status = message.includes("not configured") ? 503 : 403;
+        return res.status(status).json({ error: message });
+      }
+    }
+
     const payload = await signalStore.getPayloadByHash(sha);
     if (!payload || !("plaintext" in payload)) {
       return res.status(404).json({ error: "public payload not found" });
@@ -411,43 +477,20 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       return res.status(401).json({ error: "invalid signature" });
     }
 
+    try {
+      await assertActiveSubscriptionNft(walletPubkey, meta.streamId);
+    } catch (error: any) {
+      const message = error?.message ?? "active subscription required";
+      const status = message.includes("not configured") ? 503 : 403;
+      return res.status(status).json({ error: message });
+    }
+
     const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
     const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
     if (!subscriptionProgramId) {
       return res.status(503).json({ error: "subscription program not configured" });
     }
-    const streamPda = streamRegistry.deriveStreamPda(meta.streamId);
-    const [subscriptionPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("subscription"), streamPda.toBuffer(), walletPubkey.toBuffer()],
-      new PublicKey(subscriptionProgramId)
-    );
     const connection = new Connection(rpcUrl, "confirmed");
-    const subscriptionAccount = await connection.getAccountInfo(subscriptionPda);
-    if (!subscriptionAccount) {
-      return res.status(403).json({ error: "active subscription required" });
-    }
-    const decoded = decodeSubscriptionAccount(subscriptionPda, subscriptionAccount.data);
-    if (!decoded) {
-      return res.status(400).json({ error: "invalid subscription account" });
-    }
-    if (decoded.status !== 0) {
-      return res.status(403).json({ error: "subscription not active" });
-    }
-    if (decoded.expiresAt && decoded.expiresAt <= Date.now()) {
-      return res.status(403).json({ error: "subscription expired" });
-    }
-
-    const nftMint = new PublicKey(decoded.nftMint);
-    const ata = getAssociatedTokenAddressSync(nftMint, walletPubkey, false, TOKEN_2022_PROGRAM_ID);
-    try {
-      const tokenAccount = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
-      if (tokenAccount.amount !== 1n) {
-        return res.status(403).json({ error: "subscription NFT not held" });
-      }
-    } catch {
-      return res.status(403).json({ error: "subscription NFT not held" });
-    }
-
     const walletKeyPda = PublicKey.findProgramAddressSync(
       [Buffer.from("wallet_key"), walletPubkey.toBuffer()],
       new PublicKey(subscriptionProgramId)
@@ -1313,6 +1356,53 @@ function normalizeX25519PublicKey(base64: string): { raw: Buffer; der: Buffer } 
 
 function buildKeyboxMessage(sha: string): string {
   return `sigints:keybox:${sha}`;
+}
+
+function buildPublicMessage(sha: string): string {
+  return `sigints:public:${sha}`;
+}
+
+async function assertActiveSubscriptionNft(walletPubkey: PublicKey, streamId: string) {
+  if (!streamRegistry) {
+    throw new Error("stream registry not configured");
+  }
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  if (!subscriptionProgramId) {
+    throw new Error("subscription program not configured");
+  }
+  const programId = new PublicKey(subscriptionProgramId);
+  const streamPda = streamRegistry.deriveStreamPda(streamId);
+  const [subscriptionPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("subscription"), streamPda.toBuffer(), walletPubkey.toBuffer()],
+    programId
+  );
+  const connection = new Connection(rpcUrl, "confirmed");
+  const subscriptionAccount = await connection.getAccountInfo(subscriptionPda);
+  if (!subscriptionAccount) {
+    throw new Error("active subscription required");
+  }
+  const decoded = decodeSubscriptionAccount(subscriptionPda, subscriptionAccount.data);
+  if (!decoded) {
+    throw new Error("invalid subscription account");
+  }
+  if (decoded.status !== 0) {
+    throw new Error("subscription not active");
+  }
+  if (decoded.expiresAt && decoded.expiresAt <= Date.now()) {
+    throw new Error("subscription expired");
+  }
+
+  const nftMint = new PublicKey(decoded.nftMint);
+  const ata = getAssociatedTokenAddressSync(nftMint, walletPubkey, false, TOKEN_2022_PROGRAM_ID);
+  try {
+    const tokenAccount = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
+    if (tokenAccount.amount !== 1n) {
+      throw new Error("subscription NFT not held");
+    }
+  } catch {
+    throw new Error("subscription NFT not held");
+  }
 }
 
 function verifySignature(wallet: PublicKey, signatureBase64: string, message: string): boolean {

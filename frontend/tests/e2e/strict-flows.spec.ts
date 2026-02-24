@@ -140,7 +140,16 @@ test("public stream flow (free + plaintext fetch)", async ({ browser }) => {
   const pointer = latest.signal.signalPointer as string;
   const sha = pointer.split("/").pop();
   expect(sha).toBeTruthy();
-  const payload = await backendClient.fetchPublicPayload<any>(sha!);
+  const wallet = await backendClient.getTestWallet("user04");
+  const message = Buffer.from(`sigints:public:${sha}`, "utf8");
+  const signature = await backendClient.testWalletSignMessage(
+    { messageBase64: message.toString("base64") },
+    "user04"
+  );
+  const payload = await backendClient.fetchPublicPayload<any>(sha!, {
+    wallet: wallet.wallet,
+    signatureBase64: signature.signatureBase64,
+  });
   const plaintext = Buffer.from(payload.payload.plaintext, "base64").toString("utf8");
   expect(plaintext).toContain(signalMessage);
 
