@@ -185,6 +185,10 @@ export type PublicPayloadAuth =
   | { wallet: string; signatureBase64: string }
   | { agentId: string; signatureBase64: string };
 
+export type KeyboxEntryAuth =
+  | { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }
+  | { agentId: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string };
+
 export function buildPublicPayloadMessage(sha: string): Uint8Array {
   return new TextEncoder().encode(`sigints:public:${sha}`);
 }
@@ -207,10 +211,11 @@ export async function fetchPublicPayload<T = any>(
 export async function fetchKeyboxEntry<T = any>(
   backendUrl: string,
   sha: string,
-  params: { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }
+  params: KeyboxEntryAuth
 ): Promise<{ entry: T }> {
+  const actor = "wallet" in params ? `wallet=${encodeURIComponent(params.wallet)}` : `agentId=${encodeURIComponent(params.agentId)}`;
   const query =
-    `?wallet=${encodeURIComponent(params.wallet)}` +
+    `?${actor}` +
     `&signature=${encodeURIComponent(params.signatureBase64)}` +
     `&encPubKeyDerBase64=${encodeURIComponent(params.encPubKeyDerBase64)}` +
     (params.subscriberId ? `&subscriberId=${encodeURIComponent(params.subscriberId)}` : "");
@@ -481,7 +486,7 @@ export function createBackendClient(backendUrl: string) {
     fetchSignalByHash: <T = any>(signalHash: string) => fetchSignalByHash<T>(url, signalHash),
     fetchCiphertext: <T = any>(sha: string) => fetchCiphertext<T>(url, sha),
     fetchPublicPayload: <T = any>(sha: string, auth?: PublicPayloadAuth) => fetchPublicPayload<T>(url, sha, auth),
-    fetchKeyboxEntry: <T = any>(sha: string, params: { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }) =>
+    fetchKeyboxEntry: <T = any>(sha: string, params: KeyboxEntryAuth) =>
       fetchKeyboxEntry<T>(url, sha, params),
     fetchHealth: () => fetchHealth(url),
     getTestWallet: (walletName?: string) => getTestWallet(url, walletName),

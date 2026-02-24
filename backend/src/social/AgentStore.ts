@@ -3,7 +3,7 @@ export type AgentProfile = {
   ownerWallet: string;
   agentPubkey?: string;
   name: string;
-  role: "maker" | "listener";
+  role: "maker" | "listener" | "both";
   streamId?: string;
   domain: string;
   description?: string;
@@ -21,7 +21,7 @@ export type AgentProfile = {
 
 export type AgentQuery = {
   ownerWallet?: string;
-  role?: "maker" | "listener";
+  role?: "maker" | "listener" | "both";
   streamId?: string;
   search?: string;
 };

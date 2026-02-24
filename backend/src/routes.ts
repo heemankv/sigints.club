@@ -432,6 +432,7 @@ router.get("/storage/public/:sha", async (req, res) => {
 router.get("/storage/keybox/:sha", async (req, res) => {
   const sha = req.params.sha;
   const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+  const agentId = typeof req.query.agentId === "string" ? req.query.agentId : undefined;
   const signature = typeof req.query.signature === "string" ? req.query.signature : undefined;
   const providedEncPubKey =
     typeof req.query.encPubKeyDerBase64 === "string" ? req.query.encPubKeyDerBase64 : undefined;
@@ -465,44 +466,52 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       return res.status(400).json({ error: "public stream signals do not have a keybox" });
     }
 
-    if (!wallet || !signature) {
-      return res.status(401).json({ error: "wallet + signature required" });
-    }
-    if (!streamRegistry) {
-      return res.status(503).json({ error: "stream registry not configured" });
+    if (!signature || (!wallet && !agentId)) {
+      return res.status(401).json({ error: "wallet or agentId + signature required" });
     }
     const message = buildKeyboxMessage(sha);
-    const walletPubkey = new PublicKey(wallet);
-    if (!verifySignature(walletPubkey, signature, message)) {
-      return res.status(401).json({ error: "invalid signature" });
+    let ownerWallet: PublicKey;
+    if (wallet) {
+      const walletPubkey = new PublicKey(wallet);
+      if (!verifySignature(walletPubkey, signature, message)) {
+        return res.status(401).json({ error: "invalid signature" });
+      }
+      ownerWallet = walletPubkey;
+    } else {
+      const agent = await agentProfileStore.getAgent(agentId as string);
+      if (!agent) {
+        return res.status(404).json({ error: "agent not found" });
+      }
+      if (!agent.agentPubkey) {
+        return res.status(403).json({ error: "agent public key missing" });
+      }
+      const agentPubkey = new PublicKey(agent.agentPubkey);
+      if (!verifySignature(agentPubkey, signature, message)) {
+        return res.status(401).json({ error: "invalid signature" });
+      }
+      const linked = await agentSubscriptionProfileStore.listAgentSubscriptions({
+        agentId: agent.id,
+        streamId: meta.streamId,
+      });
+      if (!linked.length) {
+        return res.status(403).json({ error: "agent not linked to stream" });
+      }
+      ownerWallet = new PublicKey(agent.ownerWallet);
     }
 
     try {
-      await assertActiveSubscriptionNft(walletPubkey, meta.streamId);
+      await assertActiveSubscriptionNft(ownerWallet, meta.streamId);
     } catch (error: any) {
       const message = error?.message ?? "active subscription required";
       const status = message.includes("not configured") ? 503 : 403;
       return res.status(status).json({ error: message });
     }
 
-    const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
-    const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
-    if (!subscriptionProgramId) {
-      return res.status(503).json({ error: "subscription program not configured" });
-    }
-    const connection = new Connection(rpcUrl, "confirmed");
-    const streamPda = streamRegistry.deriveStreamPda(meta.streamId);
-    const walletKeyPda = PublicKey.findProgramAddressSync(
-      [Buffer.from("sub_key"), streamPda.toBuffer(), walletPubkey.toBuffer()],
-      new PublicKey(subscriptionProgramId)
-    )[0];
     let onchainEncPub: Uint8Array | null = null;
-    const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
-    if (walletKeyAccount) {
-      const decodedKey = decodeSubscriptionKey(walletKeyAccount.data);
-      if (decodedKey) {
-        onchainEncPub = decodedKey.encPubkey;
-      }
+    try {
+      onchainEncPub = await fetchSubscriptionKey(ownerWallet, meta.streamId);
+    } catch (error: any) {
+      return res.status(503).json({ error: error?.message ?? "subscription program not configured" });
     }
     if (!onchainEncPub) {
       return res.status(403).json({ error: "encryption key not registered" });
@@ -869,11 +878,43 @@ async function ensureAnyActiveSubscription(ownerWallet: string): Promise<void> {
   }
 }
 
+async function fetchSubscriptionKey(ownerWallet: PublicKey, streamId: string): Promise<Uint8Array | null> {
+  if (!streamRegistry) {
+    throw new Error("stream registry not configured");
+  }
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  if (!subscriptionProgramId) {
+    throw new Error("subscription program not configured");
+  }
+  const programId = new PublicKey(subscriptionProgramId);
+  const connection = new Connection(rpcUrl, "confirmed");
+  const streamPda = streamRegistry.deriveStreamPda(streamId);
+  const walletKeyPda = PublicKey.findProgramAddressSync(
+    [Buffer.from("sub_key"), streamPda.toBuffer(), ownerWallet.toBuffer()],
+    programId
+  )[0];
+  const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
+  if (!walletKeyAccount) {
+    return null;
+  }
+  const decodedKey = decodeSubscriptionKey(walletKeyAccount.data);
+  return decodedKey?.encPubkey ?? null;
+}
+
+async function ensureSubscriptionKeyRegistered(ownerWallet: string, streamId: string): Promise<void> {
+  const walletPubkey = new PublicKey(ownerWallet);
+  const onchainEncPub = await fetchSubscriptionKey(walletPubkey, streamId);
+  if (!onchainEncPub) {
+    throw new Error("subscription encryption key not registered");
+  }
+}
+
 const agentSchema = z.object({
   ownerWallet: z.string(),
   agentPubkey: z.string().optional(),
   name: z.string(),
-  role: z.enum(["maker", "listener"]).default("maker"),
+  role: z.enum(["maker", "listener", "both"]).default("maker"),
   streamId: z.string().optional(),
   domain: z.string(),
   description: z.string().optional(),
@@ -896,22 +937,20 @@ router.post("/agents", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  try {
-    await ensureAnyActiveSubscription(parsed.data.ownerWallet);
-  } catch (error: any) {
-    const message = error?.message ?? "active subscription required";
-    const status = message.includes("not configured") ? 503 : 403;
-    return res.status(status).json({ error: message });
-  }
-  if (parsed.data.role === "maker" && !parsed.data.streamId) {
+  const isSender = parsed.data.role === "maker" || parsed.data.role === "both";
+  if (isSender && !parsed.data.streamId) {
     return res.status(400).json({ error: "streamId is required for sender agents" });
   }
-  if (parsed.data.role === "maker" && parsed.data.streamId) {
-    const existing = await agentProfileStore.listAgents({
+  if (isSender && parsed.data.streamId) {
+    const existingMakers = await agentProfileStore.listAgents({
       role: "maker",
       streamId: parsed.data.streamId,
     });
-    if (existing.length > 0) {
+    const existingBoth = await agentProfileStore.listAgents({
+      role: "both",
+      streamId: parsed.data.streamId,
+    });
+    if (existingMakers.length > 0 || existingBoth.length > 0) {
       return res.status(409).json({ error: "sender agent already exists for stream" });
     }
   }
@@ -921,7 +960,7 @@ router.post("/agents", async (req, res) => {
 
 router.get("/agents", async (req, res) => {
   const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
-  const role = typeof req.query.role === "string" ? (req.query.role as "maker" | "listener") : undefined;
+  const role = typeof req.query.role === "string" ? (req.query.role as "maker" | "listener" | "both") : undefined;
   const streamId = typeof req.query.streamId === "string" ? req.query.streamId : undefined;
   const search = typeof req.query.search === "string" ? req.query.search : undefined;
   const agents = await agentProfileStore.listAgents({ ownerWallet: owner, role, streamId, search });
@@ -963,6 +1002,23 @@ router.post("/agent-subscriptions", async (req, res) => {
     await ensureActiveSubscription(parsed.data.ownerWallet, parsed.data.streamId);
   } catch (error: any) {
     const message = error?.message ?? "active subscription required";
+    const status = message.includes("not configured") ? 503 : 403;
+    return res.status(status).json({ error: message });
+  }
+  try {
+    if (!streamRegistry) {
+      throw new Error("stream registry not configured");
+    }
+    const config = await streamRegistry.getStreamConfig(parsed.data.streamId);
+    if (!config) {
+      return res.status(404).json({ error: "stream not found" });
+    }
+    const visibility = config.visibility === 0 ? "public" : "private";
+    if (visibility === "private") {
+      await ensureSubscriptionKeyRegistered(parsed.data.ownerWallet, parsed.data.streamId);
+    }
+  } catch (error: any) {
+    const message = error?.message ?? "subscription encryption key not registered";
     const status = message.includes("not configured") ? 503 : 403;
     return res.status(status).json({ error: message });
   }

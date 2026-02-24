@@ -209,18 +209,28 @@ export class SigintsClient {
     if (!sha) {
       throw new Error("invalid keybox pointer");
     }
-    if (!this.keyboxAuth) {
-      throw new Error("keybox auth not configured");
-    }
     const message = Buffer.from(`sigints:keybox:${sha}`, "utf8");
-    const signatureBytes = await Promise.resolve(this.keyboxAuth.signMessage(message));
-    const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
-    const data = await fetchKeyboxEntryRequest<WrappedKey>(this.backendUrl, sha, {
-      wallet: this.keyboxAuth.walletPubkey,
-      signatureBase64,
-      encPubKeyDerBase64,
-    });
-    return data.entry;
+    if (this.keyboxAuth) {
+      const signatureBytes = await Promise.resolve(this.keyboxAuth.signMessage(message));
+      const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
+      const data = await fetchKeyboxEntryRequest<WrappedKey>(this.backendUrl, sha, {
+        wallet: this.keyboxAuth.walletPubkey,
+        signatureBase64,
+        encPubKeyDerBase64,
+      });
+      return data.entry;
+    }
+    if (this.agentAuth) {
+      const signatureBytes = await Promise.resolve(this.agentAuth.signMessage(message));
+      const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
+      const data = await fetchKeyboxEntryRequest<WrappedKey>(this.backendUrl, sha, {
+        agentId: this.agentAuth.agentId,
+        signatureBase64,
+        encPubKeyDerBase64,
+      });
+      return data.entry;
+    }
+    throw new Error("keybox auth or agent auth not configured");
   }
 
   async decryptSignal(meta: SignalMetadata, keys?: SubscriberKeys): Promise<string> {

@@ -7,6 +7,7 @@ type StreamCardProps = {
   onSubscribe?: (streamId: string) => void;
   viewerWallet?: string | null;
   highlight?: boolean;
+  isSubscribed?: boolean;
 };
 
 function formatTierLabel(tierId: string): string {
@@ -24,7 +25,7 @@ function formatPricingLabel(pricingType?: string): string {
   return pricingType.replace(/_/g, " ");
 }
 
-export default function StreamCard({ stream, onSubscribe, viewerWallet, highlight }: StreamCardProps) {
+export default function StreamCard({ stream, onSubscribe, viewerWallet, highlight, isSubscribed }: StreamCardProps) {
   const primaryTier = stream.tiers?.[0];
   const tierId = primaryTier?.tierId ?? "tier";
   const tierLabel = formatTierLabel(tierId);
@@ -72,7 +73,7 @@ export default function StreamCard({ stream, onSubscribe, viewerWallet, highligh
         )}
 
         <div className="data-card__actions">
-          {!isOwner && (
+          {!isOwner && !isSubscribed && (
             <button
               className="button primary"
               onClick={() => {
@@ -82,6 +83,11 @@ export default function StreamCard({ stream, onSubscribe, viewerWallet, highligh
               disabled={!canSubscribe}
             >
               Subscribe
+            </button>
+          )}
+          {!isOwner && isSubscribed && (
+            <button className="button ghost" disabled>
+              Subscribed
             </button>
           )}
           <Link className="button ghost" href={`/stream/${stream.id}`}>

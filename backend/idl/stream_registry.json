@@ -82,6 +82,131 @@
       ]
     },
     {
+      "name": "grant_publisher",
+      "discriminator": [
+        1,
+        86,
+        169,
+        57,
+        40,
+        30,
+        28,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "stream",
+          "writable": true
+        },
+        {
+          "name": "agent"
+        },
+        {
+          "name": "publisher_delegate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  98,
+                  108,
+                  105,
+                  115,
+                  104,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stream"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "stream"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "revoke_publisher",
+      "discriminator": [
+        233,
+        127,
+        45,
+        45,
+        231,
+        194,
+        2,
+        197
+      ],
+      "accounts": [
+        {
+          "name": "stream",
+          "writable": true
+        },
+        {
+          "name": "agent"
+        },
+        {
+          "name": "publisher_delegate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  98,
+                  108,
+                  105,
+                  115,
+                  104,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stream"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "stream"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "set_tiers",
       "discriminator": [
         170,
@@ -249,6 +374,19 @@
   ],
   "accounts": [
     {
+      "name": "PublisherDelegate",
+      "discriminator": [
+        12,
+        55,
+        124,
+        56,
+        223,
+        26,
+        187,
+        40
+      ]
+    },
+    {
       "name": "StreamConfig",
       "discriminator": [
         130,
@@ -283,6 +421,34 @@
     }
   ],
   "types": [
+    {
+      "name": "PublisherDelegate",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "stream",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "StreamConfig",
       "type": {

@@ -191,6 +191,136 @@
       ]
     },
     {
+      "name": "record_signal_delegated",
+      "discriminator": [
+        249,
+        144,
+        213,
+        255,
+        227,
+        17,
+        106,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "signal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  103,
+                  110,
+                  97,
+                  108,
+                  95,
+                  108,
+                  97,
+                  116,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stream"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stream"
+        },
+        {
+          "name": "stream_registry_program"
+        },
+        {
+          "name": "stream_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  101,
+                  97,
+                  109,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stream"
+              }
+            ]
+          }
+        },
+        {
+          "name": "publisher_delegate"
+        },
+        {
+          "name": "publisher",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "signal_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "signal_pointer_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "keybox_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "keybox_pointer_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "register_key",
       "discriminator": [
         56,
@@ -245,6 +375,72 @@
           "relations": [
             "subscription"
           ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "enc_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "register_subscription_key",
+      "discriminator": [
+        63,
+        198,
+        90,
+        133,
+        166,
+        115,
+        25,
+        198
+      ],
+      "accounts": [
+        {
+          "name": "stream"
+        },
+        {
+          "name": "subscription_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  98,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stream"
+              },
+              {
+                "kind": "account",
+                "path": "subscriber"
+              }
+            ]
+          }
+        },
+        {
+          "name": "subscriber",
+          "writable": true,
+          "signer": true
         },
         {
           "name": "system_program",
@@ -531,7 +727,7 @@
           "writable": true
         },
         {
-          "name": "wallet_key"
+          "name": "subscription_key"
         },
         {
           "name": "system_program",
@@ -637,6 +833,19 @@
       ]
     },
     {
+      "name": "SubscriptionKey",
+      "discriminator": [
+        58,
+        135,
+        41,
+        65,
+        174,
+        240,
+        33,
+        250
+      ]
+    },
+    {
       "name": "WalletKey",
       "discriminator": [
         249,
@@ -710,6 +919,16 @@
       "code": 6011,
       "name": "WalletKeyMissing",
       "msg": "Wallet encryption key missing for private stream"
+    },
+    {
+      "code": 6012,
+      "name": "SubscriptionKeyMissing",
+      "msg": "Subscription encryption key missing for private stream"
+    },
+    {
+      "code": 6013,
+      "name": "UnauthorizedPublisher",
+      "msg": "Publisher delegate is missing or inactive"
     }
   ],
   "types": [
@@ -871,6 +1090,39 @@
           {
             "name": "nft_mint",
             "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SubscriptionKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "subscriber",
+            "type": "pubkey"
+          },
+          {
+            "name": "stream",
+            "type": "pubkey"
+          },
+          {
+            "name": "enc_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
           },
           {
             "name": "bump",

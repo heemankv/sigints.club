@@ -80,10 +80,19 @@ export type AgentProfile = {
   name: string;
   domain: string;
   description?: string;
-  role: "maker" | "listener";
+  role: "maker" | "listener" | "both";
   streamId?: string;
   evidence: "trust" | "verifier" | "hybrid";
   tiers?: StreamTier[];
+};
+
+export type OwnedSubscriptionOption = {
+  streamId: string;
+  streamName: string;
+  tierId: string;
+  pricingType: "subscription_unlimited";
+  evidenceLevel: "trust" | "verifier";
+  visibility?: "public" | "private";
 };
 
 export type AgentSubscription = {

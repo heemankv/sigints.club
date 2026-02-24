@@ -28,6 +28,7 @@ import {
 } from "../lib/api/social";
 import { fetchSignalEvents } from "../lib/api/signals";
 import { fetchStreamSubscribers } from "../lib/api/streams";
+import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
 import { FEED_COMMENTS_PAGE_SIZE } from "../lib/constants";
 import {
   timeAgo,
@@ -92,6 +93,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const streamingPoll = useRef<number | null>(null);
   const subscriberCountFetchedAt = useRef<Record<string, number>>({});
 
+  const [subscribedStreamAddresses, setSubscribedStreamAddresses] = useState<Set<string>>(new Set());
   const [streamSearch, setStreamSearch] = useState("");
 
   // Composer state
@@ -175,6 +177,34 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
         setFollowingIds(new Set(data.following ?? []));
       } catch {
         // ignore follow list fetch failures
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [wallet]);
+
+  useEffect(() => {
+    let active = true;
+    if (!wallet) {
+      setSubscribedStreamAddresses(new Set());
+      return;
+    }
+    const cached = readSubscriptionsCache(wallet);
+    if (cached?.subscriptions?.length) {
+      setSubscribedStreamAddresses(
+        new Set(cached.subscriptions.filter((s) => s.status === 0).map((s) => s.stream))
+      );
+    }
+    (async () => {
+      try {
+        const data = await fetchOnchainSubscriptions(wallet);
+        if (!active) return;
+        setSubscribedStreamAddresses(
+          new Set((data.subscriptions ?? []).filter((s) => s.status === 0).map((s) => s.stream))
+        );
+      } catch {
+        // ignore subscription fetch failures
       }
     })();
     return () => {
@@ -596,6 +626,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 onSubscribe={openSubscribe}
                 viewerWallet={wallet}
                 highlight={streamSearchNorm !== "" && streamMatchSet.has(stream.id)}
+                isSubscribed={Boolean(stream.onchainAddress && subscribedStreamAddresses.has(stream.onchainAddress))}
               />
             ))}
             {streamsLoading && !streams.length && (

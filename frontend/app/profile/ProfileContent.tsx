@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { fetchStreams, readStreamsCache } from "../lib/api/streams";
 import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
 import {
-  createAgent as sdkCreateAgent,
   createAgentSubscription as sdkCreateAgentSubscription,
   deleteAgentSubscription,
   updateUserProfile,
@@ -18,9 +17,10 @@ import {
   fetchAgentSubscriptions,
   readAgentSubsCache,
 } from "../lib/api/agents";
-import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier } from "../lib/types";
+import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier, OwnedSubscriptionOption } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
+import RegisterAgentWizard from "../components/RegisterAgentWizard";
 import {
   sha256Bytes,
   buildGrantPublisherInstruction,
@@ -32,15 +32,6 @@ import { toHex } from "../lib/utils";
 import LeftNav from "../components/LeftNav";
 import StreamsRail from "../components/StreamsRail";
 import { useUserProfile, type UserProfile } from "../lib/userProfile";
-
-type OwnedSubscriptionOption = {
-  streamId: string;
-  streamName: string;
-  tierId: string;
-  pricingType: "subscription_unlimited";
-  evidenceLevel: "trust" | "verifier";
-  visibility?: "public" | "private";
-};
 
 export type ProfileTab = "subscriptions" | "streams" | "agents" | "actions";
 
@@ -62,17 +53,10 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [subsError, setSubsError] = useState<string | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
 
-  const [agentName, setAgentName] = useState("");
-  const [agentDomain, setAgentDomain] = useState("");
-  const [agentStreamId, setAgentStreamId] = useState("");
-  const [agentRole, setAgentRole] = useState<"maker" | "listener">("listener");
-  const [agentEvidence, setAgentEvidence] = useState<"trust" | "verifier" | "hybrid">("trust");
-  const [agentPubkey, setAgentPubkey] = useState("");
-  const [agentSecretKey, setAgentSecretKey] = useState("");
-  const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [linkSelections, setLinkSelections] = useState<Record<string, string>>({});
   const [linkStatus, setLinkStatus] = useState<Record<string, string | null>>({});
   const [publishStatus, setPublishStatus] = useState<Record<string, string | null>>({});
+  const [managingAgentId, setManagingAgentId] = useState<string | null>(null);
 
   const activeTab = initialTab;
   const [actionsTab, setActionsTab] = useState<"editProfile" | "streamKeys">("editProfile");
@@ -92,12 +76,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     setEditBio(profile?.bio ?? "");
   }, [walletAddr, profile?.displayName, profile?.bio]);
 
-
-  useEffect(() => {
-    if (agentRole !== "maker") {
-      setAgentStreamId("");
-    }
-  }, [agentRole]);
 
   useEffect(() => {
     if (!walletAddr) return;
@@ -238,47 +216,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     } catch {
       if (!cached?.length) setAgentSubscriptions([]);
     }
-  }
-
-  async function createAgent() {
-    if (!walletAddr) { setAgentStatus("Connect your wallet first."); return; }
-    if (agentRole === "maker" && !agentStreamId.trim()) {
-      setAgentStatus("Stream ID is required for sender agents.");
-      return;
-    }
-    if (!agentPubkey.trim()) {
-      setAgentStatus("Generate or paste an agent public key.");
-      return;
-    }
-    setAgentStatus(null);
-    try {
-      await sdkCreateAgent({
-        ownerWallet: walletAddr,
-        agentPubkey: agentPubkey.trim(),
-        name: agentName,
-        domain: agentDomain,
-        description: "",
-        role: agentRole,
-        streamId: agentRole === "maker" ? agentStreamId.trim() : undefined,
-        evidence: agentEvidence,
-      });
-      await loadAgents();
-      setAgentName("");
-      setAgentDomain("");
-      setAgentStreamId("");
-      setAgentPubkey("");
-      setAgentSecretKey("");
-      setAgentStatus("Agent created.");
-    } catch (err: any) {
-      setAgentStatus(err.message ?? "Failed to create agent");
-    }
-  }
-
-  function generateAgentKeypair() {
-    const kp = Keypair.generate();
-    setAgentPubkey(kp.publicKey.toBase58());
-    setAgentSecretKey(JSON.stringify(Array.from(kp.secretKey)));
-    setAgentStatus("Agent keypair generated. Store the secret key safely.");
   }
 
   async function linkSubscription(agentId: string) {
@@ -429,8 +366,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     });
     return map;
   }, [agentSubscriptions]);
-  const shouldGateAgentRegistration = !subsLoading && ownedSubscriptionOptions.length === 0;
-
   return (
     <section className="social-shell">
 
@@ -521,223 +456,183 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
             {activeTab === "agents" && (
               <div className="profile-tab-content">
-                <div
-                  className="x-rail-module"
-                  style={{ border: 0, background: "transparent", padding: 0, marginBottom: 24, position: "relative" }}
-                >
-                  <h3 className="x-rail-heading">Register Agent</h3>
-                  <input
-                    className="input"
-                    value={agentName}
-                    onChange={(e) => setAgentName(e.target.value)}
-                    placeholder="Agent name"
-                    style={{ marginBottom: 8 }}
-                  />
-                  <input
-                    className="input"
-                    value={agentDomain}
-                    onChange={(e) => setAgentDomain(e.target.value)}
-                    placeholder="Domain (e.g. pricing)"
-                    style={{ marginBottom: 8 }}
-                  />
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <input
-                      className="input"
-                      value={agentPubkey}
-                      onChange={(e) => setAgentPubkey(e.target.value)}
-                      placeholder="Agent public key"
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      className="button ghost"
-                      type="button"
-                      onClick={generateAgentKeypair}
-                      style={{ whiteSpace: "nowrap" }}
-                    >
-                      Generate
-                    </button>
-                  </div>
-                  {agentSecretKey && (
-                    <textarea
-                      className="input"
-                      value={agentSecretKey}
-                      readOnly
-                      rows={3}
-                      style={{ marginBottom: 8 }}
-                    />
-                  )}
-                  {agentRole === "maker" && (
-                    <>
-                      <input
-                        className="input"
-                        value={agentStreamId}
-                        onChange={(e) => setAgentStreamId(e.target.value)}
-                        placeholder="Stream ID for sender agent"
-                        list="agent-stream-suggestions"
-                        style={{ marginBottom: 8 }}
-                      />
-                      <datalist id="agent-stream-suggestions">
-                        {streamCatalog.map((stream) => (
-                          <option key={stream.id} value={stream.id}>
-                            {stream.name}
-                          </option>
-                        ))}
-                      </datalist>
-                    </>
-                  )}
-                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                    <button
-                      className={`button ${agentRole === "maker" ? "primary" : "ghost"}`}
-                      onClick={() => setAgentRole("maker")}
-                      style={{ flex: 1, fontSize: 13 }}
-                    >
-                      Sender
-                    </button>
-                    <button
-                      className={`button ${agentRole === "listener" ? "primary" : "ghost"}`}
-                      onClick={() => setAgentRole("listener")}
-                      style={{ flex: 1, fontSize: 13 }}
-                    >
-                      Listener
-                    </button>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-                    {(["trust", "verifier", "hybrid"] as const).map((ev) => (
-                      <button
-                        key={ev}
-                        className={`button ${agentEvidence === ev ? "primary" : "ghost"}`}
-                        onClick={() => setAgentEvidence(ev)}
-                        style={{ flex: 1, fontSize: 11, padding: "6px 4px" }}
-                      >
-                        {ev}
-                      </button>
-                    ))}
-                  </div>
-                  <button className="button secondary" onClick={createAgent} style={{ width: "100%" }}>
-                    Register Agent
-                  </button>
-                  {agentStatus && <p className="subtext" style={{ marginTop: 8 }}>{agentStatus}</p>}
-                  {shouldGateAgentRegistration && (
-                    <div className="agent-gate">
-                      <div className="agent-gate__card">
-                        <p>You need a subscription before a new agent can be added.</p>
+                <RegisterAgentWizard
+                  walletAddr={walletAddr!}
+                  streamCatalog={streamCatalog}
+                  ownedSubscriptionOptions={ownedSubscriptionOptions}
+                  onAgentCreated={() => { void loadAgents(); void loadAgentSubscriptions(); }}
+                />
+
+                <h3 className="x-rail-heading" style={{ marginBottom: 10 }}>Your Agents</h3>
+                <div className="stream-card-grid">
+                  {agents.map((agent) => {
+                    const linked = subscriptionsByAgent.get(agent.id) ?? [];
+                    const linkedStreamIds = new Set(linked.map((sub) => sub.streamId));
+                    const availableOptions = ownedSubscriptionOptions.filter(
+                      (option) => !linkedStreamIds.has(option.streamId)
+                    );
+                    const isManaging = managingAgentId === agent.id;
+                    const roleLabel = agent.role === "maker" ? "sender" : agent.role === "both" ? "sender + listener" : "listener";
+                    return (
+                      <div className="stream-card" key={agent.id}>
+                        <div className="stream-card-row">
+                          <div className="stream-card-identity">
+                            <div className="stream-card-header">
+                              {agent.domain && <span className="badge badge-teal">{agent.domain}</span>}
+                              <span className="badge badge-gold">{roleLabel}</span>
+                              {agent.evidence && <span className="badge">{agent.evidence}</span>}
+                            </div>
+                            <h3 className="stream-card-name">{agent.name}</h3>
+                            <p className="stream-card-desc">
+                              {agent.streamId ? `Stream: ${agent.streamId}` : "No publish stream"}
+                              {agent.agentPubkey ? ` · Key: ${agent.agentPubkey.slice(0, 5)}…${agent.agentPubkey.slice(-4)}` : ""}
+                            </p>
+                          </div>
+
+                          <div className="stream-card-stats">
+                            <div className="stream-card-meta">
+                              <span>{linked.length} linked sub{linked.length !== 1 ? "s" : ""}</span>
+                            </div>
+                            {linked.length > 0 && (
+                              <div className="chip-row">
+                                {linked.map((sub) => (
+                                  <span className="chip" key={sub.id}>
+                                    {streamNameById.get(sub.streamId) ?? sub.streamId} · {sub.tierId}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="stream-card-actions">
+                            <button
+                              className="button ghost"
+                              onClick={() => setManagingAgentId(isManaging ? null : agent.id)}
+                            >
+                              {isManaging ? "Close" : "Manage →"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isManaging && (
+                          <div className={`signal-activity signal-activity--open`} style={{ marginTop: 10 }}>
+                            <button
+                              className="signal-activity__toggle"
+                              onClick={() => setManagingAgentId(null)}
+                            >
+                              <span>Management</span>
+                              <span className="signal-activity__meta">{agent.name}</span>
+                              <span className="signal-activity__chev">▴</span>
+                            </button>
+
+                            <div className="signal-activity__list">
+                              {/* Grant / Revoke Publish */}
+                              {agent.streamId && (
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                  <button
+                                    className="button secondary"
+                                    onClick={() => void grantPublisher(agent)}
+                                    style={{ padding: "4px 10px", fontSize: 11 }}
+                                  >
+                                    Grant Publish
+                                  </button>
+                                  <button
+                                    className="button ghost"
+                                    onClick={() => void revokePublisher(agent)}
+                                    style={{ padding: "4px 10px", fontSize: 11 }}
+                                  >
+                                    Revoke Publish
+                                  </button>
+                                  {publishStatus[agent.id] && (
+                                    <span className="subtext">{publishStatus[agent.id]}</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Linked subscriptions */}
+                              <div>
+                                <span className="signal-activity__meta">Linked subscriptions</span>
+                                {linked.length > 0 ? (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                                    {linked.map((sub) => (
+                                      <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <span className="chip">
+                                          {streamNameById.get(sub.streamId) ?? sub.streamId} · {sub.tierId}
+                                        </span>
+                                        <button
+                                          className="button ghost"
+                                          onClick={() => void unlinkSubscription(agent.id, sub.id)}
+                                          style={{ padding: "4px 10px", fontSize: 11 }}
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="signal-activity__empty" style={{ marginTop: 6 }}>
+                                    No subscriptions linked yet.
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Subscription linker */}
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <select
+                                  className="input"
+                                  value={linkSelections[agent.id] ?? ""}
+                                  onChange={(e) =>
+                                    setLinkSelections((prev) => ({ ...prev, [agent.id]: e.target.value }))
+                                  }
+                                >
+                                  <option value="">Select a subscription</option>
+                                  {availableOptions.map((option) => (
+                                    <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
+                                      {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  className="button secondary"
+                                  onClick={() => void linkSubscription(agent.id)}
+                                  disabled={availableOptions.length === 0}
+                                  style={{ whiteSpace: "nowrap" }}
+                                >
+                                  Link
+                                </button>
+                              </div>
+                              {availableOptions.length === 0 && (
+                                <div className="signal-activity__empty">
+                                  No unlinked subscriptions available.
+                                </div>
+                              )}
+                              {linkStatus[agent.id] && (
+                                <span className="subtext">{linkStatus[agent.id]}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {agentsLoading && agents.length === 0 && (
+                    <div className="stream-card">
+                      <div className="stream-card-row">
+                        <div className="stream-card-identity">
+                          <p className="subtext" style={{ margin: 0 }}>Loading agents…</p>
+                        </div>
                       </div>
                     </div>
                   )}
-                </div>
-
-                <div className="x-rail-module" style={{ border: 0, background: "transparent", padding: 0 }}>
-                  <h3 className="x-rail-heading">Your Agents</h3>
-                  {agents.map((agent) => {
-                      const linked = subscriptionsByAgent.get(agent.id) ?? [];
-                      const linkedStreamIds = new Set(linked.map((sub) => sub.streamId));
-                      const availableOptions = ownedSubscriptionOptions.filter(
-                        (option) => !linkedStreamIds.has(option.streamId)
-                      );
-                      return (
-                        <div className="x-trend-item" key={agent.id} style={{ paddingLeft: 0 }}>
-                          <span className="x-trend-category">
-                            {agent.domain} · {agent.role === "maker" ? "sender" : "listener"}
-                          </span>
-                          <strong className="x-trend-topic">{agent.name}</strong>
-                          {agent.streamId && (
-                            <span className="x-trend-meta">Publish stream: {agent.streamId}</span>
-                          )}
-                          <span className="x-trend-meta">{agent.evidence}</span>
-                          {agent.agentPubkey && (
-                            <span className="x-trend-meta">
-                              Agent key: {agent.agentPubkey.slice(0, 6)}…{agent.agentPubkey.slice(-4)}
-                            </span>
-                          )}
-
-                          {agent.streamId && (
-                            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
-                              <button
-                                className="button secondary"
-                                onClick={() => void grantPublisher(agent)}
-                                style={{ padding: "4px 10px", fontSize: 11 }}
-                              >
-                                Grant Publish
-                              </button>
-                              <button
-                                className="button ghost"
-                                onClick={() => void revokePublisher(agent)}
-                                style={{ padding: "4px 10px", fontSize: 11 }}
-                              >
-                                Revoke Publish
-                              </button>
-                              {publishStatus[agent.id] && (
-                                <span className="subtext">{publishStatus[agent.id]}</span>
-                              )}
-                            </div>
-                          )}
-
-                          <div style={{ marginTop: 10 }}>
-                            <span className="subtext">Linked subscriptions</span>
-                            {linked.length > 0 ? (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-                                {linked.map((sub) => (
-                                  <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span className="chip">
-                                      {(streamNameById.get(sub.streamId) ?? sub.streamId)} · {sub.tierId}
-                                    </span>
-                                    <button
-                                      className="button ghost"
-                                      onClick={() => void unlinkSubscription(agent.id, sub.id)}
-                                      style={{ padding: "4px 10px", fontSize: 11 }}
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="subtext" style={{ marginTop: 6 }}>No subscriptions linked yet.</p>
-                            )}
-                          </div>
-
-                          <div style={{ marginTop: 12 }}>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <select
-                                className="input"
-                                value={linkSelections[agent.id] ?? ""}
-                                onChange={(e) =>
-                                  setLinkSelections((prev) => ({ ...prev, [agent.id]: e.target.value }))
-                                }
-                              >
-                                <option value="">Select a subscription</option>
-                                {availableOptions.map((option) => (
-                                  <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
-                                    {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                className="button secondary"
-                                onClick={() => void linkSubscription(agent.id)}
-                                disabled={availableOptions.length === 0}
-                                style={{ whiteSpace: "nowrap" }}
-                              >
-                                Link
-                              </button>
-                            </div>
-                            {availableOptions.length === 0 && (
-                              <p className="subtext" style={{ marginTop: 6 }}>
-                                No unlinked subscriptions available.
-                              </p>
-                            )}
-                            {linkStatus[agent.id] && (
-                              <p className="subtext" style={{ marginTop: 6 }}>{linkStatus[agent.id]}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  {agentsLoading && agents.length === 0 && (
-                    <p className="subtext">Loading agents…</p>
-                  )}
                   {!agentsLoading && agents.length === 0 && (
-                    <p className="subtext">No agents registered yet.</p>
+                    <div className="stream-card">
+                      <div className="stream-card-row">
+                        <div className="stream-card-identity">
+                          <p className="subtext" style={{ margin: 0 }}>No agents registered yet.</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
