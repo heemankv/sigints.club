@@ -246,6 +246,22 @@ export class SocialService {
     }
   }
 
+  async deleteComment(wallet: string, commentId: string, displayName?: string) {
+    const profileId = await this.ensureProfile(wallet, displayName);
+    if (!profileId) {
+      throw new Error("Unable to resolve Tapestry profile");
+    }
+    const details = await this.client.getCommentDetails(commentId);
+    const authorId = details?.author?.id;
+    if (!authorId) {
+      throw new Error("Unable to verify comment owner");
+    }
+    if (authorId !== profileId) {
+      throw new Error("Not allowed to delete this comment");
+    }
+    return this.client.deleteComment(commentId);
+  }
+
   private async createContentWithRetry(input: { profileId: string; id: string; properties: { key: string; value: string | number | boolean }[] }) {
     try {
       return await this.client.createContent(input);
@@ -309,6 +325,22 @@ export class SocialService {
     return result;
   }
 
+  async deletePost(wallet: string, contentId: string, displayName?: string) {
+    const profileId = await this.ensureProfile(wallet, displayName);
+    if (!profileId) {
+      throw new Error("Unable to resolve Tapestry profile");
+    }
+    const details = await this.client.getContentDetails(contentId);
+    const authorId = details?.authorProfile?.id;
+    if (!authorId) {
+      throw new Error("Unable to verify post owner");
+    }
+    if (authorId !== profileId) {
+      throw new Error("Not allowed to delete this post");
+    }
+    return this.client.deleteContent(contentId);
+  }
+
   async getPost(contentId: string): Promise<SocialPost | null> {
     const details = await this.client.getContentDetails(contentId);
     if (!details) return null;
@@ -318,6 +350,14 @@ export class SocialService {
   async getLikes(contentId: string): Promise<number> {
     const details = await this.client.getContentDetails(contentId);
     return details?.socialCounts?.likeCount ?? 0;
+  }
+
+  async getFollowCountsByWallet(wallet: string): Promise<{ followers: number; following: number }> {
+    const profileId = await this.ensureProfile(wallet);
+    if (!profileId) {
+      throw new Error("Unable to resolve Tapestry profile");
+    }
+    return this.client.getProfileSocialCounts(profileId);
   }
 
   /**

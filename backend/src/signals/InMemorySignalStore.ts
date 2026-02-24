@@ -1,6 +1,6 @@
 import { WrappedKey } from "../crypto/hybrid";
 import { SignalMetadata } from "../metadata/MetadataStore";
-import { SignalStore, PublicSignalPayload, PrivateSignalPayload, SignalPayload } from "./SignalStore";
+import { SignalStore, SignalEvent, PublicSignalPayload, PrivateSignalPayload, SignalPayload } from "./SignalStore";
 
 export class InMemorySignalStore implements SignalStore {
   private signalsByStream = new Map<string, SignalMetadata>();
@@ -8,12 +8,15 @@ export class InMemorySignalStore implements SignalStore {
   private signalsByKeyboxHash = new Map<string, SignalMetadata>();
   private payloadsByHash = new Map<string, SignalPayload>();
   private keyboxesByHash = new Map<string, Record<string, WrappedKey>>();
+  private events: SignalEvent[] = [];
+  private nextEventId = 1;
 
   async upsertPublicSignal(meta: SignalMetadata, payload: PublicSignalPayload): Promise<void> {
     this.evictExisting(meta.streamId);
     this.signalsByStream.set(meta.streamId, meta);
     this.signalsByHash.set(meta.signalHash, meta);
     this.payloadsByHash.set(meta.signalHash, payload);
+    this.events.push(this.toEvent(meta));
   }
 
   async upsertPrivateSignal(
@@ -29,6 +32,7 @@ export class InMemorySignalStore implements SignalStore {
       this.keyboxesByHash.set(meta.keyboxHash, keybox);
     }
     this.payloadsByHash.set(meta.signalHash, payload);
+    this.events.push(this.toEvent(meta));
   }
 
   async listSignals(streamId: string): Promise<SignalMetadata[]> {
@@ -38,6 +42,22 @@ export class InMemorySignalStore implements SignalStore {
 
   async listAllSignals(): Promise<SignalMetadata[]> {
     return Array.from(this.signalsByStream.values());
+  }
+
+  async listSignalEvents(streamId: string, limit = 10, after?: number): Promise<SignalEvent[]> {
+    const filtered = this.events.filter((event) => event.streamId === streamId && (!after || event.id > after));
+    const ordered = after
+      ? filtered.sort((a, b) => a.id - b.id)
+      : filtered.sort((a, b) => b.id - a.id);
+    return ordered.slice(0, Math.max(1, Math.min(limit, 50)));
+  }
+
+  async listRecentSignalEvents(limit = 20, after?: number): Promise<SignalEvent[]> {
+    const filtered = this.events.filter((event) => !after || event.id > after);
+    const ordered = after
+      ? filtered.sort((a, b) => a.id - b.id)
+      : filtered.sort((a, b) => b.id - a.id);
+    return ordered.slice(0, Math.max(1, Math.min(limit, 50)));
   }
 
   async getSignalByHash(hash: string): Promise<SignalMetadata | null> {
@@ -54,6 +74,18 @@ export class InMemorySignalStore implements SignalStore {
 
   async getKeyboxByHash(hash: string): Promise<Record<string, WrappedKey> | null> {
     return this.keyboxesByHash.get(hash) ?? null;
+  }
+
+  private toEvent(meta: SignalMetadata): SignalEvent {
+    return {
+      id: this.nextEventId++,
+      streamId: meta.streamId,
+      tierId: meta.tierId,
+      signalHash: meta.signalHash,
+      visibility: meta.visibility,
+      createdAt: meta.createdAt,
+      onchainTx: meta.onchainTx,
+    };
   }
 
   private evictExisting(streamId: string) {

@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS signals_latest (
   onchain_tx TEXT
 );
 
+CREATE TABLE IF NOT EXISTS signals_events (
+  id BIGSERIAL PRIMARY KEY,
+  stream_id TEXT NOT NULL,
+  tier_id TEXT NOT NULL,
+  visibility TEXT NOT NULL CHECK (visibility IN ('public','private')),
+  signal_hash TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  onchain_tx TEXT
+);
+
 CREATE TABLE IF NOT EXISTS keyboxes_latest (
   stream_id TEXT NOT NULL REFERENCES signals_latest(stream_id) ON DELETE CASCADE,
   subscriber_id TEXT NOT NULL,
@@ -48,6 +58,16 @@ CREATE TABLE IF NOT EXISTS keyboxes_latest (
 
 CREATE INDEX IF NOT EXISTS keyboxes_by_hash ON keyboxes_latest (keybox_hash);
 CREATE INDEX IF NOT EXISTS signals_by_hash ON signals_latest (signal_hash);
+CREATE INDEX IF NOT EXISTS signals_events_by_stream ON signals_events (stream_id, id DESC);
+CREATE INDEX IF NOT EXISTS signals_events_by_created ON signals_events (created_at DESC);
+
+INSERT INTO signals_events (stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx)
+SELECT s.stream_id, s.tier_id, s.visibility, s.signal_hash, s.created_at, s.onchain_tx
+FROM signals_latest s
+WHERE NOT EXISTS (
+  SELECT 1 FROM signals_events e
+  WHERE e.stream_id = s.stream_id AND e.signal_hash = s.signal_hash
+);
 
 CREATE TABLE IF NOT EXISTS streams (
   id TEXT PRIMARY KEY,

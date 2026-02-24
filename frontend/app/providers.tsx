@@ -8,6 +8,7 @@ import { TestWalletAdapter } from "./lib/TestWalletAdapter";
 import { configureBackend, getTestWallet } from "./lib/sdkBackend";
 import { WalletKeyStatusProvider } from "./lib/walletKeyStatus";
 import { UserProfileProvider } from "./lib/userProfile";
+import WalletPrefetch from "./components/WalletPrefetch";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName;
 const TEST_WALLET_FLAG = process.env.NEXT_PUBLIC_TEST_WALLET === "true";
@@ -137,6 +138,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <WalletProvider key={providerKey} wallets={wallets} autoConnect={testWalletActive}>
         <WalletKeyStatusProvider>
           <UserProfileProvider>
+            <WalletPrefetch />
             {testWalletActive && testWalletPubkey && (
               <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />
             )}

@@ -15,6 +15,15 @@ export type SyncWalletKeyResponse = {
   walletKeyPublicKey?: string;
 };
 
+export type LoginUserResponse = {
+  user: {
+    wallet: string;
+    displayName?: string;
+    bio?: string;
+    tapestryProfileId?: string;
+  };
+};
+
 export type SolanaConfigResponse = {
   subscriptionProgramId: string;
   streamRegistryProgramId: string;
@@ -134,6 +143,18 @@ export async function fetchOnchainSubscriptions<T = any>(
 
 export async function fetchSignals<T = any>(backendUrl: string, streamId: string): Promise<{ signals: T[] }> {
   return getJson<{ signals: T[] }>(backendUrl, `/signals?streamId=${encodeURIComponent(streamId)}`);
+}
+
+export async function fetchSignalEvents<T = any>(
+  backendUrl: string,
+  params: { streamId?: string; limit?: number; after?: number }
+): Promise<{ events: T[] }> {
+  const query = new URLSearchParams();
+  if (params.streamId) query.set("streamId", params.streamId);
+  if (typeof params.limit === "number") query.set("limit", String(params.limit));
+  if (typeof params.after === "number") query.set("after", String(params.after));
+  const suffix = query.toString();
+  return getJson<{ events: T[] }>(backendUrl, `/signals/events${suffix ? `?${suffix}` : ""}`);
 }
 
 export async function fetchLatestSignal<T = any>(backendUrl: string, streamId: string): Promise<{ signal: T }> {
@@ -267,6 +288,16 @@ export async function fetchLikeCount(backendUrl: string, contentId: string): Pro
   return data.count;
 }
 
+export async function fetchFollowCounts(
+  backendUrl: string,
+  wallet: string
+): Promise<{ counts: { followers: number; following: number } }> {
+  return getJson<{ counts: { followers: number; following: number } }>(
+    backendUrl,
+    `/social/follow-counts?wallet=${encodeURIComponent(wallet)}`
+  );
+}
+
 export async function fetchComments<T = any>(
   backendUrl: string,
   contentId: string,
@@ -288,12 +319,28 @@ export async function addComment(
   await postJson(backendUrl, "/social/comments", { wallet, contentId, comment });
 }
 
+export async function deleteComment(
+  backendUrl: string,
+  wallet: string,
+  commentId: string
+): Promise<void> {
+  await deleteJson(backendUrl, `/social/comments/${encodeURIComponent(commentId)}`, { wallet });
+}
+
 export async function followProfile(
   backendUrl: string,
   wallet: string,
   targetProfileId: string
 ): Promise<void> {
   await postJson(backendUrl, "/social/follow", { wallet, targetProfileId });
+}
+
+export async function deletePost(
+  backendUrl: string,
+  wallet: string,
+  contentId: string
+): Promise<void> {
+  await deleteJson(backendUrl, `/social/posts/${encodeURIComponent(contentId)}`, { wallet });
 }
 
 export async function searchAgents<T = any>(backendUrl: string, query: string): Promise<T> {
@@ -352,8 +399,12 @@ export async function updateUserProfile<T = any>(
   return patchJson<T>(backendUrl, `/users/${encodeURIComponent(wallet)}`, payload);
 }
 
-export async function loginUser(backendUrl: string, wallet: string): Promise<void> {
-  await postJson(backendUrl, "/users/login", { wallet });
+export async function loginUser(
+  backendUrl: string,
+  wallet: string,
+  opts?: { displayName?: string; bio?: string }
+): Promise<LoginUserResponse> {
+  return postJson<LoginUserResponse>(backendUrl, "/users/login", { wallet, ...opts });
 }
 
 export async function prepareSignal(
@@ -392,6 +443,8 @@ export function createBackendClient(backendUrl: string) {
     fetchOnchainSubscriptions: <T = any>(subscriber: string, opts?: { fresh?: boolean }) =>
       fetchOnchainSubscriptions<T>(url, subscriber, opts),
     fetchSignals: <T = any>(streamId: string) => fetchSignals<T>(url, streamId),
+    fetchSignalEvents: <T = any>(params: { streamId?: string; limit?: number; after?: number }) =>
+      fetchSignalEvents<T>(url, params),
     fetchLatestSignal: <T = any>(streamId: string) => fetchLatestSignal<T>(url, streamId),
     fetchSignalByHash: <T = any>(signalHash: string) => fetchSignalByHash<T>(url, signalHash),
     fetchCiphertext: <T = any>(sha: string) => fetchCiphertext<T>(url, sha),
@@ -416,11 +469,16 @@ export function createBackendClient(backendUrl: string) {
     addLike: (wallet: string, contentId: string) => addLike(url, wallet, contentId),
     removeLike: (wallet: string, contentId: string) => removeLike(url, wallet, contentId),
     fetchLikeCount: (contentId: string) => fetchLikeCount(url, contentId),
+    fetchFollowCounts: (wallet: string) => fetchFollowCounts(url, wallet),
     fetchComments: <T = any>(contentId: string, page = 1, pageSize = 3) =>
       fetchComments<T>(url, contentId, page, pageSize),
     addComment: (wallet: string, contentId: string, comment: string) =>
       addComment(url, wallet, contentId, comment),
+    deleteComment: (wallet: string, commentId: string) =>
+      deleteComment(url, wallet, commentId),
     followProfile: (wallet: string, targetProfileId: string) => followProfile(url, wallet, targetProfileId),
+    deletePost: (wallet: string, contentId: string) =>
+      deletePost(url, wallet, contentId),
     searchAgents: <T = any>(query: string) => searchAgents<T>(url, query),
     fetchAgents: <T = any>(params: { owner?: string; role?: string; streamId?: string; search?: string }) =>
       fetchAgents<T>(url, params),
@@ -432,6 +490,7 @@ export function createBackendClient(backendUrl: string) {
     fetchUserProfile: <T = any>(wallet: string) => fetchUserProfile<T>(url, wallet),
     updateUserProfile: <T = any>(wallet: string, payload: { displayName?: string; bio?: string }) =>
       updateUserProfile<T>(url, wallet, payload),
-    loginUser: (wallet: string) => loginUser(url, wallet),
+    loginUser: (wallet: string, opts?: { displayName?: string; bio?: string }) =>
+      loginUser(url, wallet, opts),
   };
 }

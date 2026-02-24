@@ -3,16 +3,20 @@
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { fetchStreams } from "../lib/api/streams";
-import { fetchOnchainSubscriptions } from "../lib/api/subscriptions";
+import { fetchStreams, readStreamsCache } from "../lib/api/streams";
+import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
 import {
-  fetchAgents,
   createAgent as sdkCreateAgent,
   createAgentSubscription as sdkCreateAgentSubscription,
-  fetchAgentSubscriptions,
   deleteAgentSubscription,
   updateUserProfile,
 } from "../lib/sdkBackend";
+import {
+  fetchAgents,
+  readAgentsCache,
+  fetchAgentSubscriptions,
+  readAgentSubsCache,
+} from "../lib/api/agents";
 import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
@@ -35,7 +39,7 @@ export type ProfileTab = "subscriptions" | "streams" | "agents" | "actions";
 
 export default function ProfileContent({ initialTab = "subscriptions" }: { initialTab?: ProfileTab }) {
   const { publicKey } = useWallet();
-  const { profile, setProfile } = useUserProfile();
+  const { profile, setProfile, followCounts, followCountsLoading } = useUserProfile();
 
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editBio, setEditBio] = useState("");
@@ -48,7 +52,9 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [subscriptionCards, setSubscriptionCards] = useState<ComponentProps<typeof OwnedSubscriptionCard>[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
   const [subsError, setSubsError] = useState<string | null>(null);
+  const [agentsLoading, setAgentsLoading] = useState(false);
 
+  const [railStreams, setRailStreams] = useState<StreamDetail[]>([]);
   const [agentName, setAgentName] = useState("");
   const [agentDomain, setAgentDomain] = useState("");
   const [agentStreamId, setAgentStreamId] = useState("");
@@ -65,6 +71,20 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
 
   useEffect(() => {
+    async function loadRailStreams() {
+      try {
+        const cached = readStreamsCache();
+        if (cached?.streams?.length) setRailStreams(cached.streams);
+        const data = await fetchStreams({ includeTiers: true });
+        setRailStreams(data.streams ?? []);
+      } catch {
+        setRailStreams([]);
+      }
+    }
+    loadRailStreams();
+  }, []);
+
+  useEffect(() => {
     if (!walletAddr) return;
     void loadAgents();
     void loadAgentSubscriptions();
@@ -75,6 +95,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     setEditDisplayName(profile?.displayName ?? "");
     setEditBio(profile?.bio ?? "");
   }, [walletAddr, profile?.displayName, profile?.bio]);
+
 
   useEffect(() => {
     if (agentRole !== "maker") {
@@ -102,79 +123,93 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     return new Map(entries);
   }
 
+  async function processSubscriptions(
+    subs: import("../lib/types").OnChainSubscription[],
+    streamList: StreamDetail[]
+  ) {
+    setStreamCatalog(streamList);
+
+    const streamByPda = new Map<string, StreamDetail>();
+    streamList.forEach((stream) => {
+      if (stream.onchainAddress) {
+        streamByPda.set(stream.onchainAddress, stream);
+      }
+    });
+
+    const tierIndexCache = new Map<string, Map<string, StreamTier>>();
+    const cards: ComponentProps<typeof OwnedSubscriptionCard>[] = [];
+    const ownedOptions: OwnedSubscriptionOption[] = [];
+
+    for (const sub of subs) {
+      if (sub.status !== 0) continue;
+      const streamMeta = streamByPda.get(sub.stream);
+      let tierMatch: StreamTier | undefined;
+      if (streamMeta) {
+        let tierIndex = tierIndexCache.get(streamMeta.id);
+        if (!tierIndex) {
+          tierIndex = await buildTierIndex(streamMeta);
+          tierIndexCache.set(streamMeta.id, tierIndex);
+        }
+        tierMatch = tierIndex.get(sub.tierIdHex);
+      }
+
+      const pricingType = sub.pricingType === 1 ? "subscription_unlimited" : String(sub.pricingType);
+      const evidenceLevel =
+        tierMatch?.evidenceLevel ?? (sub.evidenceLevel === 1 ? "verifier" : "trust");
+      const price = tierMatch?.price ?? undefined;
+
+      cards.push({
+        streamName: streamMeta?.name ?? `Stream ${sub.stream.slice(0, 6)}…`,
+        streamId: streamMeta?.id ?? sub.stream.slice(0, 10),
+        tierLabel: tierMatch?.tierId ?? `tier-${sub.tierIdHex.slice(0, 6)}`,
+        price,
+        evidenceLevel,
+        pricingType,
+        expiresAt: sub.expiresAt,
+        nftMint: sub.nftMint,
+        description: streamMeta?.description,
+      });
+
+      if (streamMeta && tierMatch && pricingType === "subscription_unlimited") {
+        ownedOptions.push({
+          streamId: streamMeta.id,
+          streamName: streamMeta.name,
+          tierId: tierMatch.tierId,
+          pricingType,
+          evidenceLevel: evidenceLevel as "trust" | "verifier",
+          visibility: streamMeta.visibility,
+        });
+      }
+    }
+
+    setSubscriptionCards(cards);
+    setOwnedSubscriptionOptions(ownedOptions);
+  }
+
   async function loadSubscriptions(forceFresh = false) {
     if (!walletAddr) return;
     setSubsLoading(true);
     setSubsError(null);
+
+    // Show cached data instantly
+    const cachedSubs = readSubscriptionsCache(walletAddr);
+    const cachedStreams = readStreamsCache();
+    if (cachedSubs?.subscriptions?.length && cachedStreams?.streams?.length) {
+      await processSubscriptions(cachedSubs.subscriptions, cachedStreams.streams);
+    }
+
     try {
       const [subsRes, streamsRes] = await Promise.all([
         fetchOnchainSubscriptions(walletAddr, { fresh: forceFresh }),
         fetchStreams({ includeTiers: true }),
       ]);
-      const subs = subsRes.subscriptions ?? [];
-
-      const streamList = streamsRes.streams ?? [];
-      setStreamCatalog(streamList);
-
-      const streamByPda = new Map<string, StreamDetail>();
-      streamList.forEach((stream) => {
-        if (stream.onchainAddress) {
-          streamByPda.set(stream.onchainAddress, stream);
-        }
-      });
-
-      const tierIndexCache = new Map<string, Map<string, StreamTier>>();
-      const cards: ComponentProps<typeof OwnedSubscriptionCard>[] = [];
-      const ownedOptions: OwnedSubscriptionOption[] = [];
-
-      for (const sub of subs) {
-        if (sub.status !== 0) continue;
-        const streamMeta = streamByPda.get(sub.stream);
-        let tierMatch: StreamTier | undefined;
-        if (streamMeta) {
-          let tierIndex = tierIndexCache.get(streamMeta.id);
-          if (!tierIndex) {
-            tierIndex = await buildTierIndex(streamMeta);
-            tierIndexCache.set(streamMeta.id, tierIndex);
-          }
-          tierMatch = tierIndex.get(sub.tierIdHex);
-        }
-
-        const pricingType = sub.pricingType === 1 ? "subscription_unlimited" : String(sub.pricingType);
-        const evidenceLevel =
-          tierMatch?.evidenceLevel ?? (sub.evidenceLevel === 1 ? "verifier" : "trust");
-        const price = tierMatch?.price ?? undefined;
-
-        cards.push({
-          streamName: streamMeta?.name ?? `Stream ${sub.stream.slice(0, 6)}…`,
-          streamId: streamMeta?.id ?? sub.stream.slice(0, 10),
-          tierLabel: tierMatch?.tierId ?? `tier-${sub.tierIdHex.slice(0, 6)}`,
-          price,
-          evidenceLevel,
-          pricingType,
-          expiresAt: sub.expiresAt,
-          nftMint: sub.nftMint,
-          description: streamMeta?.description,
-        });
-
-        if (streamMeta && tierMatch && pricingType === "subscription_unlimited") {
-          ownedOptions.push({
-            streamId: streamMeta.id,
-            streamName: streamMeta.name,
-            tierId: tierMatch.tierId,
-            pricingType,
-            evidenceLevel: evidenceLevel as "trust" | "verifier",
-            visibility: streamMeta.visibility,
-          });
-        }
-      }
-
-      setSubscriptionCards(cards);
-      setOwnedSubscriptionOptions(ownedOptions);
+      await processSubscriptions(subsRes.subscriptions ?? [], streamsRes.streams ?? []);
     } catch (err: any) {
       setSubsError(err?.message ?? "Failed to load subscriptions.");
-      setSubscriptionCards([]);
-      setOwnedSubscriptionOptions([]);
+      if (!cachedSubs?.subscriptions?.length) {
+        setSubscriptionCards([]);
+        setOwnedSubscriptionOptions([]);
+      }
     } finally {
       setSubsLoading(false);
     }
@@ -182,23 +217,28 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   async function loadAgents() {
     if (!walletAddr) return;
+    setAgentsLoading(true);
+    const cached = readAgentsCache(walletAddr);
+    if (cached?.length) setAgents(cached);
     try {
-      const res = await fetchAgents<{ agents: AgentProfile[] }>({ owner: walletAddr });
+      const res = await fetchAgents({ owner: walletAddr });
       setAgents(res.agents ?? []);
     } catch {
-      setAgents([]);
+      if (!cached?.length) setAgents([]);
+    } finally {
+      setAgentsLoading(false);
     }
   }
 
   async function loadAgentSubscriptions() {
     if (!walletAddr) return;
+    const cached = readAgentSubsCache(walletAddr);
+    if (cached?.length) setAgentSubscriptions(cached);
     try {
-      const res = await fetchAgentSubscriptions<{ agentSubscriptions: AgentSubscription[] }>({
-        owner: walletAddr,
-      });
+      const res = await fetchAgentSubscriptions({ owner: walletAddr });
       setAgentSubscriptions(res.agentSubscriptions ?? []);
     } catch {
-      setAgentSubscriptions([]);
+      if (!cached?.length) setAgentSubscriptions([]);
     }
   }
 
@@ -344,13 +384,26 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                 {profile?.bio && (
                   <div className="x-trend-category" style={{ marginTop: 2 }}>{profile.bio}</div>
                 )}
+                {(followCountsLoading || followCounts) && (
+                  <div className="profile-header-stats">
+                    <span><strong>{followCounts?.following ?? "…"}</strong> Following</span>
+                    <span><strong>{followCounts?.followers ?? "…"}</strong> Followers</span>
+                  </div>
+                )}
                 <div className="profile-header-wallet">{walletAddr}</div>
               </div>
             </div>
 
             {activeTab === "subscriptions" && (
               <div className="profile-tab-content">
-                {subsLoading && (
+                {subscriptionCards.length > 0 && (
+                  <div className="data-grid">
+                    {subscriptionCards.map((card) => (
+                      <OwnedSubscriptionCard key={`${card.streamId}:${card.tierLabel}`} {...card} />
+                    ))}
+                  </div>
+                )}
+                {subsLoading && subscriptionCards.length === 0 && (
                   <div className="stream-card-grid">
                     <div className="stream-card">
                       <div className="stream-card-row">
@@ -383,13 +436,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                {subscriptionCards.length > 0 && (
-                  <div className="data-grid">
-                    {subscriptionCards.map((card) => (
-                      <OwnedSubscriptionCard key={`${card.streamId}:${card.tierLabel}`} {...card} />
-                    ))}
                   </div>
                 )}
               </div>
@@ -484,8 +530,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
                 <div className="x-rail-module" style={{ border: 0, background: "transparent", padding: 0 }}>
                   <h3 className="x-rail-heading">Your Agents</h3>
-                  {agents.length > 0 ? (
-                    agents.map((agent) => {
+                  {agents.map((agent) => {
                       const linked = subscriptionsByAgent.get(agent.id) ?? [];
                       const linkedStreamIds = new Set(linked.map((sub) => sub.streamId));
                       const availableOptions = ownedSubscriptionOptions.filter(
@@ -564,8 +609,11 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                           )}
                         </div>
                       );
-                    })
-                  ) : (
+                    })}
+                  {agentsLoading && agents.length === 0 && (
+                    <p className="subtext">Loading agents…</p>
+                  )}
+                  {!agentsLoading && agents.length === 0 && (
                     <p className="subtext">No agents registered yet.</p>
                   )}
                 </div>
@@ -629,6 +677,21 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
           </>
         )}
       </div>
+
+      <aside className="social-rail">
+        <div className="x-rail-module">
+          <h3 className="x-rail-heading">Top makers</h3>
+          {railStreams.slice(0, 4).map((stream) => (
+            <div className="x-trend-item" key={stream.id}>
+              <span className="x-trend-category">{stream.domain} · Maker</span>
+              <strong className="x-trend-topic">{stream.name}</strong>
+              <span className="x-trend-meta">{stream.evidence} evidence</span>
+            </div>
+          ))}
+          {!railStreams.length && <span className="x-trend-category">No stream data yet.</span>}
+          <Link className="x-rail-link" href="/">Open discovery →</Link>
+        </div>
+      </aside>
     </section>
   );
 }

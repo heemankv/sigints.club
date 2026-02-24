@@ -453,20 +453,22 @@ export default function RegisterStreamPage() {
                 </div>
               )}
 
-              <div className="step-actions">
-                <button className="button ghost" onClick={() => setStep(2)} disabled={deployLoading}>
-                  ← Back
-                </button>
-                <button
-                  className="button primary"
-                  onClick={deploy}
-                  disabled={deployLoading || !publicKey}
-                >
-                  {deployLoading ? "Deploying…" : "Deploy Stream"}
-                </button>
-              </div>
+              {!deploySuccess && (
+                <div className="step-actions">
+                  <button className="button ghost" onClick={() => setStep(2)} disabled={deployLoading}>
+                    ← Back
+                  </button>
+                  <button
+                    className="button primary"
+                    onClick={deploy}
+                    disabled={deployLoading || !publicKey}
+                  >
+                    {deployLoading ? "Deploying…" : "Deploy Stream"}
+                  </button>
+                </div>
+              )}
 
-              {!publicKey && (
+              {!publicKey && !deploySuccess && (
                 <p className="subtext" style={{ marginTop: 8 }}>
                   Connect your wallet to deploy.
                 </p>

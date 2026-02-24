@@ -11,10 +11,21 @@ import {
   fetchLikeCount,
   fetchComments,
   addComment,
+  deleteComment,
+  deletePost,
 } from "../../lib/api/social";
 import { POST_COMMENTS_PAGE_SIZE } from "../../lib/constants";
 import { explorerTx } from "../../lib/constants";
-import { timeAgo, formatFullTimestamp, resolveCommentText, shortWallet } from "../../lib/utils";
+import {
+  timeAgo,
+  formatFullTimestamp,
+  resolveCommentText,
+  resolveCommentId,
+  resolveCommentAuthorId,
+  resolveCommentCreatedAt,
+  shortWallet,
+} from "../../lib/utils";
+import { useCurrentUserProfileId } from "../../hooks/useCurrentUserProfileId";
 
 const BackArrow = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -25,6 +36,7 @@ const BackArrow = () => (
 export default function PostPageClient({ contentId }: { contentId: string }) {
   const { publicKey } = useWallet();
   const wallet = publicKey?.toBase58();
+  const currentProfileId = useCurrentUserProfileId();
 
   const [post, setPost] = useState<SocialPost | null>(null);
   const [likeCount, setLikeCount] = useState(0);
@@ -38,6 +50,8 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [confirmDeletePost, setConfirmDeletePost] = useState(false);
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +124,45 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
     }
   }
 
+  async function handleDeletePost() {
+    if (!wallet) {
+      setStatus("Connect your wallet to delete.");
+      return;
+    }
+    try {
+      setConfirmDeletePost(false);
+      await deletePost(wallet, contentId);
+      setStatus("Post deleted.");
+      setTimeout(() => {
+        if (typeof window !== "undefined") {
+          window.location.href = "/feed";
+        }
+      }, 600);
+    } catch (err: any) {
+      setStatus(err?.message ?? "Delete failed");
+    }
+  }
+
+  async function handleDeleteComment(entry: CommentEntry) {
+    if (!wallet) {
+      setStatus("Connect your wallet to delete.");
+      return;
+    }
+    const commentId = resolveCommentId(entry);
+    if (!commentId) {
+      setStatus("Unable to resolve comment id.");
+      return;
+    }
+    try {
+      setConfirmDeleteCommentId(null);
+      await deleteComment(wallet, commentId);
+      setComments((prev) => prev.filter((item) => resolveCommentId(item) !== commentId));
+      setCommentTotal((n) => Math.max(0, n - 1));
+    } catch (err: any) {
+      setStatus(err?.message ?? "Delete failed");
+    }
+  }
+
   function copyLink() {
     navigator.clipboard?.writeText(window.location.href);
     setStatus("Link copied!");
@@ -161,6 +214,10 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
   const streamId = post.customProperties?.streamId;
   const makerWallet = post.customProperties?.makerWallet;
   const challengeTx = post.customProperties?.challengeTx;
+
+  const isOwnerPost =
+    (wallet && post.authorWallet && post.authorWallet === wallet) ||
+    (currentProfileId && post.profileId === currentProfileId);
 
   return (
     <div className="xview-shell">
@@ -234,6 +291,33 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
           </button>
+          {isOwnerPost && (
+            confirmDeletePost ? (
+              <div className="confirm-toggle confirm-toggle--compact">
+                <button
+                  className="confirm-toggle__no"
+                  onClick={() => setConfirmDeletePost(false)}
+                >
+                  No
+                </button>
+                <button
+                  className="confirm-toggle__yes"
+                  onClick={handleDeletePost}
+                >
+                  Yes
+                </button>
+              </div>
+            ) : (
+              <button className="xview-action delete" onClick={() => setConfirmDeletePost(true)} title="Delete post">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </button>
+            )
+          )}
         </div>
       </div>
 
@@ -281,24 +365,55 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
           <div className="xview-loading-replies">Loading replies…</div>
         )}
 
-        {comments.map((entry, idx) => (
-          <div key={idx} className="xview-reply">
-            <div className="xview-reply-avatar">
-              {(entry.profileId ?? "?")[0]?.toUpperCase()}
-            </div>
-            <div className="xview-reply-body">
-              <div className="xview-reply-meta">
-                <span className="xview-reply-author">
-                  {entry.profileId ? shortWallet(entry.profileId) : "Unknown"}
-                </span>
-                {entry.createdAt && (
-                  <span className="xview-reply-time">· {timeAgo(entry.createdAt)}</span>
-                )}
+        {comments.map((entry, idx) => {
+          const authorId = resolveCommentAuthorId(entry);
+          const isOwnerComment = Boolean(currentProfileId && authorId && authorId === currentProfileId);
+          const createdAt = resolveCommentCreatedAt(entry);
+          const commentId = resolveCommentId(entry);
+          return (
+            <div key={idx} className="xview-reply">
+              <div className="xview-reply-avatar">
+                {(authorId ?? "?")[0]?.toUpperCase()}
               </div>
-              <p className="xview-reply-text">{resolveCommentText(entry)}</p>
+              <div className="xview-reply-body">
+                <div className="xview-reply-meta">
+                  <span className="xview-reply-author">
+                    {authorId ? shortWallet(authorId) : "Unknown"}
+                  </span>
+                  {createdAt && (
+                    <span className="xview-reply-time">· {timeAgo(createdAt)}</span>
+                  )}
+                  {isOwnerComment && commentId && (
+                    confirmDeleteCommentId === commentId ? (
+                      <div className="confirm-toggle confirm-toggle--tiny">
+                        <button
+                          className="confirm-toggle__no"
+                          onClick={() => setConfirmDeleteCommentId(null)}
+                        >
+                          No
+                        </button>
+                        <button
+                          className="confirm-toggle__yes"
+                          onClick={() => handleDeleteComment(entry)}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="xview-reply-delete"
+                        onClick={() => setConfirmDeleteCommentId(commentId)}
+                      >
+                        Delete
+                      </button>
+                    )
+                  )}
+                </div>
+                <p className="xview-reply-text">{resolveCommentText(entry)}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {comments.length < commentTotal && (
           <button

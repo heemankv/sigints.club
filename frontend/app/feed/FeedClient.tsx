@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import WalletModal from "../components/WalletModal";
 import SubscribeForm from "../stream/[id]/SubscribeForm";
 import StreamCard from "../components/StreamCard";
 import LeftNav from "../components/LeftNav";
-import type { SocialPost, CommentEntry, StreamDetail, AgentProfile } from "../lib/types";
+import type { SocialPost, CommentEntry, StreamDetail, AgentProfile, SignalEvent } from "../lib/types";
 import {
   fetchFeed,
-  fetchTrendingFeed,
+  readFeedCache,
   createIntent,
   createSlashReport,
   addLike,
@@ -18,12 +19,24 @@ import {
   fetchLikeCount,
   fetchComments,
   addComment,
+  deleteComment,
+  deletePost,
   followProfile,
   searchAgents,
 } from "../lib/api/social";
+import { fetchSignalEvents } from "../lib/api/signals";
+import { fetchStreamSubscribers } from "../lib/api/streams";
 import { FEED_COMMENTS_PAGE_SIZE } from "../lib/constants";
-import { timeAgo, resolveCommentText, shortWallet } from "../lib/utils";
+import {
+  timeAgo,
+  resolveCommentText,
+  resolveCommentId,
+  resolveCommentAuthorId,
+  shortWallet,
+  formatFullTimestamp,
+} from "../lib/utils";
 import { explorerTx } from "../lib/constants";
+import { useCurrentUserProfileId } from "../hooks/useCurrentUserProfileId";
 
 type FeedClientProps = {
   searchQuery: string;
@@ -38,8 +51,10 @@ function AvatarCircle({ seed }: { seed: string }) {
 }
 
 export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedClientProps) {
+  const router = useRouter();
   const { publicKey } = useWalletConnect();
   const wallet = publicKey?.toBase58() ?? null;
+  const currentProfileId = useCurrentUserProfileId();
 
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletModalReason, setWalletModalReason] = useState(false);
@@ -50,7 +65,8 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   }
 
   const [feed, setFeed] = useState<SocialPost[]>([]);
-  const [trending, setTrending] = useState<SocialPost[]>([]);
+  const [streamingEvents, setStreamingEvents] = useState<SignalEvent[]>([]);
+  const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
   const [streams, setStreams] = useState<StreamDetail[]>([]);
   const [streamsLoading, setStreamsLoading] = useState(true);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -67,6 +83,11 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [subscribeStreamId, setSubscribeStreamId] = useState<string | null>(null);
   const [subscribeTierId, setSubscribeTierId] = useState<string | null>(null);
+  const [confirmDeletePostId, setConfirmDeletePostId] = useState<string | null>(null);
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
+  const streamingCursor = useRef(0);
+  const streamingPoll = useRef<number | null>(null);
+  const subscriberCountFetchedAt = useRef<Record<string, number>>({});
 
   // Composer state
   const [postText, setPostText] = useState("");
@@ -107,6 +128,106 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   useEffect(() => {
     let mounted = true;
+
+    function sortEvents(events: SignalEvent[]) {
+      return [...events].sort((a, b) => (b.createdAt - a.createdAt) || (b.id - a.id));
+    }
+
+    async function loadStreamingInitial() {
+      try {
+        const data = await fetchSignalEvents({ limit: 12 });
+        if (!mounted) return;
+        const events = sortEvents(data.events ?? []);
+        setStreamingEvents(events);
+        if (events.length) {
+          streamingCursor.current = Math.max(...events.map((e) => e.id));
+        }
+      } catch {
+        if (!mounted) return;
+        setStreamingEvents([]);
+      }
+    }
+
+    void loadStreamingInitial();
+
+    if (streamingPoll.current) {
+      window.clearInterval(streamingPoll.current);
+      streamingPoll.current = null;
+    }
+
+    streamingPoll.current = window.setInterval(async () => {
+      try {
+        const after = streamingCursor.current || undefined;
+        const data = await fetchSignalEvents({ limit: 12, after });
+        if (!mounted) return;
+        if (data.events?.length) {
+          streamingCursor.current = Math.max(streamingCursor.current, ...data.events.map((e) => e.id));
+          const incoming = sortEvents(data.events ?? []);
+          setStreamingEvents((prev) => {
+            const merged = [...incoming, ...prev];
+            const seen = new Set<number>();
+            const deduped = merged.filter((event) => {
+              if (seen.has(event.id)) return false;
+              seen.add(event.id);
+              return true;
+            });
+            return sortEvents(deduped).slice(0, 12);
+          });
+        }
+      } catch {
+        // ignore polling failures
+      }
+    }, 10_000);
+
+    return () => {
+      mounted = false;
+      if (streamingPoll.current) {
+        window.clearInterval(streamingPoll.current);
+        streamingPoll.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const now = Date.now();
+    const streamIds = Array.from(new Set(streamingEvents.map((event) => event.streamId)));
+    const toFetch = streamIds.filter((id) => {
+      const last = subscriberCountFetchedAt.current[id] ?? 0;
+      return now - last > 60_000;
+    });
+    if (!toFetch.length) return;
+
+    void (async () => {
+      const entries = await Promise.all(
+        toFetch.map(async (id) => {
+          try {
+            const res = await fetchStreamSubscribers(id);
+            return [id, res.count] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (cancelled) return;
+      const updates = Object.fromEntries(
+        entries.filter((item): item is readonly [string, number] => item !== null)
+      );
+      if (Object.keys(updates).length) {
+        setSubscriberCounts((prev) => ({ ...prev, ...updates }));
+        Object.keys(updates).forEach((id) => {
+          subscriberCountFetchedAt.current[id] = Date.now();
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [streamingEvents]);
+
+  useEffect(() => {
+    let mounted = true;
     async function loadAgents() {
       if (!searchLabel) {
         setAgents([]);
@@ -125,12 +246,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   async function loadSidebar() {
     try {
-      const trendingData = await fetchTrendingFeed(6);
-      setTrending(trendingData.posts ?? []);
-      setLikes((prev) => ({ ...prev, ...(trendingData.likeCounts ?? {}) }));
-      setCommentTotals((prev) => ({ ...prev, ...(trendingData.commentCounts ?? {}) }));
-    } catch { setTrending([]); }
-    try {
       setStreamsLoading(true);
       const { fetchStreams, readStreamsCache } = await import("../lib/api/streams");
       const cached = readStreamsCache();
@@ -147,6 +262,12 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     setLoading(true);
     setStatus(null);
     setOpenComments({});
+    const cached = readFeedCache();
+    if (cached?.posts?.length) {
+      setFeed(cached.posts);
+      setLikes((prev) => ({ ...prev, ...(cached.likeCounts ?? {}) }));
+      setCommentTotals((prev) => ({ ...prev, ...(cached.commentCounts ?? {}) }));
+    }
     const type = undefined;
     try {
       const data = await fetchFeed(type);
@@ -155,7 +276,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
     } catch (err: any) {
       setStatus(err.message ?? "Failed to load feed");
-      setFeed([]);
+      if (!cached?.posts?.length) setFeed([]);
     } finally {
       setLoading(false);
     }
@@ -274,6 +395,40 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     }
   }
 
+  async function removePost(contentId: string) {
+    if (!wallet) { openWalletModal(true); return; }
+    try {
+      setConfirmDeletePostId(null);
+      await deletePost(wallet, contentId);
+      setFeed((prev) => prev.filter((post) => post.contentId !== contentId));
+    } catch (err: any) {
+      setStatus(err?.message ?? "Delete failed");
+    }
+  }
+
+  async function removeComment(contentId: string, entry: CommentEntry) {
+    if (!wallet) { openWalletModal(true); return; }
+    const commentId = resolveCommentId(entry);
+    if (!commentId) {
+      setStatus("Unable to resolve comment id.");
+      return;
+    }
+    try {
+      setConfirmDeleteCommentId(null);
+      await deleteComment(wallet, commentId);
+      setComments((prev) => {
+        const next = (prev[contentId] ?? []).filter((item) => resolveCommentId(item) !== commentId);
+        return { ...prev, [contentId]: next };
+      });
+      setCommentTotals((prev) => ({
+        ...prev,
+        [contentId]: Math.max(0, (prev[contentId] ?? 0) - 1),
+      }));
+    } catch (err: any) {
+      setStatus(err?.message ?? "Delete failed");
+    }
+  }
+
   function resolveTags(post: SocialPost) {
     const raw = post.customProperties?.tags;
     if (!raw) return [];
@@ -363,7 +518,15 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
         {activeTab === "streams" ? (
           <div className="data-grid data-grid--single" style={{ marginTop: 32, marginInline: 16 }}>
-            {streamsLoading && (
+            {streams.map((stream) => (
+              <StreamCard
+                key={stream.id}
+                stream={stream}
+                onSubscribe={openSubscribe}
+                viewerWallet={wallet}
+              />
+            ))}
+            {streamsLoading && !streams.length && (
               <div className="stream-card">
                 <div className="stream-card-row">
                   <div className="stream-card-identity">
@@ -386,40 +549,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 </div>
               </div>
             )}
-            {streams.map((stream) => (
-              <StreamCard
-                key={stream.id}
-                stream={stream}
-                onSubscribe={openSubscribe}
-                viewerWallet={wallet}
-              />
-            ))}
           </div>
         ) : (
           <div className="feed-list">
-            {loading && (
-              <div className="feed-skeleton">
-                {Array.from({ length: 4 }).map((_, idx) => (
-                  <div className="xpost shimmer" key={`shimmer-${idx}`}>
-                    <div className="xpost-avatar">
-                      <div className="x-skel-circle" />
-                    </div>
-                    <div className="xpost-body">
-                      <div className="skeleton-line wide" />
-                      <div className="skeleton-line" />
-                      <div className="skeleton-line short" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!loading && !feed.length && (
-              <div className="x-empty-state">
-                <p>No posts yet. Be the first to share your market intelligence.</p>
-              </div>
-            )}
-
             {feed.map((post) => {
               const tags = resolveTags(post);
               const streamId = post.customProperties?.streamId;
@@ -436,20 +568,23 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               const totalComments = commentTotals[post.contentId] ?? 0;
               const loadedComments = comments[post.contentId]?.length ?? 0;
               const isLiked = liked[post.contentId] ?? false;
+              const isOwnerPost =
+                (wallet && post.authorWallet && post.authorWallet === wallet) ||
+                (currentProfileId && post.profileId === currentProfileId);
 
               return (
-                <div className="xpost" key={post.id}>
-                  <div className="xpost-avatar">
+                <div className="xpost" key={post.id} onClick={() => router.push(`/feed/${post.contentId}`)}>
+                  <div className="xpost-avatar" onClick={(e) => e.stopPropagation()}>
                     <Link href={`/profile/${post.authorWallet}`}>
                       <AvatarCircle seed={post.authorWallet} />
                     </Link>
                   </div>
                   <div className="xpost-body">
                     <div className="xpost-header">
-                      <Link href={`/profile/${post.authorWallet}`} className="xpost-name">
+                      <Link href={`/profile/${post.authorWallet}`} className="xpost-name" onClick={(e) => e.stopPropagation()}>
                         {shortWallet(post.authorWallet)}
                       </Link>
-                      <Link href={`/post/${post.contentId}`} className="xpost-time" title="View post">
+                      <Link href={`/feed/${post.contentId}`} className="xpost-time" title="View post" onClick={(e) => e.stopPropagation()}>
                         · {timeAgo(post.createdAt)}
                       </Link>
                       {post.type === "slash" && (
@@ -460,7 +595,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                     <p className="xpost-content">{post.content}</p>
 
                     {(tags.length > 0 || topic || streamId) && (
-                      <div className="xpost-tags">
+                      <div className="xpost-tags" onClick={(e) => e.stopPropagation()}>
                         {streamId && (
                           <Link className="xpost-tag" href={`/stream/${streamId}`}>
                             #{streamDetails?.name ?? streamId}
@@ -474,7 +609,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                     )}
 
                     {(makerWallet || challengeTx) && (
-                      <div className="xpost-meta">
+                      <div className="xpost-meta" onClick={(e) => e.stopPropagation()}>
                         {makerWallet && <span className="subtext">Maker: {makerWallet.slice(0, 10)}…</span>}
                         {challengeTx && (
                           <a
@@ -488,7 +623,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                       </div>
                     )}
 
-                    <div className="xpost-actions">
+                    <div className="xpost-actions" onClick={(e) => e.stopPropagation()}>
                       {/* Vote */}
                       <button
                         className={`xpost-action-btn${isLiked ? " liked" : ""}`}
@@ -522,16 +657,51 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                       </button>
 
                       {/* Follow */}
-                      <button
-                        className="xpost-action-btn"
-                        title="Follow maker"
-                        onClick={() => followAuthor(post.profileId)}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
-                        </svg>
-                        <span>Follow</span>
-                      </button>
+                      {wallet !== post.authorWallet && (
+                        <button
+                          className="xpost-action-btn"
+                          title="Follow maker"
+                          onClick={() => followAuthor(post.profileId)}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
+                          </svg>
+                          <span>Follow</span>
+                        </button>
+                      )}
+
+                      {isOwnerPost && (
+                        confirmDeletePostId === post.contentId ? (
+                          <div className="confirm-toggle confirm-toggle--compact">
+                            <button
+                              className="confirm-toggle__no"
+                              onClick={() => setConfirmDeletePostId(null)}
+                            >
+                              No
+                            </button>
+                            <button
+                              className="confirm-toggle__yes"
+                              onClick={() => removePost(post.contentId)}
+                            >
+                              Yes
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="xpost-action-btn delete"
+                            title="Delete post"
+                            onClick={() => setConfirmDeletePostId(post.contentId)}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                            <span>Delete</span>
+                          </button>
+                        )
+                      )}
 
                       {/* Subscribe */}
                       {streamId && !isOwnerStream && (
@@ -543,15 +713,45 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
                     {/* Comments inline */}
                     {isOpen && (
-                      <div className="x-comment-box">
+                      <div className="x-comment-box" onClick={(e) => e.stopPropagation()}>
                         {commentLoading[post.contentId] && loadedComments === 0 && (
                           <div className="subtext" style={{ padding: "6px 0" }}>Loading…</div>
                         )}
-                        {(comments[post.contentId] ?? []).map((entry, idx) => (
-                          <div key={`${post.contentId}-${idx}`} className="x-comment-item">
-                            {resolveCommentText(entry) || "Comment"}
-                          </div>
-                        ))}
+                        {(comments[post.contentId] ?? []).map((entry, idx) => {
+                          const authorId = resolveCommentAuthorId(entry);
+                          const canDelete = Boolean(currentProfileId && authorId && authorId === currentProfileId);
+                          const commentId = resolveCommentId(entry);
+                          return (
+                            <div key={`${post.contentId}-${idx}`} className="x-comment-item">
+                              <span className="x-comment-text">{resolveCommentText(entry) || "Comment"}</span>
+                              {canDelete && commentId && (
+                                confirmDeleteCommentId === commentId ? (
+                                  <div className="confirm-toggle confirm-toggle--tiny">
+                                    <button
+                                      className="confirm-toggle__no"
+                                      onClick={() => setConfirmDeleteCommentId(null)}
+                                    >
+                                      No
+                                    </button>
+                                    <button
+                                      className="confirm-toggle__yes"
+                                      onClick={() => removeComment(post.contentId, entry)}
+                                    >
+                                      Yes
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="x-comment-delete"
+                                    onClick={() => setConfirmDeleteCommentId(commentId)}
+                                  >
+                                    Delete
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          );
+                        })}
                         {loadedComments === 0 && !commentLoading[post.contentId] && (
                           <p className="subtext">No comments yet.</p>
                         )}
@@ -583,6 +783,27 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 </div>
               );
             })}
+            {loading && !feed.length && (
+              <div className="feed-skeleton">
+                {Array.from({ length: feed.length ? 2 : 4 }).map((_, idx) => (
+                  <div className="xpost shimmer" key={`shimmer-${idx}`}>
+                    <div className="xpost-avatar">
+                      <div className="x-skel-circle" />
+                    </div>
+                    <div className="xpost-body">
+                      <div className="skeleton-line wide" />
+                      <div className="skeleton-line" />
+                      <div className="skeleton-line short" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!loading && !feed.length && (
+              <div className="x-empty-state">
+                <p>No posts yet. Be the first to share your market intelligence.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -604,21 +825,31 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
           <Link className="x-rail-link" href="/">Open discovery →</Link>
         </div>
 
-        {/* Hot intents */}
+        {/* What's streaming */}
         <div className="x-rail-module">
-          <h3 className="x-rail-heading">What&apos;s trending</h3>
-          {trending.map((post) => (
-            <Link className="x-trend-item" key={post.id} href={`/post/${post.contentId}`}>
-              <span className="x-trend-category">
-                {post.type === "slash" ? "Slashing" : "Intent"} · Trending
-              </span>
-              <strong className="x-trend-topic">
-                {post.content.slice(0, 60)}{post.content.length > 60 ? "…" : ""}
-              </strong>
-              <span className="x-trend-meta">{likes[post.contentId] ?? 0} votes</span>
-            </Link>
-          ))}
-          {!trending.length && <span className="x-trend-category">No trending posts yet.</span>}
+          <h3 className="x-rail-heading">What&apos;s streaming</h3>
+          {streamingEvents.slice(0, 5).map((event) => {
+            const stream = streamById.get(event.streamId);
+            const subs = subscriberCounts[event.streamId];
+            const subsLabel = typeof subs === "number" ? `${subs} sub${subs === 1 ? "" : "s"}` : null;
+            return (
+              <Link className="x-trend-item" key={event.id} href={`/stream/${event.streamId}`}>
+                <span className="x-trend-category">
+                  Signal · {timeAgo(event.createdAt)} ago
+                </span>
+                <strong className="x-trend-topic">
+                  {stream?.name ?? event.streamId}
+                </strong>
+                <span className="x-trend-meta">
+                  {formatFullTimestamp(event.createdAt)}
+                  {subsLabel ? ` · ${subsLabel}` : ""}
+                </span>
+              </Link>
+            );
+          })}
+          {!streamingEvents.length && (
+            <span className="x-trend-category">No signals yet.</span>
+          )}
         </div>
 
         {/* Search */}

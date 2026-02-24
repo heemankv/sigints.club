@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import PublishSignal from "./PublishSignal";
 import DecryptPanel from "./DecryptPanel";
@@ -8,6 +8,9 @@ import FollowMaker from "./FollowMaker";
 import SubscribeForm from "./SubscribeForm";
 import type { StreamDetail } from "../../lib/types";
 import type { StreamDetail as FallbackStreamDetail } from "../../lib/fallback";
+import type { SignalEvent } from "../../lib/types";
+import { fetchSignalEvents } from "../../lib/api/signals";
+import { formatFullTimestamp, timeAgo } from "../../lib/utils";
 
 type AnyStream = StreamDetail | FallbackStreamDetail;
 
@@ -29,12 +32,80 @@ function CopyableAddress({ address }: { address: string }) {
 
 export default function StreamPageClient({ stream }: { stream: AnyStream }) {
   const { publicKey } = useWallet();
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [signalEvents, setSignalEvents] = useState<SignalEvent[]>([]);
+  const lastEventIdRef = useRef<number>(0);
+  const pollRef = useRef<number | null>(null);
   const isOwner =
     publicKey &&
     "authority" in stream &&
     stream.authority &&
     publicKey.toBase58() === stream.authority;
   const onchainAddress = "onchainAddress" in stream ? stream.onchainAddress : undefined;
+
+  useEffect(() => {
+    let mounted = true;
+    const streamId = stream.id;
+
+    function sortEvents(events: SignalEvent[]) {
+      return [...events].sort((a, b) => (b.createdAt - a.createdAt) || (b.id - a.id));
+    }
+
+    async function loadInitial() {
+      try {
+        const data = await fetchSignalEvents({ streamId, limit: 10 });
+        if (!mounted) return;
+        const events = sortEvents(data.events ?? []);
+        setSignalEvents(events);
+        if (events.length) {
+          lastEventIdRef.current = Math.max(...events.map((e) => e.id));
+        }
+      } catch {
+        if (!mounted) return;
+        setSignalEvents([]);
+      }
+    }
+
+    void loadInitial();
+
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const after = lastEventIdRef.current;
+        const data = await fetchSignalEvents({ streamId, limit: 10, after });
+        if (!mounted) return;
+        if (data.events?.length) {
+          const newestId = Math.max(after, ...data.events.map((e) => e.id));
+          lastEventIdRef.current = newestId;
+          const incoming = sortEvents(data.events ?? []);
+          setSignalEvents((prev) => {
+            const merged = [...incoming, ...prev];
+            const seen = new Set<number>();
+            const deduped = merged.filter((event) => {
+              if (seen.has(event.id)) return false;
+              seen.add(event.id);
+              return true;
+            });
+            return sortEvents(deduped).slice(0, 10);
+          });
+        }
+      } catch {
+        // ignore polling failures
+      }
+    }, 10_000);
+
+    return () => {
+      mounted = false;
+      if (pollRef.current) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [stream.id]);
 
   return (
     <div className="stream-detail">
@@ -55,6 +126,34 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
             <span className={`badge ${stream.visibility === "private" ? "badge-private" : "badge-public"}`}>
               {stream.visibility}
             </span>
+          )}
+        </div>
+      </div>
+
+      <div className="stream-detail-section">
+        <div className={`signal-activity${activityOpen ? " signal-activity--open" : ""}`}>
+          <button
+            className="signal-activity__toggle"
+            onClick={() => setActivityOpen((prev) => !prev)}
+          >
+            <span>Signal Activity</span>
+            <span className="signal-activity__meta">
+              {signalEvents[0] ? `Last signal ${timeAgo(signalEvents[0].createdAt)} ago` : "No signals yet"}
+            </span>
+            <span className="signal-activity__chev">{activityOpen ? "▴" : "▾"}</span>
+          </button>
+          {activityOpen && (
+            <div className="signal-activity__list">
+              {signalEvents.length === 0 && (
+                <div className="signal-activity__empty">No signals recorded yet.</div>
+              )}
+              {signalEvents.map((event) => (
+                <div key={event.id} className="signal-activity__item">
+                  <span className="signal-activity__time">{formatFullTimestamp(event.createdAt)}</span>
+                  <span className="signal-activity__meta">{event.visibility}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

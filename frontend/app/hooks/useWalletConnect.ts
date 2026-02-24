@@ -2,11 +2,13 @@
 
 // Centralised wallet connect logic.
 // Owns the select → connect → login sequence and exposes detected wallets.
+// Detects new users (no displayName) and exposes onboarding state.
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState, type WalletName } from "@solana/wallet-adapter-base";
 import { loginUser } from "../lib/api/social";
+import type { LoginUserResponse } from "../lib/sdkBackend";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName;
 const TEST_WALLET_FLAG = process.env.NEXT_PUBLIC_TEST_WALLET === "true";
@@ -24,6 +26,7 @@ export function useWalletConnect() {
   } = useWallet();
 
   const pendingConnect = useRef(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   // Step 2 of the two-step select → connect sequence.
   // After select() updates the adapter state, connect() is called here.
@@ -33,11 +36,29 @@ export function useWalletConnect() {
     connect().catch(() => {});
   }, [wallet, connected, connecting, connect]);
 
-  // Fire-and-forget login whenever the wallet connects.
+  // Login on wallet connect and detect new users.
   useEffect(() => {
-    if (!publicKey) return;
-    loginUser(publicKey.toBase58()).catch(() => {});
+    if (!publicKey) {
+      setNeedsOnboarding(false);
+      return;
+    }
+    loginUser(publicKey.toBase58())
+      .then((res: LoginUserResponse) => {
+        if (!res.user.displayName) {
+          setNeedsOnboarding(true);
+        }
+      })
+      .catch(() => {});
   }, [publicKey]);
+
+  const completeOnboarding = useCallback(
+    async (data: { displayName: string; bio?: string }) => {
+      if (!publicKey) throw new Error("Wallet not connected");
+      await loginUser(publicKey.toBase58(), data);
+      setNeedsOnboarding(false);
+    },
+    [publicKey]
+  );
 
   const detectedWallets = wallets.filter(
     (w) =>
@@ -79,5 +100,7 @@ export function useWalletConnect() {
     detectedWallets,
     selectWallet,
     disconnect,
+    needsOnboarding,
+    completeOnboarding,
   };
 }

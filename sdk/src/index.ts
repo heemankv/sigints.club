@@ -24,6 +24,7 @@ import {
   fetchKeyboxEntry as fetchKeyboxEntryRequest,
   type SubscribeResponse,
   type SyncWalletKeyResponse,
+  type LoginUserResponse,
 } from "./backend";
 
 export type StreamSdkConfig = {
@@ -414,6 +415,7 @@ export {
   createStream,
   fetchOnchainSubscriptions,
   fetchSignals,
+  fetchSignalEvents,
   fetchLatestSignal,
   fetchSignalByHash,
   fetchCiphertext,
@@ -423,6 +425,8 @@ export {
   getTestWallet,
   testWalletSend,
   testWalletSignMessage,
+  deleteComment,
+  deletePost,
   fetchFeed,
   fetchFollowingFeed,
   fetchTrendingFeed,
@@ -433,6 +437,7 @@ export {
   addLike,
   removeLike,
   fetchLikeCount,
+  fetchFollowCounts,
   fetchComments,
   addComment,
   followProfile,
@@ -444,6 +449,7 @@ export {
   deleteAgentSubscription,
   fetchUserProfile,
   loginUser,
+  type LoginUserResponse,
 } from "./backend";
 
 export * from "./solana/index";

@@ -11,11 +11,15 @@ import {
   addLike as sdkAddLike,
   removeLike as sdkRemoveLike,
   fetchLikeCount as sdkFetchLikeCount,
+  fetchFollowCounts as sdkFetchFollowCounts,
   fetchComments as sdkFetchComments,
   addComment as sdkAddComment,
+  deleteComment as sdkDeleteComment,
   followProfile as sdkFollowProfile,
+  deletePost as sdkDeletePost,
   searchAgents as sdkSearchAgents,
   loginUser as sdkLoginUser,
+  type LoginUserResponse,
 } from "../sdkBackend";
 import type { SocialPost, CommentEntry, AgentProfile } from "../types";
 
@@ -27,8 +31,45 @@ type FeedResponse = {
   commentCounts?: Record<string, number>;
 };
 
+const FEED_CACHE_KEY = "feed_cache_v1";
+const FEED_CACHE_TTL_MS = 30_000;
+
+type FeedCache = {
+  expiresAt: number;
+  data: FeedResponse;
+};
+
+export function readFeedCache(): FeedResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as FeedCache;
+    if (!parsed?.data || !Array.isArray(parsed.data.posts)) return null;
+    if (Date.now() > parsed.expiresAt) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeFeedCache(data: FeedResponse) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: FeedCache = {
+      data,
+      expiresAt: Date.now() + FEED_CACHE_TTL_MS,
+    };
+    window.localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export async function fetchFeed(type?: "intent" | "slash"): Promise<FeedResponse> {
-  return sdkFetchFeed<FeedResponse>(type);
+  const data = await sdkFetchFeed<FeedResponse>(type);
+  writeFeedCache(data);
+  return data;
 }
 
 export async function fetchFollowingFeed(
@@ -83,6 +124,12 @@ export async function fetchLikeCount(contentId: string): Promise<number> {
   return sdkFetchLikeCount(contentId);
 }
 
+export async function fetchFollowCounts(
+  wallet: string
+): Promise<{ counts: { followers: number; following: number } }> {
+  return sdkFetchFollowCounts(wallet);
+}
+
 // ─── Comments ─────────────────────────────────────────────────────────────────
 
 type CommentsResponse = {
@@ -107,10 +154,18 @@ export async function addComment(
   await sdkAddComment(wallet, contentId, comment);
 }
 
+export async function deleteComment(wallet: string, commentId: string): Promise<void> {
+  await sdkDeleteComment(wallet, commentId);
+}
+
 // ─── Follow ───────────────────────────────────────────────────────────────────
 
 export async function followProfile(wallet: string, targetProfileId: string): Promise<void> {
   await sdkFollowProfile(wallet, targetProfileId);
+}
+
+export async function deletePost(wallet: string, contentId: string): Promise<void> {
+  await sdkDeletePost(wallet, contentId);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -121,6 +176,9 @@ export async function searchAgents(query: string): Promise<{ agents: AgentProfil
 
 // ─── User / Auth ──────────────────────────────────────────────────────────────
 
-export async function loginUser(wallet: string): Promise<void> {
-  await sdkLoginUser(wallet);
+export async function loginUser(
+  wallet: string,
+  opts?: { displayName?: string; bio?: string }
+): Promise<LoginUserResponse> {
+  return sdkLoginUser(wallet, opts);
 }

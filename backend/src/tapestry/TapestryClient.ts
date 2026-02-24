@@ -259,6 +259,14 @@ export class TapestryClient {
     );
   }
 
+  async getCommentDetails(commentId: string) {
+    return this.client.comments.commentsDetail({ apiKey: this.apiKey, id: commentId });
+  }
+
+  async deleteComment(commentId: string) {
+    return this.client.comments.commentsDelete({ apiKey: this.apiKey, id: commentId });
+  }
+
   async getCommentsByContent(contentId: string) {
     return this.client.comments.commentsList({ apiKey: this.apiKey, contentId });
   }
@@ -275,6 +283,10 @@ export class TapestryClient {
       { apiKey: this.apiKey, nodeId: input.contentId },
       { startId: input.profileId }
     );
+  }
+
+  async deleteContent(contentId: string) {
+    return this.client.contents.contentsDelete({ apiKey: this.apiKey, id: contentId });
   }
 
   async getContentDetails(contentId: string) {
@@ -305,6 +317,15 @@ export class TapestryClient {
 
   async getProfileDetails(profileId: string) {
     return this.client.profiles.profilesDetail({ apiKey: this.apiKey, id: profileId });
+  }
+
+  async getProfileSocialCounts(profileId: string): Promise<{ followers: number; following: number }> {
+    const details = await this.getProfileDetails(profileId);
+    const counts = details?.socialCounts;
+    return {
+      followers: counts?.followers ?? 0,
+      following: counts?.following ?? 0,
+    };
   }
 
   async listFollowing(input: ListFollowingInput) {

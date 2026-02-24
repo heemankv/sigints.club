@@ -27,14 +27,49 @@ export function formatFullTimestamp(ts: number): string {
 
 /** Resolves the display text from the API's polymorphic CommentEntry shape. */
 export function resolveCommentText(entry: CommentEntry): string {
+  if (typeof entry.comment === "string") {
+    return entry.comment;
+  }
+  if (entry.comment && typeof entry.comment === "object") {
+    if (typeof entry.comment.text === "string") {
+      return entry.comment.text;
+    }
+  }
+  if (typeof entry.text === "string") {
+    return entry.text;
+  }
+  if (entry.text && typeof entry.text === "object") {
+    if (typeof entry.text.text === "string") {
+      return entry.text.text;
+    }
+  }
   return (
-    entry.comment ??
-    entry.text ??
     (typeof entry.content === "string"
       ? entry.content
       : entry.content?.text) ??
     ""
   );
+}
+
+export function resolveCommentId(entry: CommentEntry): string | undefined {
+  if (entry.id) return entry.id;
+  if (entry.comment && typeof entry.comment === "object" && entry.comment.id) {
+    return entry.comment.id;
+  }
+  return undefined;
+}
+
+export function resolveCommentAuthorId(entry: CommentEntry): string | undefined {
+  return entry.profileId ?? entry.author?.id;
+}
+
+export function resolveCommentCreatedAt(entry: CommentEntry): number | undefined {
+  if (entry.createdAt) return entry.createdAt;
+  if (entry.created_at) return entry.created_at;
+  if (entry.comment && typeof entry.comment === "object" && entry.comment.created_at) {
+    return entry.comment.created_at;
+  }
+  return undefined;
 }
 
 // ─── Quota parsing ────────────────────────────────────────────────────────────

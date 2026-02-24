@@ -6,6 +6,7 @@ import Link from "next/link";
 import LeftNav from "../../components/LeftNav";
 import StreamCard from "../../components/StreamCard";
 import { fetchStreams } from "../../lib/api/streams";
+import { fetchFollowCounts } from "../../lib/api/social";
 import { fetchUserProfile } from "../../lib/sdkBackend";
 import type { StreamDetail } from "../../lib/types";
 import { shortWallet } from "../../lib/utils";
@@ -28,6 +29,8 @@ export default function PublicProfilePage() {
   const [streams, setStreams] = useState<StreamDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [followCounts, setFollowCounts] = useState<{ followers: number; following: number } | null>(null);
+  const [followLoading, setFollowLoading] = useState(false);
 
   useEffect(() => {
     if (!wallet) return;
@@ -40,6 +43,15 @@ export default function PublicProfilePage() {
         setProfile(u.user);
       } catch {
         setProfile({ wallet });
+      }
+      try {
+        setFollowLoading(true);
+        const counts = await fetchFollowCounts(wallet);
+        setFollowCounts(counts.counts);
+      } catch {
+        setFollowCounts(null);
+      } finally {
+        setFollowLoading(false);
       }
       try {
         const data = await fetchStreams({ includeTiers: true });
@@ -74,13 +86,22 @@ export default function PublicProfilePage() {
                 {profile.bio}
               </div>
             )}
+            {(followLoading || followCounts) && (
+              <div className="profile-header-stats">
+                <span><strong>{followCounts?.following ?? "…"}</strong> Following</span>
+                <span><strong>{followCounts?.followers ?? "…"}</strong> Followers</span>
+              </div>
+            )}
             <div className="profile-header-wallet">{wallet}</div>
           </div>
         </div>
 
         <div className="profile-tab-content">
           <div className="data-grid data-grid--single" style={{ marginTop: 8 }}>
-            {loading && (
+            {streams.map((stream) => (
+              <StreamCard key={stream.id} stream={stream} />
+            ))}
+            {loading && !streams.length && (
               <div className="x-empty-state">
                 <p>Loading streams…</p>
               </div>
@@ -95,9 +116,6 @@ export default function PublicProfilePage() {
                 <p>No streams published yet.</p>
               </div>
             )}
-            {streams.map((stream) => (
-              <StreamCard key={stream.id} stream={stream} />
-            ))}
           </div>
         </div>
       </div>

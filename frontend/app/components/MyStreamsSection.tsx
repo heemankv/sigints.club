@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { fetchStreams, fetchStreamSubscribers } from "../lib/api/streams";
+import { fetchStreams, readStreamsCache, fetchStreamSubscribers } from "../lib/api/streams";
 import type { StreamDetail } from "../lib/types";
 
 export default function MyStreamsSection() {
@@ -21,6 +21,14 @@ export default function MyStreamsSection() {
 
   async function load() {
     setLoading(true);
+
+    // Show cached streams instantly
+    const cached = readStreamsCache();
+    if (cached?.streams?.length) {
+      const cachedMine = cached.streams.filter((s) => s.authority === walletAddr);
+      if (cachedMine.length) setMyStreams(cachedMine);
+    }
+
     try {
       const data = await fetchStreams({ includeTiers: true });
       const mine = (data.streams ?? []).filter((s) => s.authority === walletAddr);
@@ -37,7 +45,7 @@ export default function MyStreamsSection() {
       );
       setSubscriberCounts(Object.fromEntries(countEntries));
     } catch {
-      setMyStreams([]);
+      if (!myStreams.length) setMyStreams([]);
     } finally {
       setLoading(false);
     }
@@ -45,29 +53,6 @@ export default function MyStreamsSection() {
 
   if (!publicKey) {
     return <p className="subtext">Connect your wallet to view your streams.</p>;
-  }
-
-  if (loading) {
-    return <p className="subtext">Loading your streams…</p>;
-  }
-
-  if (myStreams.length === 0) {
-    return (
-      <div className="stream-card-grid">
-        <div className="stream-card">
-          <div className="stream-card-row">
-            <div className="stream-card-identity">
-              <p className="subtext" style={{ margin: 0 }}>No streams registered yet.</p>
-            </div>
-            <div className="stream-card-actions">
-              <Link className="button ghost" href="/register-stream">
-                Register a Stream →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -129,6 +114,29 @@ export default function MyStreamsSection() {
           </div>
         </div>
       ))}
+      {loading && myStreams.length === 0 && (
+        <div className="stream-card">
+          <div className="stream-card-row">
+            <div className="stream-card-identity">
+              <p className="subtext" style={{ margin: 0 }}>Loading your streams…</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {!loading && myStreams.length === 0 && (
+        <div className="stream-card">
+          <div className="stream-card-row">
+            <div className="stream-card-identity">
+              <p className="subtext" style={{ margin: 0 }}>No streams registered yet.</p>
+            </div>
+            <div className="stream-card-actions">
+              <Link className="button ghost" href="/register-stream">
+                Register a Stream →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,6 +20,8 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
   const [status, setStatus] = useState<string | null>(null);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formClosing, setFormClosing] = useState(false);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const { refresh: refreshWalletKey, needsWalletKey } = useWalletKeyStatus();
@@ -70,9 +72,26 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
       setSyncStatus("Backend sync complete.");
       await refreshWalletKey();
       await refreshProfile();
+      setShowForm(false);
+      setPubKey("");
+      setSubscriberId(null);
     } catch (err: any) {
       setChainStatus(err?.message ?? "Failed to register on-chain key.");
     }
+  }
+
+  function dismissForm() {
+    setFormClosing(true);
+  }
+
+  function onFormExited() {
+    setFormClosing(false);
+    setShowForm(false);
+    setPubKey("");
+    setSubscriberId(null);
+    setStatus(null);
+    setChainStatus(null);
+    setSyncStatus(null);
   }
 
   const isPlain = variant === "plain";
@@ -85,10 +104,14 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
 
   const registeredAt = profile?.walletKeyRegisteredAt;
   const registeredAtLabel = registeredAt
-    ? new Date(registeredAt).toLocaleString()
+    ? new Date(registeredAt).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
     : null;
   const registeredKey = profile?.walletKeyPublicKey;
-  const showUpdateView = !needsWalletKey;
+  const hasKey = !needsWalletKey;
 
   return (
     <div className={containerClass}>
@@ -98,35 +121,59 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
         {needsWalletKey && <span className="status-dot" aria-label="Wallet key missing" />}
       </h3>
 
-      {showUpdateView ? (
-        <>
-          <div className="key-status-card">
-            <p className="key-status-title">Wallet key registered</p>
-            <p className="subtext">
-              {registeredAtLabel
-                ? `Registered on ${registeredAtLabel}.`
-                : "An on-chain wallet key is already registered."}
-            </p>
+      {/* Key exists, form hidden — GitHub-style key card */}
+      {hasKey && !showForm && (
+        <div className="key-registered-card">
+          <div className="key-registered-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            </svg>
+          </div>
+          <div className="key-registered-details">
             {registeredKey && (
-              <div className="key-status-meta">
-                <span className="subtext">Current public key (base64 DER)</span>
-                <code>{registeredKey.slice(0, 20)}…{registeredKey.slice(-12)}</code>
-              </div>
+              <code className="key-registered-pubkey">
+                {registeredKey.slice(0, 16)}…{registeredKey.slice(-12)}
+              </code>
+            )}
+            {registeredAtLabel && (
+              <span className="subtext">Added on {registeredAtLabel}</span>
             )}
           </div>
+          <button
+            className="button ghost"
+            onClick={() => setShowForm(true)}
+          >
+            Update Key
+          </button>
+        </div>
+      )}
 
-          <div className="divider" />
-          <h4 style={{ marginBottom: 8 }}>Update key</h4>
+      {/* No key exists, form hidden — empty state */}
+      {!hasKey && !showForm && (
+        <div className="key-empty-state">
+          <p className="subtext">No encryption key registered.</p>
+          <button
+            className="button ghost"
+            onClick={() => setShowForm(true)}
+          >
+            Register New Key
+          </button>
+        </div>
+      )}
+
+      {/* Form visible — registration/update form */}
+      {showForm && (
+        <div
+          className={formClosing ? "key-form-dismiss" : "key-form-reveal"}
+          onAnimationEnd={formClosing ? onFormExited : undefined}
+        >
+          <h4 style={{ marginTop: 12, marginBottom: 8 }}>
+            {hasKey ? "Update Encryption Key" : "Register New Key"}
+          </h4>
           <p className="subtext" style={{ marginBottom: 12 }}>
-            To rotate your encryption key, generate a new X25519 keypair locally and register the new public key
-            on-chain. Keep the private key offline — you will only use it when decrypting.
-          </p>
-        </>
-      ) : (
-        <>
-          <p>
-            Generate an X25519 keypair locally on your machine, then paste the <strong>public key</strong> here to
-            register it on-chain. Keep the private key offline — you will only use it when decrypting.
+            {hasKey
+              ? "To rotate your encryption key, generate a new X25519 keypair locally and register the new public key on-chain. Keep the private key offline — you will only use it when decrypting."
+              : "Generate an X25519 keypair locally on your machine, then paste the public key here to register it on-chain. Keep the private key offline — you will only use it when decrypting."}
           </p>
 
           <div className="key-instructions">
@@ -149,26 +196,34 @@ openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
               </p>
             </div>
           </div>
-        </>
-      )}
 
-      {status && <p className="subtext">{status}</p>}
-      <div className="field">
-        <label>Public Key (base64 DER)</label>
-        <textarea value={pubKey} onChange={(e) => void handlePubKeyChange(e.target.value.trim())} />
-      </div>
-      {subscriberId && <p className="subtext">Subscriber ID: {subscriberId}</p>}
-      <div className="divider" />
-      <button
-        className="button ghost"
-        onClick={registerOnchain}
-        disabled={!publicKey}
-      >
-        {showUpdateView ? "Register New Key On-chain" : "Register Key On-chain"}
-      </button>
-      {!publicKey && <p className="subtext">Connect wallet to register your key.</p>}
-      {chainStatus && <p className="subtext">{chainStatus}</p>}
-      {syncStatus && <p className="subtext">{syncStatus}</p>}
+          {status && <p className="subtext">{status}</p>}
+          <div className="field">
+            <label>Public Key (base64 DER)</label>
+            <textarea value={pubKey} onChange={(e) => void handlePubKeyChange(e.target.value.trim())} />
+          </div>
+          {subscriberId && <p className="subtext">Subscriber ID: {subscriberId}</p>}
+          <div className="divider" />
+          <div className="key-form-actions">
+            <button
+              className="button ghost"
+              onClick={registerOnchain}
+              disabled={!publicKey}
+            >
+              {hasKey ? "Update Key On-chain" : "Register Key On-chain"}
+            </button>
+            <button
+              className="button secondary"
+              onClick={dismissForm}
+            >
+              Cancel
+            </button>
+          </div>
+          {!publicKey && <p className="subtext">Connect wallet to register your key.</p>}
+          {chainStatus && <p className="subtext">{chainStatus}</p>}
+          {syncStatus && <p className="subtext">{syncStatus}</p>}
+        </div>
+      )}
     </div>
   );
 }

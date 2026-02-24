@@ -15,11 +15,13 @@ export type SocialPost = {
 // The API returns a polymorphic comment shape; this union captures all variants.
 export type CommentEntry = {
   id?: string;
-  comment?: string;
+  comment?: string | { id?: string; created_at?: number; text?: string };
   content?: string | { text?: string };
-  text?: string;
+  text?: string | { text?: string };
+  author?: { id?: string; username?: string };
   profileId?: string;
   createdAt?: number;
+  created_at?: number;
 };
 
 export type StreamTier = {
@@ -45,6 +47,16 @@ export type StreamDetail = {
   dao?: string;
   tapestryProfileId?: string;
   tiers: StreamTier[];
+};
+
+export type SignalEvent = {
+  id: number;
+  streamId: string;
+  tierId: string;
+  signalHash: string;
+  visibility: "public" | "private";
+  createdAt: number;
+  onchainTx?: string;
 };
 
 export type OnChainSubscription = {

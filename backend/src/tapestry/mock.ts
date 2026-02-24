@@ -161,6 +161,40 @@ export class MockTapestryClient {
     return { comment: { id } };
   }
 
+  async getCommentDetails(commentId: string) {
+    for (const list of this.comments.values()) {
+      const found = list.find((item) => item.id === commentId);
+      if (!found) continue;
+      const author = this.profiles.get(found.profileId);
+      return {
+        comment: { id: found.id, created_at: found.created_at, text: found.text },
+        contentId: found.contentId,
+        author: author
+          ? {
+              id: author.id,
+              username: author.username,
+              bio: author.bio ?? null,
+              created_at: author.created_at,
+              namespace: "mock",
+            }
+          : { id: found.profileId, username: found.profileId, created_at: found.created_at, namespace: "mock" },
+        socialCounts: { likeCount: 0 },
+      };
+    }
+    return null;
+  }
+
+  async deleteComment(commentId: string) {
+    for (const [contentId, list] of this.comments.entries()) {
+      const next = list.filter((item) => item.id !== commentId);
+      if (next.length !== list.length) {
+        this.comments.set(contentId, next);
+        return { success: true };
+      }
+    }
+    return { success: false };
+  }
+
   async getCommentsByContent(contentId: string) {
     return { comments: this.comments.get(contentId) ?? [] };
   }
@@ -178,10 +212,33 @@ export class MockTapestryClient {
     return { success: true };
   }
 
+  async deleteContent(contentId: string) {
+    this.contents.delete(contentId);
+    this.comments.delete(contentId);
+    this.likes.delete(contentId);
+    return { success: true };
+  }
+
   async getContentDetails(contentId: string) {
     const likeCount = this.likes.get(contentId)?.size ?? 0;
     const commentCount = this.comments.get(contentId)?.length ?? 0;
-    return { socialCounts: { likeCount, commentCount } };
+    const content = this.contents.get(contentId);
+    const author = content ? this.profiles.get(content.profileId) : undefined;
+    return {
+      content: content
+        ? { id: content.id, created_at: content.created_at, namespace: "mock" }
+        : null,
+      socialCounts: { likeCount, commentCount },
+      authorProfile: author
+        ? {
+            id: author.id,
+            username: author.username,
+            bio: author.bio ?? null,
+            created_at: author.created_at,
+            namespace: "mock",
+          }
+        : undefined,
+    };
   }
 
   async listContents(input: {
@@ -242,7 +299,17 @@ export class MockTapestryClient {
 
   async getProfileDetails(profileId: string) {
     const profile = this.profiles.get(profileId);
-    return profile ? { profile } : null;
+    const followers = Array.from(this.follows.values()).filter((set) => set.has(profileId)).length;
+    const following = this.follows.get(profileId)?.size ?? 0;
+    return profile
+      ? {
+          profile,
+          socialCounts: {
+            followers,
+            following,
+          },
+        }
+      : null;
   }
 
   async listFollowing(input: { profileId: string; page?: number; pageSize?: number }) {

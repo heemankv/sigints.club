@@ -1,4 +1,4 @@
-import { createBackendClient, type SubscribeResponse, type SyncWalletKeyResponse } from "../../../sdk/src/backend";
+import { createBackendClient, type SubscribeResponse, type SyncWalletKeyResponse, type LoginUserResponse } from "../../../sdk/src/backend";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 
@@ -53,6 +53,10 @@ export function fetchOnchainSubscriptions<T = any>(
 
 export function fetchSignals<T = any>(streamId: string): Promise<{ signals: T[] }> {
   return getClient().fetchSignals<T>(streamId);
+}
+
+export function fetchSignalEvents<T = any>(params: { streamId?: string; limit?: number; after?: number }): Promise<{ events: T[] }> {
+  return getClient().fetchSignalEvents<T>(params);
 }
 
 export function fetchLatestSignal<T = any>(streamId: string): Promise<{ signal: T }> {
@@ -131,6 +135,10 @@ export function fetchLikeCount(contentId: string): Promise<number> {
   return getClient().fetchLikeCount(contentId);
 }
 
+export function fetchFollowCounts(wallet: string): Promise<{ counts: { followers: number; following: number } }> {
+  return getClient().fetchFollowCounts(wallet);
+}
+
 export function fetchComments<T = any>(contentId: string, page = 1, pageSize = 3): Promise<T> {
   return getClient().fetchComments<T>(contentId, page, pageSize);
 }
@@ -139,8 +147,16 @@ export function addComment(wallet: string, contentId: string, comment: string): 
   return getClient().addComment(wallet, contentId, comment);
 }
 
+export function deleteComment(wallet: string, commentId: string): Promise<void> {
+  return getClient().deleteComment(wallet, commentId);
+}
+
 export function followProfile(wallet: string, targetProfileId: string): Promise<void> {
   return getClient().followProfile(wallet, targetProfileId);
+}
+
+export function deletePost(wallet: string, contentId: string): Promise<void> {
+  return getClient().deletePost(wallet, contentId);
 }
 
 export function searchAgents<T = any>(query: string): Promise<T> {
@@ -178,8 +194,11 @@ export function updateUserProfile<T = any>(
   return getClient().updateUserProfile<T>(wallet, payload);
 }
 
-export function loginUser(wallet: string): Promise<void> {
-  return getClient().loginUser(wallet);
+export function loginUser(
+  wallet: string,
+  opts?: { displayName?: string; bio?: string }
+): Promise<LoginUserResponse> {
+  return getClient().loginUser(wallet, opts);
 }
 
-export type { SubscribeResponse, SyncWalletKeyResponse };
+export type { SubscribeResponse, SyncWalletKeyResponse, LoginUserResponse };

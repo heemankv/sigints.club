@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { WrappedKey } from "../crypto/hybrid";
 import { SignalMetadata } from "../metadata/MetadataStore";
-import { SignalStore, PublicSignalPayload, PrivateSignalPayload, SignalPayload } from "./SignalStore";
+import { SignalStore, SignalEvent, PublicSignalPayload, PrivateSignalPayload, SignalPayload } from "./SignalStore";
 
 function rowToMetadata(row: any): SignalMetadata {
   const visibility = row.visibility as "public" | "private";
@@ -18,6 +18,18 @@ function rowToMetadata(row: any): SignalMetadata {
     keyboxHash,
     keyboxPointer,
     visibility,
+    createdAt: Number(row.created_at),
+    onchainTx: row.onchain_tx ?? undefined,
+  };
+}
+
+function rowToEvent(row: any): SignalEvent {
+  return {
+    id: Number(row.id),
+    streamId: String(row.stream_id),
+    tierId: String(row.tier_id),
+    signalHash: String(row.signal_hash),
+    visibility: row.visibility as "public" | "private",
     createdAt: Number(row.created_at),
     onchainTx: row.onchain_tx ?? undefined,
   };
@@ -53,6 +65,19 @@ export class SqlSignalStore implements SignalStore {
           null,
           meta.createdAt,
           now,
+          meta.onchainTx ?? null,
+        ]
+      );
+      await client.query(
+        `INSERT INTO signals_events (
+          stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx
+        ) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+          meta.streamId,
+          meta.tierId,
+          meta.visibility ?? "public",
+          meta.signalHash,
+          meta.createdAt,
           meta.onchainTx ?? null,
         ]
       );
@@ -104,6 +129,20 @@ export class SqlSignalStore implements SignalStore {
         ]
       );
 
+      await client.query(
+        `INSERT INTO signals_events (
+          stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx
+        ) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+          meta.streamId,
+          meta.tierId,
+          meta.visibility ?? "private",
+          meta.signalHash,
+          meta.createdAt,
+          meta.onchainTx ?? null,
+        ]
+      );
+
       await client.query("DELETE FROM keyboxes_latest WHERE stream_id = $1", [meta.streamId]);
 
       const entries = Object.entries(keybox);
@@ -141,6 +180,53 @@ export class SqlSignalStore implements SignalStore {
   async listAllSignals(): Promise<SignalMetadata[]> {
     const res = await this.db.query("SELECT * FROM signals_latest");
     return res.rows.map(rowToMetadata);
+  }
+
+  async listSignalEvents(streamId: string, limit = 10, after?: number): Promise<SignalEvent[]> {
+    const safeLimit = Math.max(1, Math.min(limit, 50));
+    if (after) {
+      const res = await this.db.query(
+        `SELECT id, stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx
+         FROM signals_events
+         WHERE stream_id = $1 AND id > $2
+         ORDER BY id ASC
+         LIMIT $3`,
+        [streamId, after, safeLimit]
+      );
+      return res.rows.map(rowToEvent);
+    }
+    const res = await this.db.query(
+      `SELECT id, stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx
+       FROM signals_events
+       WHERE stream_id = $1
+       ORDER BY id DESC
+       LIMIT $2`,
+      [streamId, safeLimit]
+    );
+    return res.rows.map(rowToEvent);
+  }
+
+  async listRecentSignalEvents(limit = 20, after?: number): Promise<SignalEvent[]> {
+    const safeLimit = Math.max(1, Math.min(limit, 50));
+    if (after) {
+      const res = await this.db.query(
+        `SELECT id, stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx
+         FROM signals_events
+         WHERE id > $1
+         ORDER BY id ASC
+         LIMIT $2`,
+        [after, safeLimit]
+      );
+      return res.rows.map(rowToEvent);
+    }
+    const res = await this.db.query(
+      `SELECT id, stream_id, tier_id, visibility, signal_hash, created_at, onchain_tx
+       FROM signals_events
+       ORDER BY id DESC
+       LIMIT $1`,
+      [safeLimit]
+    );
+    return res.rows.map(rowToEvent);
   }
 
   async getSignalByHash(hash: string): Promise<SignalMetadata | null> {

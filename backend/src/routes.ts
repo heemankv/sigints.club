@@ -298,6 +298,23 @@ router.get("/signals", async (req, res) => {
   return res.json({ signals });
 });
 
+router.get("/signals/events", async (req, res) => {
+  const streamId = typeof req.query.streamId === "string" ? req.query.streamId : undefined;
+  const limitRaw = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
+  const afterRaw = typeof req.query.after === "string" ? Number(req.query.after) : undefined;
+  const limit = Number.isFinite(limitRaw) ? limitRaw : streamId ? 10 : 20;
+  const after = Number.isFinite(afterRaw) ? afterRaw : undefined;
+
+  try {
+    const events = streamId
+      ? await signalStore.listSignalEvents(streamId, limit, after)
+      : await signalStore.listRecentSignalEvents(limit, after);
+    return res.json({ events });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "signal events fetch failed" });
+  }
+});
+
 router.get("/signals/latest", async (req, res) => {
   const streamId = req.query.streamId;
   if (!streamId || typeof streamId !== "string") {
@@ -528,7 +545,7 @@ router.get("/streams/:id/subscribers", async (req, res) => {
   try {
     const onchain = await streamRegistry.getStreamConfig(streamId);
     if (!onchain || onchain.status !== 1) {
-      return res.status(404).json({ error: "stream not found on-chain" });
+      return res.json({ count: 0 });
     }
     const subs = await onChainSubscriptionClient.listSubscriptionsForStream(onchain.pda);
     return res.json({ count: subs.length });
@@ -1074,6 +1091,16 @@ const commentSchema = z.object({
   displayName: z.string().optional(),
 });
 
+const deleteCommentSchema = z.object({
+  wallet: z.string(),
+  displayName: z.string().optional(),
+});
+
+const deletePostSchema = z.object({
+  wallet: z.string(),
+  displayName: z.string().optional(),
+});
+
 const followSchema = z.object({
   wallet: z.string(),
   targetProfileId: z.string(),
@@ -1098,6 +1125,23 @@ router.post("/social/comments", async (req, res) => {
   }
 });
 
+router.delete("/social/comments/:id", async (req, res) => {
+  const parsed = deleteCommentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const commentId = req.params.id;
+  if (!commentId) {
+    return res.status(400).json({ error: "commentId required" });
+  }
+  try {
+    await socialServiceInstance.deleteComment(parsed.data.wallet, commentId, parsed.data.displayName);
+    return res.json({ ok: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "comment delete failed" });
+  }
+});
+
 router.get("/social/comments", async (req, res) => {
   const contentId = typeof req.query.contentId === "string" ? req.query.contentId : undefined;
   if (!contentId) {
@@ -1118,6 +1162,36 @@ router.get("/social/comments", async (req, res) => {
     return res.json({ comments, total: comments.length });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "comments lookup failed" });
+  }
+});
+
+router.get("/social/follow-counts", async (req, res) => {
+  const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+  if (!wallet) {
+    return res.status(400).json({ error: "wallet required" });
+  }
+  try {
+    const counts = await socialServiceInstance.getFollowCountsByWallet(wallet);
+    return res.json({ counts });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "follow counts failed" });
+  }
+});
+
+router.delete("/social/posts/:id", async (req, res) => {
+  const parsed = deletePostSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const contentId = req.params.id;
+  if (!contentId) {
+    return res.status(400).json({ error: "contentId required" });
+  }
+  try {
+    await socialServiceInstance.deletePost(parsed.data.wallet, contentId, parsed.data.displayName);
+    return res.json({ ok: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message ?? "post delete failed" });
   }
 });
 

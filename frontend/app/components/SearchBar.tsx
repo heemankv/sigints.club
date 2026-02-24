@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 export default function SearchBar() {
+  if (process.env.NEXT_PUBLIC_SEARCH_ENABLED === "false") {
+    return null;
+  }
   const pathname = usePathname();
   const router = useRouter();
   const params = useSearchParams();

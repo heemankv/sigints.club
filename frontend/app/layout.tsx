@@ -8,6 +8,7 @@ import SearchBar from "./components/SearchBar";
 import NetworkOnboarding from "./components/NetworkOnboarding";
 import AppToasts from "./components/AppToasts";
 import TapestryHeaderBadge from "./components/TapestryHeaderBadge";
+import OnboardingGate from "./components/OnboardingGate";
 
 export const metadata = {
   title: "sigints.club",
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="container">
             {children}
           </main>
+          <OnboardingGate />
           <div className="toast-stack">
             <NetworkBanner />
             <NetworkOnboarding />

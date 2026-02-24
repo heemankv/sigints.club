@@ -7,7 +7,7 @@ function rowToUser(row: any): UserProfile {
     displayName: row.display_name ?? undefined,
     bio: row.bio ?? undefined,
     tapestryProfileId: row.tapestry_profile_id ?? undefined,
-    walletKeyRegisteredAt: row.wallet_key_registered_at ?? undefined,
+    walletKeyRegisteredAt: row.wallet_key_registered_at != null ? Number(row.wallet_key_registered_at) : undefined,
     walletKeyPublicKey: row.wallet_key_public_key ?? undefined,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
