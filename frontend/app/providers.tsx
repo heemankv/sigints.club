@@ -7,6 +7,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import { TestWalletAdapter } from "./lib/TestWalletAdapter";
 import { configureBackend, getTestWallet } from "./lib/sdkBackend";
 import { WalletKeyStatusProvider } from "./lib/walletKeyStatus";
+import { UserProfileProvider } from "./lib/userProfile";
 
 const TEST_WALLET_NAME = "TestWallet" as WalletName;
 const TEST_WALLET_FLAG = process.env.NEXT_PUBLIC_TEST_WALLET === "true";
@@ -135,10 +136,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider key={providerKey} wallets={wallets} autoConnect={testWalletActive}>
         <WalletKeyStatusProvider>
-          {testWalletActive && testWalletPubkey && (
-            <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />
-          )}
-          {children}
+          <UserProfileProvider>
+            {testWalletActive && testWalletPubkey && (
+              <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />
+            )}
+            {children}
+          </UserProfileProvider>
         </WalletKeyStatusProvider>
       </WalletProvider>
     </ConnectionProvider>

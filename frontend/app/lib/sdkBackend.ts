@@ -143,16 +143,28 @@ export function followProfile(wallet: string, targetProfileId: string): Promise<
   return getClient().followProfile(wallet, targetProfileId);
 }
 
-export function searchBots<T = any>(query: string): Promise<T> {
-  return getClient().searchBots<T>(query);
+export function searchAgents<T = any>(query: string): Promise<T> {
+  return getClient().searchAgents<T>(query);
 }
 
-export function fetchBots<T = any>(params: { owner?: string; role?: string; search?: string }): Promise<T> {
-  return getClient().fetchBots<T>(params);
+export function fetchAgents<T = any>(params: { owner?: string; role?: string; streamId?: string; search?: string }): Promise<T> {
+  return getClient().fetchAgents<T>(params);
 }
 
-export function createBot<T = any>(payload: unknown): Promise<T> {
-  return getClient().createBot<T>(payload);
+export function createAgent<T = any>(payload: unknown): Promise<T> {
+  return getClient().createAgent<T>(payload);
+}
+
+export function createAgentSubscription<T = any>(payload: unknown): Promise<T> {
+  return getClient().createAgentSubscription<T>(payload);
+}
+
+export function fetchAgentSubscriptions<T = any>(params: { owner?: string; agentId?: string; streamId?: string }): Promise<T> {
+  return getClient().fetchAgentSubscriptions<T>(params);
+}
+
+export function deleteAgentSubscription<T = any>(id: string): Promise<T> {
+  return getClient().deleteAgentSubscription<T>(id);
 }
 
 export function fetchUserProfile<T = any>(wallet: string): Promise<T> {

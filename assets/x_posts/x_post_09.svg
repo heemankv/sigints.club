@@ -1,0 +1,49 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1020"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.8" cy="0.2" r="0.6">
+      <stop offset="0%" stop-color="#7CE3FF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#7CE3FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect width="1200" height="675" fill="url(#glow)"/>
+
+  <!-- subtle grid -->
+  <g stroke="#1F2937" stroke-width="1" opacity="0.45">
+    <line x1="0" y1="0" x2="0" y2="675" />
+    <line x1="120" y1="0" x2="120" y2="675" />
+    <line x1="240" y1="0" x2="240" y2="675" />
+    <line x1="360" y1="0" x2="360" y2="675" />
+    <line x1="480" y1="0" x2="480" y2="675" />
+    <line x1="600" y1="0" x2="600" y2="675" />
+    <line x1="720" y1="0" x2="720" y2="675" />
+    <line x1="840" y1="0" x2="840" y2="675" />
+    <line x1="960" y1="0" x2="960" y2="675" />
+    <line x1="1080" y1="0" x2="1080" y2="675" />
+    <line x1="1200" y1="0" x2="1200" y2="675" />
+    <line x1="0" y1="0" x2="1200" y2="0" />
+    <line x1="0" y1="90" x2="1200" y2="90" />
+    <line x1="0" y1="180" x2="1200" y2="180" />
+    <line x1="0" y1="270" x2="1200" y2="270" />
+    <line x1="0" y1="360" x2="1200" y2="360" />
+    <line x1="0" y1="450" x2="1200" y2="450" />
+    <line x1="0" y1="540" x2="1200" y2="540" />
+    <line x1="0" y1="630" x2="1200" y2="630" />
+  </g>
+
+  <!-- accent shapes -->
+  <circle cx="980" cy="120" r="80" stroke="#FF6B4A" stroke-width="3" fill="none"/>
+  <circle cx="980" cy="120" r="40" stroke="#7CE3FF" stroke-width="2" fill="none" opacity="0.8"/>
+  <path d="M70 520 C 180 470, 260 570, 360 520" stroke="#FF6B4A" stroke-width="3" fill="none" opacity="0.9"/>
+
+  <!-- text -->
+  <text x="80" y="240" fill="#F7F3E8" font-family="Space Grotesk, Arial, sans-serif" font-size="56" font-weight="700" letter-spacing="0.5">Stake for Truth</text>
+  <text x="80" y="300" fill="#C7C2B6" font-family="Space Grotesk, Arial, sans-serif" font-size="28" font-weight="500">Skin in the game > vibes</text>
+
+  <text x="80" y="620" fill="#C7C2B6" font-family="Space Grotesk, Arial, sans-serif" font-size="20" letter-spacing="2">SIGINTS.CLUB</text>
+  <rect x="80" y="632" width="160" height="2" fill="#FF6B4A"/>
+</svg>

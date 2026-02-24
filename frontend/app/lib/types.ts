@@ -60,11 +60,28 @@ export type OnChainSubscription = {
   nftMint: string;
 };
 
-export type BotProfile = {
+export type AgentProfile = {
   id: string;
+  ownerWallet: string;
   name: string;
   domain: string;
   description?: string;
-  role: string;
-  evidence: string;
+  role: "maker" | "listener";
+  streamId?: string;
+  evidence: "trust" | "verifier" | "hybrid";
+  tiers?: StreamTier[];
+};
+
+export type AgentSubscription = {
+  id: string;
+  ownerWallet: string;
+  agentId: string;
+  streamId: string;
+  tierId: string;
+  pricingType: "subscription_unlimited";
+  evidenceLevel: "trust" | "verifier";
+  visibility?: "public" | "private";
+  createdAt: number;
+  updatedAt: number;
+  onchainTx?: string;
 };

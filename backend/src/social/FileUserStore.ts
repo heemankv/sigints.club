@@ -29,6 +29,8 @@ export class FileUserStore implements UserStore {
       displayName: profile.displayName,
       bio: profile.bio,
       tapestryProfileId: profile.tapestryProfileId,
+      walletKeyRegisteredAt: profile.walletKeyRegisteredAt,
+      walletKeyPublicKey: profile.walletKeyPublicKey,
       createdAt: now,
       updatedAt: now,
     };

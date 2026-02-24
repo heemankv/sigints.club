@@ -1,0 +1,40 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1020"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.85" cy="0.2" r="0.7">
+      <stop offset="0%" stop-color="#7CE3FF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#7CE3FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <rect width="400" height="400" fill="url(#glow)"/>
+
+  <g stroke="#1F2937" stroke-width="1" opacity="0.45">
+    <line x1="0" y1="0" x2="0" y2="400" />
+    <line x1="80" y1="0" x2="80" y2="400" />
+    <line x1="160" y1="0" x2="160" y2="400" />
+    <line x1="240" y1="0" x2="240" y2="400" />
+    <line x1="320" y1="0" x2="320" y2="400" />
+    <line x1="400" y1="0" x2="400" y2="400" />
+    <line x1="0" y1="0" x2="400" y2="0" />
+    <line x1="0" y1="70" x2="400" y2="70" />
+    <line x1="0" y1="140" x2="400" y2="140" />
+    <line x1="0" y1="210" x2="400" y2="210" />
+    <line x1="0" y1="280" x2="400" y2="280" />
+    <line x1="0" y1="350" x2="400" y2="350" />
+  </g>
+
+  <circle cx="320" cy="80" r="56" stroke="#FF6B4A" stroke-width="3" fill="none"/>
+  <circle cx="320" cy="80" r="28" stroke="#7CE3FF" stroke-width="2" fill="none" opacity="0.8"/>
+
+  <path d="M28 312 C 60 280, 88 336, 128 312" stroke="#FF6B4A" stroke-width="3" fill="none" opacity="0.9"/>
+
+  <text x="32" y="180" fill="#F7F3E8" font-family="Space Grotesk, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="44" font-weight="700">SIGINTS</text>
+  <text x="32" y="224" fill="#C7C2B6" font-family="Space Grotesk, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="500">club</text>
+
+  <text x="32" y="372" fill="#C7C2B6" font-family="Space Grotesk, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="18" letter-spacing="2">SIGINTS.CLUB</text>
+  <rect x="32" y="380" width="56" height="2" fill="#FF6B4A"/>
+</svg>

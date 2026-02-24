@@ -14,10 +14,10 @@ import {
   fetchComments as sdkFetchComments,
   addComment as sdkAddComment,
   followProfile as sdkFollowProfile,
-  searchBots as sdkSearchBots,
+  searchAgents as sdkSearchAgents,
   loginUser as sdkLoginUser,
 } from "../sdkBackend";
-import type { SocialPost, CommentEntry, BotProfile } from "../types";
+import type { SocialPost, CommentEntry, AgentProfile } from "../types";
 
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
@@ -115,8 +115,8 @@ export async function followProfile(wallet: string, targetProfileId: string): Pr
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
-export async function searchBots(query: string): Promise<{ bots: BotProfile[] }> {
-  return sdkSearchBots<{ bots: BotProfile[] }>(query);
+export async function searchAgents(query: string): Promise<{ agents: AgentProfile[] }> {
+  return sdkSearchAgents<{ agents: AgentProfile[] }>(query);
 }
 
 // ─── User / Auth ──────────────────────────────────────────────────────────────

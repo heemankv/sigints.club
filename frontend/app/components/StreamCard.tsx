@@ -5,6 +5,7 @@ import { getCardArtUrl } from "../lib/cardArt";
 type StreamCardProps = {
   stream: StreamDetail;
   onSubscribe?: (streamId: string) => void;
+  viewerWallet?: string | null;
 };
 
 function formatTierLabel(tierId: string): string {
@@ -22,7 +23,7 @@ function formatPricingLabel(pricingType?: string): string {
   return pricingType.replace(/_/g, " ");
 }
 
-export default function StreamCard({ stream, onSubscribe }: StreamCardProps) {
+export default function StreamCard({ stream, onSubscribe, viewerWallet }: StreamCardProps) {
   const primaryTier = stream.tiers?.[0];
   const tierId = primaryTier?.tierId ?? "tier";
   const tierLabel = formatTierLabel(tierId);
@@ -33,6 +34,8 @@ export default function StreamCard({ stream, onSubscribe }: StreamCardProps) {
   const meta = formatMeta(stream);
   const hasTier = Boolean(primaryTier);
   const visibilityLabel = stream.visibility === "public" ? "Public" : "Private";
+  const isOwner = Boolean(viewerWallet && stream.authority && viewerWallet === stream.authority);
+  const canSubscribe = hasTier && !isOwner;
 
   return (
     <div className="data-card data-card--compact data-card--side">
@@ -68,18 +71,29 @@ export default function StreamCard({ stream, onSubscribe }: StreamCardProps) {
         )}
 
         <div className="data-card__actions">
-          <button
-            className="button primary"
-            onClick={() => onSubscribe?.(stream.id)}
-            disabled={!hasTier}
-          >
-            Subscribe
-          </button>
+          {!isOwner && (
+            <button
+              className="button primary"
+              onClick={() => {
+                if (!canSubscribe) return;
+                onSubscribe?.(stream.id);
+              }}
+              disabled={!canSubscribe}
+            >
+              Subscribe
+            </button>
+          )}
           <Link className="button ghost" href={`/stream/${stream.id}`}>
             View Stream →
           </Link>
         </div>
       </div>
+      {isOwner && (
+        <span className="data-card__owner-tag">
+          <span className="data-card__owner-tag__icon">✉</span>
+          Yours
+        </span>
+      )}
     </div>
   );
 }

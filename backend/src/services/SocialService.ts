@@ -33,7 +33,26 @@ export class SocialService {
   async ensureProfile(wallet: string, displayName?: string) {
     const user = await this.users.getUser(wallet);
     if (user?.tapestryProfileId) {
-      return user.tapestryProfileId;
+      try {
+        const details = await this.client.getProfileDetails(user.tapestryProfileId);
+        const profileId = details?.profile?.id ?? details?.id;
+        if (profileId) {
+          return profileId;
+        }
+      } catch {
+        // Fall through to re-resolve or create a profile if cached id is invalid.
+      }
+    }
+
+    try {
+      const entry = await this.client.findUserProfileByWallet(wallet);
+      const profileId = entry?.profile?.id;
+      if (profileId) {
+        await this.users.upsertUser(wallet, { tapestryProfileId: profileId });
+        return profileId;
+      }
+    } catch {
+      // Ignore lookup failures and proceed to create.
     }
     const username =
       displayName?.replace(/\s+/g, "-").toLowerCase() ?? `stream-${wallet.slice(0, 6)}`;
@@ -63,7 +82,7 @@ export class SocialService {
       { key: "wallet", value: input.wallet },
     ];
     const contentId = `intent-${randomUUID()}`;
-    const res = await this.client.createContent({
+    const res = await this.createContentWithRetry({
       profileId,
       id: contentId,
       properties,
@@ -100,7 +119,7 @@ export class SocialService {
       { key: "validatorWallet", value: input.wallet },
     ];
     const contentId = `slash-${randomUUID()}`;
-    const res = await this.client.createContent({
+    const res = await this.createContentWithRetry({
       profileId,
       id: contentId,
       properties,
@@ -222,6 +241,18 @@ export class SocialService {
         await new Promise((r) => setTimeout(r, 1200));
         const result = await this.client.createComment({ profileId, contentId, text: comment });
         return result;
+      }
+      throw err;
+    }
+  }
+
+  private async createContentWithRetry(input: { profileId: string; id: string; properties: { key: string; value: string | number | boolean }[] }) {
+    try {
+      return await this.client.createContent(input);
+    } catch (err: any) {
+      if (err?.message?.includes("404") || err?.status === 404) {
+        await new Promise((r) => setTimeout(r, 1200));
+        return await this.client.createContent(input);
       }
       throw err;
     }

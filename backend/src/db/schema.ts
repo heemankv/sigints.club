@@ -1,4 +1,30 @@
 export const schemaSql = `
+ALTER TABLE IF EXISTS bots RENAME TO agents;
+ALTER TABLE IF EXISTS subscriptions RENAME TO agent_subscriptions;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'agent_subscriptions' AND column_name = 'bot_id'
+  ) THEN
+    EXECUTE 'ALTER TABLE agent_subscriptions RENAME COLUMN bot_id TO agent_id';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'agent_subscriptions' AND column_name = 'listener_wallet'
+  ) THEN
+    EXECUTE 'ALTER TABLE agent_subscriptions RENAME COLUMN listener_wallet TO owner_wallet';
+  END IF;
+END $$;
+
+ALTER TABLE IF EXISTS agents ADD COLUMN IF NOT EXISTS stream_id TEXT;
+ALTER TABLE IF EXISTS agent_subscriptions ADD COLUMN IF NOT EXISTS stream_id TEXT;
+ALTER TABLE IF EXISTS agent_subscriptions ADD COLUMN IF NOT EXISTS visibility TEXT;
+ALTER TABLE IF EXISTS agent_subscriptions ADD COLUMN IF NOT EXISTS updated_at BIGINT;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS wallet_key_registered_at BIGINT;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS wallet_key_public_key TEXT;
+
 CREATE TABLE IF NOT EXISTS signals_latest (
   stream_id TEXT PRIMARY KEY,
   tier_id TEXT NOT NULL,
@@ -40,11 +66,12 @@ CREATE TABLE IF NOT EXISTS streams (
   updated_at BIGINT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS bots (
+CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   owner_wallet TEXT NOT NULL,
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('maker','listener')),
+  stream_id TEXT,
   domain TEXT NOT NULL,
   description TEXT,
   evidence TEXT NOT NULL CHECK (evidence IN ('trust','verifier','hybrid')),
@@ -53,14 +80,17 @@ CREATE TABLE IF NOT EXISTS bots (
   updated_at BIGINT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS subscriptions (
+CREATE TABLE IF NOT EXISTS agent_subscriptions (
   id TEXT PRIMARY KEY,
-  listener_wallet TEXT NOT NULL,
-  bot_id TEXT NOT NULL,
+  owner_wallet TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  stream_id TEXT NOT NULL,
   tier_id TEXT NOT NULL,
   pricing_type TEXT NOT NULL,
   evidence_level TEXT NOT NULL,
   created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  visibility TEXT,
   onchain_tx TEXT
 );
 
@@ -69,6 +99,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT,
   bio TEXT,
   tapestry_profile_id TEXT,
+  wallet_key_registered_at BIGINT,
+  wallet_key_public_key TEXT,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL
 );

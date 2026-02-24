@@ -110,6 +110,17 @@ TAPESTRY_MOCK=true npm run test:e2e
 
 ---
 
+## 7b) SDK On-chain Listener Smoke Test (Localnet)
+This uses **only the backend + SDK** (no frontend) and asserts that a subscriber receives
+signals from a stream that emits every 10 seconds.
+
+```bash
+cd /Users/heemankverma/Work/graveyard
+./scripts/test-signal-listen.sh
+```
+
+---
+
 ## 8) Backend Tests
 ```bash
 npm -C /Users/heemankverma/Work/graveyard/backend run test

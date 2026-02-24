@@ -3,6 +3,8 @@ export type UserProfile = {
   displayName?: string;
   bio?: string;
   tapestryProfileId?: string;
+  walletKeyRegisteredAt?: number;
+  walletKeyPublicKey?: string;
   createdAt: number;
   updatedAt: number;
 };

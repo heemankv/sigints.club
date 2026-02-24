@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import PublishSignal from "./PublishSignal";
 import DecryptPanel from "./DecryptPanel";
@@ -9,6 +10,22 @@ import type { StreamDetail } from "../../lib/types";
 import type { StreamDetail as FallbackStreamDetail } from "../../lib/fallback";
 
 type AnyStream = StreamDetail | FallbackStreamDetail;
+
+function CopyableAddress({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+  function copy() {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <span className="copyable-address" onClick={copy} title={address}>
+      <span className="mono">{short}</span>
+      <span className="copyable-address__icon">{copied ? "Copied!" : "Copy"}</span>
+    </span>
+  );
+}
 
 export default function StreamPageClient({ stream }: { stream: AnyStream }) {
   const { publicKey } = useWallet();
@@ -28,7 +45,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         {stream.description && <p className="subtext">{stream.description}</p>}
         {onchainAddress && (
           <p className="subtext">
-            On-chain stream address: <span className="mono">{onchainAddress}</span>
+            On-chain stream address: <CopyableAddress address={onchainAddress} />
           </p>
         )}
         <div className="badges">

@@ -15,8 +15,8 @@ import {
   onChainSubscriptionClient,
   signalStore,
   userProfileStore,
-  botProfileStore,
-  subscriptionProfileStore,
+  agentProfileStore,
+  agentSubscriptionProfileStore,
   socialServiceInstance,
   streamRegistry,
   tapestryStreamServiceInstance,
@@ -781,10 +781,38 @@ router.patch("/users/:wallet", async (req, res) => {
   return res.json({ user: updated });
 });
 
-const botSchema = z.object({
+async function ensureActiveSubscription(ownerWallet: string, streamId: string): Promise<void> {
+  if (!onChainSubscriptionClient || !streamRegistry) {
+    throw new Error("on-chain subscription client not configured");
+  }
+  const streamPda = streamRegistry.deriveStreamPda(streamId).toBase58();
+  const subs = await onChainSubscriptionClient.listSubscriptionsFor(ownerWallet);
+  const now = Date.now();
+  const match = subs.find(
+    (sub) => sub.stream === streamPda && sub.status === 0 && (!sub.expiresAt || sub.expiresAt > now)
+  );
+  if (!match) {
+    throw new Error("active subscription required");
+  }
+}
+
+async function ensureAnyActiveSubscription(ownerWallet: string): Promise<void> {
+  if (!onChainSubscriptionClient) {
+    throw new Error("on-chain subscription client not configured");
+  }
+  const subs = await onChainSubscriptionClient.listSubscriptionsFor(ownerWallet);
+  const now = Date.now();
+  const match = subs.find((sub) => sub.status === 0 && (!sub.expiresAt || sub.expiresAt > now));
+  if (!match) {
+    throw new Error("active subscription required to register an agent");
+  }
+}
+
+const agentSchema = z.object({
   ownerWallet: z.string(),
   name: z.string(),
   role: z.enum(["maker", "listener"]).default("maker"),
+  streamId: z.string().optional(),
   domain: z.string(),
   description: z.string().optional(),
   evidence: z.enum(["trust", "verifier", "hybrid"]).default("trust"),
@@ -801,57 +829,114 @@ const botSchema = z.object({
     .optional(),
 });
 
-router.post("/bots", async (req, res) => {
-  const parsed = botSchema.safeParse(req.body);
+router.post("/agents", async (req, res) => {
+  const parsed = agentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const bot = await botProfileStore.createBot(parsed.data);
-  return res.json({ bot });
+  try {
+    await ensureAnyActiveSubscription(parsed.data.ownerWallet);
+  } catch (error: any) {
+    const message = error?.message ?? "active subscription required";
+    const status = message.includes("not configured") ? 503 : 403;
+    return res.status(status).json({ error: message });
+  }
+  if (parsed.data.role === "maker" && !parsed.data.streamId) {
+    return res.status(400).json({ error: "streamId is required for sender agents" });
+  }
+  if (parsed.data.role === "maker" && parsed.data.streamId) {
+    const existing = await agentProfileStore.listAgents({
+      role: "maker",
+      streamId: parsed.data.streamId,
+    });
+    if (existing.length > 0) {
+      return res.status(409).json({ error: "sender agent already exists for stream" });
+    }
+  }
+  const agent = await agentProfileStore.createAgent(parsed.data);
+  return res.json({ agent });
 });
 
-router.get("/bots", async (req, res) => {
+router.get("/agents", async (req, res) => {
   const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
   const role = typeof req.query.role === "string" ? (req.query.role as "maker" | "listener") : undefined;
+  const streamId = typeof req.query.streamId === "string" ? req.query.streamId : undefined;
   const search = typeof req.query.search === "string" ? req.query.search : undefined;
-  const bots = await botProfileStore.listBots({ ownerWallet: owner, role, search });
-  return res.json({ bots });
+  const agents = await agentProfileStore.listAgents({ ownerWallet: owner, role, streamId, search });
+  return res.json({ agents });
 });
 
-router.get("/bots/:id", async (req, res) => {
-  const bot = await botProfileStore.getBot(req.params.id);
-  if (!bot) {
-    return res.status(404).json({ error: "bot not found" });
+router.get("/agents/:id", async (req, res) => {
+  const agent = await agentProfileStore.getAgent(req.params.id);
+  if (!agent) {
+    return res.status(404).json({ error: "agent not found" });
   }
-  return res.json({ bot });
+  return res.json({ agent });
 });
 
-const subscriptionSchema = z.object({
-  listenerWallet: z.string(),
-  botId: z.string(),
+const agentSubscriptionSchema = z.object({
+  ownerWallet: z.string(),
+  agentId: z.string(),
+  streamId: z.string(),
   tierId: z.string(),
   pricingType: z.literal("subscription_unlimited"),
-  evidenceLevel: z.string(),
+  evidenceLevel: z.enum(["trust", "verifier"]),
+  visibility: z.enum(["public", "private"]).optional(),
   onchainTx: z.string().optional(),
 });
 
-router.post("/subscriptions", async (req, res) => {
-  const parsed = subscriptionSchema.safeParse(req.body);
+router.post("/agent-subscriptions", async (req, res) => {
+  const parsed = agentSubscriptionSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const record = await subscriptionProfileStore.createSubscription(parsed.data);
-  return res.json({ subscription: record });
+  const agent = await agentProfileStore.getAgent(parsed.data.agentId);
+  if (!agent) {
+    return res.status(404).json({ error: "agent not found" });
+  }
+  if (agent.ownerWallet !== parsed.data.ownerWallet) {
+    return res.status(403).json({ error: "agent owner mismatch" });
+  }
+  if (agent.role !== "listener") {
+    return res.status(400).json({ error: "only listener agents can be linked to subscriptions" });
+  }
+  try {
+    await ensureActiveSubscription(parsed.data.ownerWallet, parsed.data.streamId);
+  } catch (error: any) {
+    const message = error?.message ?? "active subscription required";
+    const status = message.includes("not configured") ? 503 : 403;
+    return res.status(status).json({ error: message });
+  }
+  const existing = await agentSubscriptionProfileStore.listAgentSubscriptions({
+    ownerWallet: parsed.data.ownerWallet,
+    agentId: parsed.data.agentId,
+    streamId: parsed.data.streamId,
+  });
+  if (existing.length > 0) {
+    return res.status(409).json({ error: "subscription already linked to agent" });
+  }
+  const record = await agentSubscriptionProfileStore.createAgentSubscription(parsed.data);
+  return res.json({ agentSubscription: record });
 });
 
-router.get("/subscriptions", async (req, res) => {
-  const listener = typeof req.query.listener === "string" ? req.query.listener : undefined;
-  const botId = typeof req.query.botId === "string" ? req.query.botId : undefined;
-  const subscriptions = await subscriptionProfileStore.listSubscriptions({
-    listenerWallet: listener,
-    botId,
+router.get("/agent-subscriptions", async (req, res) => {
+  const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
+  const agentId = typeof req.query.agentId === "string" ? req.query.agentId : undefined;
+  const streamId = typeof req.query.streamId === "string" ? req.query.streamId : undefined;
+  const subscriptions = await agentSubscriptionProfileStore.listAgentSubscriptions({
+    ownerWallet: owner,
+    agentId,
+    streamId,
   });
-  return res.json({ subscriptions });
+  return res.json({ agentSubscriptions: subscriptions });
+});
+
+router.delete("/agent-subscriptions/:id", async (req, res) => {
+  const removed = await agentSubscriptionProfileStore.deleteAgentSubscription(req.params.id);
+  if (!removed) {
+    return res.status(404).json({ error: "agent subscription not found" });
+  }
+  return res.json({ ok: true });
 });
 
 const intentSchema = z.object({
@@ -879,9 +964,9 @@ router.post("/social/intents", async (req, res) => {
 const slashSchema = z.object({
   wallet: z.string(),
   content: z.string(),
-  streamId: z.string().optional(),
+  streamId: z.string().trim().min(1, "streamId is required"),
   makerWallet: z.string().optional(),
-  challengeTx: z.string().optional(),
+  challengeTx: z.string().trim().min(1, "challengeTx is required"),
   severity: z.string().optional(),
   displayName: z.string().optional(),
 });
@@ -1360,7 +1445,23 @@ router.post("/wallet-key/sync", async (req, res) => {
   const encPubKeyDerBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
   const subscriberId = subscriberIdFromPubkey(Buffer.from(encPubKeyDerBase64, "base64"));
 
-  return res.json({ subscriberId, updated: 0 });
+  const existingUser = await userProfileStore.getUser(wallet);
+  const now = Date.now();
+  const registeredAt =
+    !existingUser?.walletKeyRegisteredAt || existingUser.walletKeyPublicKey !== encPubKeyDerBase64
+      ? now
+      : existingUser.walletKeyRegisteredAt;
+  await userProfileStore.upsertUser(wallet, {
+    walletKeyRegisteredAt: registeredAt,
+    walletKeyPublicKey: encPubKeyDerBase64,
+  });
+
+  return res.json({
+    subscriberId,
+    updated: 0,
+    walletKeyRegisteredAt: registeredAt,
+    walletKeyPublicKey: encPubKeyDerBase64,
+  });
 });
 
 const onchainSubscribeSchema = z.object({

@@ -137,16 +137,20 @@ export default function PublishSignal({
       </div>
       <textarea value={message} onChange={(e) => setMessage(e.target.value)} />
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        <button className="button secondary" onClick={prepare} disabled={prepareLoading}>
-          {prepareLoading ? "Preparing…" : "Prepare Signal"}
-        </button>
-        <button
-          className="button primary"
-          onClick={recordOnchain}
-          disabled={recordLoading || !preparedMeta}
-        >
-          {recordLoading ? "Publishing…" : "Publish On-chain"}
-        </button>
+        {step === 1 && (
+          <button className="button secondary" onClick={prepare} disabled={prepareLoading}>
+            {prepareLoading ? "Preparing…" : "Prepare Signal"}
+          </button>
+        )}
+        {step === 2 && (
+          <button
+            className="button primary"
+            onClick={recordOnchain}
+            disabled={recordLoading}
+          >
+            {recordLoading ? "Publishing…" : "Publish On-chain"}
+          </button>
+        )}
       </div>
       {prepareStatus && <p className="subtext">{prepareStatus}</p>}
       {recordStatus && <p className="subtext">{recordStatus}</p>}

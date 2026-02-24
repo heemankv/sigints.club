@@ -7,7 +7,7 @@ import WalletModal from "../components/WalletModal";
 import SubscribeForm from "../stream/[id]/SubscribeForm";
 import StreamCard from "../components/StreamCard";
 import LeftNav from "../components/LeftNav";
-import type { SocialPost, CommentEntry, StreamDetail, BotProfile } from "../lib/types";
+import type { SocialPost, CommentEntry, StreamDetail, AgentProfile } from "../lib/types";
 import {
   fetchFeed,
   fetchTrendingFeed,
@@ -19,7 +19,7 @@ import {
   fetchComments,
   addComment,
   followProfile,
-  searchBots,
+  searchAgents,
 } from "../lib/api/social";
 import { FEED_COMMENTS_PAGE_SIZE } from "../lib/constants";
 import { timeAgo, resolveCommentText, shortWallet } from "../lib/utils";
@@ -53,7 +53,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [trending, setTrending] = useState<SocialPost[]>([]);
   const [streams, setStreams] = useState<StreamDetail[]>([]);
   const [streamsLoading, setStreamsLoading] = useState(true);
-  const [bots, setBots] = useState<BotProfile[]>([]);
+  const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeedTab>(initialTab);
   const [status, setStatus] = useState<string | null>(null);
@@ -74,6 +74,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [isSlashTag, setIsSlashTag] = useState(false);
   const [slashStream, setSlashStream] = useState("");
   const [slashTx, setSlashTx] = useState("");
+  const [posting, setPosting] = useState(false);
 
   const searchLabel = useMemo(() => searchQuery.trim(), [searchQuery]);
   const streamById = useMemo(
@@ -106,16 +107,19 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   useEffect(() => {
     let mounted = true;
-    async function loadBots() {
-      if (!searchLabel) { setBots([]); return; }
+    async function loadAgents() {
+      if (!searchLabel) {
+        setAgents([]);
+        return;
+      }
       try {
-        const data = await searchBots(searchLabel);
-        if (mounted) setBots(data.bots);
+        const data = await searchAgents(searchLabel);
+        if (mounted) setAgents(data.agents);
       } catch {
-        if (mounted) setBots([]);
+        if (mounted) setAgents([]);
       }
     }
-    loadBots();
+    loadAgents();
     return () => { mounted = false; };
   }, [searchLabel]);
 
@@ -157,9 +161,17 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     }
   }
 
+  const slashReady = !isSlashTag || (slashStream.trim().length > 0 && slashTx.trim().length > 0);
+
   async function postContent() {
+    if (posting) return;
     if (!wallet) { openWalletModal(false); return; }
+    if (isSlashTag && !slashReady) {
+      setStatus("Slashing requires a Stream ID and Challenge tx.");
+      return;
+    }
     setStatus(null);
+    setPosting(true);
     try {
       if (isSlashTag) {
         await createSlashReport({
@@ -180,7 +192,11 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       setIsIntentTag(false);
       setIsSlashTag(false);
       await loadFeed();
-    } catch (err: any) { setStatus(err.message ?? "Failed to post"); }
+    } catch (err: any) {
+      setStatus(err.message ?? "Failed to post");
+    } finally {
+      setPosting(false);
+    }
   }
 
   async function toggleLike(contentId: string) {
@@ -266,6 +282,10 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   function openSubscribe(streamId: string) {
     const stream = streamById.get(streamId);
+    if (stream?.authority && wallet && stream.authority === wallet) {
+      setStatus("You can't subscribe to your own stream.");
+      return;
+    }
     setSubscribeStreamId(streamId);
     setSubscribeTierId(stream?.tiers?.[0]?.tierId ?? null);
   }
@@ -295,14 +315,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 className="x-composer-textarea"
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}
-                placeholder={isSlashTag ? "Report a false or misleading signal..." : "Share your market intelligence..."}
+                placeholder={isSlashTag ? "Report a false or misleading signal..." : isIntentTag ? "Describe your intent..." : "Share your market intelligence..."}
                 rows={2}
               />
-
-              <div className={`x-composer-fields${isSlashTag ? " x-composer-fields--open" : ""}`}>
-                <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
-                <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
-              </div>
 
               <div className="x-composer-footer">
                 <div className="x-composer-tags">
@@ -319,9 +334,18 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                     # Slashing
                   </button>
                 </div>
-                <button className="x-submit-btn" onClick={postContent} disabled={!postText}>
-                  {isSlashTag ? "Report" : "Post"}
+                <button
+                  className="x-submit-btn"
+                  onClick={postContent}
+                  disabled={!postText || posting || !slashReady}
+                >
+                  {posting ? "Posting..." : isSlashTag ? "Report" : "Post"}
                 </button>
+              </div>
+
+              <div className={`x-composer-fields${isSlashTag ? " x-composer-fields--open" : ""}`}>
+                <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
+                <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
               </div>
 
             </div>
@@ -338,18 +362,28 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
         {activeTab !== "streams" && status && <div className="x-status-msg">{status}</div>}
 
         {activeTab === "streams" ? (
-          <div className="data-grid data-grid--single" style={{ marginTop: 16 }}>
+          <div className="data-grid data-grid--single" style={{ marginTop: 32, marginInline: 16 }}>
             {streamsLoading && (
-              <div className="x-empty-state">
-                <p>Loading streams…</p>
+              <div className="stream-card">
+                <div className="stream-card-row">
+                  <div className="stream-card-identity">
+                    <p className="subtext" style={{ margin: 0 }}>Loading streams…</p>
+                  </div>
+                </div>
               </div>
             )}
             {!streamsLoading && !streams.length && (
-              <div className="x-empty-state">
-                <p>No streams available yet. Create the first stream to get started.</p>
-                <Link className="button ghost" href="/register-stream" style={{ marginTop: 12, display: "inline-block" }}>
-                  Register a Stream →
-                </Link>
+              <div className="stream-card">
+                <div className="stream-card-row">
+                  <div className="stream-card-identity">
+                    <p className="subtext" style={{ margin: 0 }}>No streams available yet. Create the first stream to get started.</p>
+                  </div>
+                  <div className="stream-card-actions">
+                    <Link className="button ghost" href="/register-stream">
+                      Register a Stream →
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
             {streams.map((stream) => (
@@ -357,6 +391,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 key={stream.id}
                 stream={stream}
                 onSubscribe={openSubscribe}
+                viewerWallet={wallet}
               />
             ))}
           </div>
@@ -392,6 +427,11 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               const challengeTx = post.customProperties?.challengeTx;
               const topic = post.customProperties?.topic;
               const streamDetails = streamId ? streamById.get(streamId) : undefined;
+              const isOwnerStream = Boolean(
+                wallet &&
+                  streamDetails?.authority &&
+                  streamDetails.authority === wallet
+              );
               const isOpen = openComments[post.contentId] ?? false;
               const totalComments = commentTotals[post.contentId] ?? 0;
               const loadedComments = comments[post.contentId]?.length ?? 0;
@@ -494,7 +534,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                       </button>
 
                       {/* Subscribe */}
-                      {streamId && (
+                      {streamId && !isOwnerStream && (
                         <button className="xpost-subscribe-btn" onClick={() => openSubscribe(streamId)}>
                           Subscribe
                         </button>
@@ -586,14 +626,16 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
           <div className="x-rail-module">
             <h3 className="x-rail-heading">Search results</h3>
             <p className="x-trend-category" style={{ marginBottom: 8 }}>Results for &ldquo;{searchLabel}&rdquo;</p>
-            {bots.map((bot) => (
-              <div className="x-trend-item" key={bot.id}>
-                <span className="x-trend-category">{bot.domain} · {bot.role}</span>
-                <strong className="x-trend-topic">{bot.name}</strong>
-                <span className="x-trend-meta">{bot.evidence}</span>
+            {agents.map((agent) => (
+              <div className="x-trend-item" key={agent.id}>
+                <span className="x-trend-category">
+                  {agent.domain} · {agent.role === "maker" ? "sender" : "listener"}
+                </span>
+                <strong className="x-trend-topic">{agent.name}</strong>
+                <span className="x-trend-meta">{agent.evidence}</span>
               </div>
             ))}
-            {!bots.length && <span className="x-trend-category">No makers found.</span>}
+            {!agents.length && <span className="x-trend-category">No agents found.</span>}
           </div>
         )}
       </aside>

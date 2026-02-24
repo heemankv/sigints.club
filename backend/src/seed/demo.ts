@@ -23,7 +23,7 @@ import {
 import bs58 from "bs58";
 import { getDb } from "../db";
 import { SqlSignalStore } from "../signals";
-import { SqlUserStore, SqlBotStore, SqlSubscriptionStore } from "../social";
+import { SqlUserStore, SqlAgentStore, SqlAgentSubscriptionStore } from "../social";
 import { StreamTier } from "../streams";
 import { buildTiersSeed } from "../streams/tiersHash";
 import { generateX25519Keypair, subscriberIdFromPubkey } from "../crypto/hybrid";
@@ -602,8 +602,8 @@ export async function seedDemoData(options: SeedOptions = {}) {
   const db = getDb();
   const signalStore = new SqlSignalStore(db);
   const userStore = new SqlUserStore(db);
-  const botStore = new SqlBotStore(db);
-  const subscriptionStore = new SqlSubscriptionStore(db);
+  const agentStore = new SqlAgentStore(db);
+  const agentSubscriptionStore = new SqlAgentSubscriptionStore(db);
 
   const seedOnchain = options.seedOnchain ?? true;
   const seedSocial = options.seedSocial ?? false;
@@ -648,14 +648,15 @@ export async function seedDemoData(options: SeedOptions = {}) {
     });
   }
 
-  const makerBots = await Promise.all(
+  const makerAgents = await Promise.all(
     streamProfiles.map((stream, idx) =>
-      botStore.createBot({
+      agentStore.createAgent({
         ownerWallet: makerWallets[idx % makerWallets.length].publicKey.toBase58(),
         name: `${stream.id.replace("stream-", "")} Scout`,
         role: "maker",
+        streamId: stream.id,
         domain: stream.domain,
-        description: `Seeded maker bot for ${stream.id}.`,
+        description: `Seeded maker agent for ${stream.id}.`,
         evidence: stream.evidence as "trust" | "verifier",
         tiers: [
           {
@@ -669,26 +670,26 @@ export async function seedDemoData(options: SeedOptions = {}) {
     )
   );
 
-  const listenerBots = await Promise.all(
+  const listenerAgents = await Promise.all(
     listenerWallets.map((wallet, idx) =>
-      botStore.createBot({
+      agentStore.createAgent({
         ownerWallet: wallet.publicKey.toBase58(),
         name: `Listener-${idx + 1}`,
         role: "listener",
         domain: "automation",
-        description: "Seeded listener bot for demo flows.",
+        description: "Seeded listener agent for demo flows.",
         evidence: "trust",
       })
     )
   );
 
-  for (const [idx, bot] of listenerBots.entries()) {
-    const makerBot = makerBots[idx % makerBots.length];
+  for (const [idx, agent] of listenerAgents.entries()) {
     const stream = streamProfiles[idx % streamProfiles.length];
     const tier = streamTiers[stream.id];
-    await subscriptionStore.createSubscription({
-      listenerWallet: bot.ownerWallet,
-      botId: makerBot.id,
+    await agentSubscriptionStore.createAgentSubscription({
+      ownerWallet: agent.ownerWallet,
+      agentId: agent.id,
+      streamId: stream.id,
       tierId: tier.tierId,
       pricingType: tier.pricingType,
       evidenceLevel: tier.evidenceLevel,

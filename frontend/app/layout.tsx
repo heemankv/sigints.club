@@ -7,7 +7,6 @@ import WalletConnect from "./components/WalletConnect";
 import SearchBar from "./components/SearchBar";
 import NetworkOnboarding from "./components/NetworkOnboarding";
 import AppToasts from "./components/AppToasts";
-import Footer from "./components/Footer";
 import TapestryHeaderBadge from "./components/TapestryHeaderBadge";
 
 export const metadata = {
@@ -45,7 +44,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NetworkOnboarding />
             <AppToasts />
           </div>
-          <Footer />
         </Providers>
       </body>
     </html>

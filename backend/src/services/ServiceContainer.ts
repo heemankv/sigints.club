@@ -5,11 +5,7 @@ import { DiscoveryService } from "./DiscoveryService";
 import { StreamRegistryClient } from "./StreamRegistryClient";
 import { ListenerService } from "./ListenerService";
 import { OnChainSubscriptionClient } from "./OnChainSubscriptionClient";
-import {
-  SqlUserStore,
-  SqlBotStore,
-  SqlSubscriptionStore,
-} from "../social";
+import { SqlUserStore, SqlAgentStore, SqlAgentSubscriptionStore } from "../social";
 import { TapestryPublisher } from "../tapestry/TapestryPublisher";
 import { getTapestryClient } from "../tapestry";
 import { SocialService } from "./SocialService";
@@ -36,8 +32,8 @@ const streamRegistryInstance = solanaStreamRegistryId
   : undefined;
 const listener = new ListenerService(signalStore);
 const userStore = new SqlUserStore(db);
-const botStore = new SqlBotStore(db);
-const subscriptionStore = new SqlSubscriptionStore(db);
+const agentStore = new SqlAgentStore(db);
+const agentSubscriptionStore = new SqlAgentSubscriptionStore(db);
 
 const client = getTapestryClient();
 const tapestryStreamService = new TapestryStreamService(client, tapestryRegistryProfileId);
@@ -72,8 +68,8 @@ export const streamRegistry = streamRegistryInstance;
 export const listenerService = listener;
 export const onChainSubscriptionClient = onChainSubscriptions;
 export const userProfileStore = userStore;
-export const botProfileStore = botStore;
-export const subscriptionProfileStore = subscriptionStore;
+export const agentProfileStore = agentStore;
+export const agentSubscriptionProfileStore = agentSubscriptionStore;
 export const socialServiceInstance = socialService;
 export const tapestryStreamServiceInstance = tapestryStreamService;
 export const tapestryClient = client;

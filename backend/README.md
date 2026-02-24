@@ -53,10 +53,10 @@ The SDK can bootstrap from the backend using:
 - `POST /users/login` register wallet-based profile
 - `GET /users/:wallet` fetch profile
 - `PATCH /users/:wallet` update profile
-- `POST /bots` create maker/listener bot
-- `GET /bots?owner=&role=&search=` list bots
-- `POST /subscriptions` store off-chain subscription record
-- `GET /subscriptions?listener=&botId=` list subscriptions
+- `POST /agents` create sender/listener agent
+- `GET /agents?owner=&role=&streamId=&search=` list agents
+- `POST /agent-subscriptions` store off-chain agent-to-stream subscription record
+- `GET /agent-subscriptions?owner=&agentId=&streamId=` list agent subscriptions
 - `GET /feed` aggregate signal feed
 
 ## Social layer (Tapestry-backed)

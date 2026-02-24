@@ -203,17 +203,10 @@ export class TapestryClient {
   }
 
   async searchProfilesByWallet(walletAddress: string, limit = 20, offset = 0) {
-    const res = await fetch(`${this.buildUrl("/profiles/search")}?apiKey=${encodeURIComponent(this.apiKey)}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ walletAddress, limit, offset }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Tapestry profile search failed (${res.status}): ${text}`);
-    }
-    const data = await res.json();
-    return data?.profiles ?? [];
+    const pageSize = Math.max(1, limit);
+    const page = Math.floor(offset / pageSize) + 1;
+    const res = await this.listProfiles({ walletAddress, page, pageSize });
+    return res?.profiles ?? [];
   }
 
   async isStreamProfile(profileId: string): Promise<boolean> {

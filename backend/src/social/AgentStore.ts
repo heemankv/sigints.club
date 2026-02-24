@@ -1,8 +1,9 @@
-export type BotProfile = {
+export type AgentProfile = {
   id: string;
   ownerWallet: string;
   name: string;
   role: "maker" | "listener";
+  streamId?: string;
   domain: string;
   description?: string;
   evidence: "trust" | "verifier" | "hybrid";
@@ -17,14 +18,15 @@ export type BotProfile = {
   updatedAt: number;
 };
 
-export type BotQuery = {
+export type AgentQuery = {
   ownerWallet?: string;
   role?: "maker" | "listener";
+  streamId?: string;
   search?: string;
 };
 
-export interface BotStore {
-  createBot(input: Omit<BotProfile, "id" | "createdAt" | "updatedAt">): Promise<BotProfile>;
-  getBot(id: string): Promise<BotProfile | null>;
-  listBots(query?: BotQuery): Promise<BotProfile[]>;
+export interface AgentStore {
+  createAgent(input: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">): Promise<AgentProfile>;
+  getAgent(id: string): Promise<AgentProfile | null>;
+  listAgents(query?: AgentQuery): Promise<AgentProfile[]>;
 }

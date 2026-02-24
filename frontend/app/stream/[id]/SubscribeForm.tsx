@@ -50,6 +50,11 @@ export default function SubscribeForm({
   const visibility = streamVisibility ?? "private";
   const requiresKey = visibility === "private";
   const keyReady = !requiresKey || walletKeyReady === true;
+  const isOwner = Boolean(
+    publicKey &&
+      streamAuthority &&
+      publicKey.toBase58() === streamAuthority
+  );
 
   useEffect(() => {
     let active = true;
@@ -85,6 +90,9 @@ export default function SubscribeForm({
     try {
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
+      }
+      if (isOwner) {
+        throw new Error("You can't subscribe to your own stream.");
       }
       if (requiresKey && walletKeyReady === false) {
         throw new Error("Register your wallet key before subscribing to private streams.");
@@ -143,6 +151,9 @@ export default function SubscribeForm({
       {requiresKey && walletKeyReady === false && (
         <p className="subtext">Wallet key missing. Register it in Profile → Actions.</p>
       )}
+      {isOwner && (
+        <p className="subtext">You are the stream authority and cannot subscribe to your own stream.</p>
+      )}
       <button
         className="button ghost"
         onClick={submitOnchain}
@@ -151,7 +162,8 @@ export default function SubscribeForm({
           !streamOnchainAddress ||
           !streamAuthority ||
           !streamDao ||
-          !keyReady
+          !keyReady ||
+          isOwner
         }
       >
         {loading ? "Submitting…" : "Subscribe on-chain"}

@@ -11,6 +11,8 @@ export type SyncWalletKeyResponse = {
   subscriberId: string;
   updated?: number;
   bypass?: boolean;
+  walletKeyRegisteredAt?: number;
+  walletKeyPublicKey?: string;
 };
 
 export type SolanaConfigResponse = {
@@ -294,24 +296,48 @@ export async function followProfile(
   await postJson(backendUrl, "/social/follow", { wallet, targetProfileId });
 }
 
-export async function searchBots<T = any>(backendUrl: string, query: string): Promise<T> {
-  return getJson<T>(backendUrl, `/bots?search=${encodeURIComponent(query)}`);
+export async function searchAgents<T = any>(backendUrl: string, query: string): Promise<T> {
+  return getJson<T>(backendUrl, `/agents?search=${encodeURIComponent(query)}`);
 }
 
-export async function fetchBots<T = any>(
+export async function fetchAgents<T = any>(
   backendUrl: string,
-  params: { owner?: string; role?: string; search?: string }
+  params: { owner?: string; role?: string; streamId?: string; search?: string }
 ): Promise<T> {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
   if (params.role) query.set("role", params.role);
+  if (params.streamId) query.set("streamId", params.streamId);
   if (params.search) query.set("search", params.search);
   const suffix = query.toString();
-  return getJson<T>(backendUrl, `/bots${suffix ? `?${suffix}` : ""}`);
+  return getJson<T>(backendUrl, `/agents${suffix ? `?${suffix}` : ""}`);
 }
 
-export async function createBot<T = any>(backendUrl: string, payload: unknown): Promise<T> {
-  return postJson<T>(backendUrl, "/bots", payload);
+export async function createAgent<T = any>(backendUrl: string, payload: unknown): Promise<T> {
+  return postJson<T>(backendUrl, "/agents", payload);
+}
+
+export async function createAgentSubscription<T = any>(
+  backendUrl: string,
+  payload: unknown
+): Promise<T> {
+  return postJson<T>(backendUrl, "/agent-subscriptions", payload);
+}
+
+export async function fetchAgentSubscriptions<T = any>(
+  backendUrl: string,
+  params: { owner?: string; agentId?: string; streamId?: string }
+): Promise<T> {
+  const query = new URLSearchParams();
+  if (params.owner) query.set("owner", params.owner);
+  if (params.agentId) query.set("agentId", params.agentId);
+  if (params.streamId) query.set("streamId", params.streamId);
+  const suffix = query.toString();
+  return getJson<T>(backendUrl, `/agent-subscriptions${suffix ? `?${suffix}` : ""}`);
+}
+
+export async function deleteAgentSubscription<T = any>(backendUrl: string, id: string): Promise<T> {
+  return deleteJson<T>(backendUrl, `/agent-subscriptions/${encodeURIComponent(id)}`, {});
 }
 
 export async function fetchUserProfile<T = any>(backendUrl: string, wallet: string): Promise<T> {
@@ -395,9 +421,14 @@ export function createBackendClient(backendUrl: string) {
     addComment: (wallet: string, contentId: string, comment: string) =>
       addComment(url, wallet, contentId, comment),
     followProfile: (wallet: string, targetProfileId: string) => followProfile(url, wallet, targetProfileId),
-    searchBots: <T = any>(query: string) => searchBots<T>(url, query),
-    fetchBots: <T = any>(params: { owner?: string; role?: string; search?: string }) => fetchBots<T>(url, params),
-    createBot: <T = any>(payload: unknown) => createBot<T>(url, payload),
+    searchAgents: <T = any>(query: string) => searchAgents<T>(url, query),
+    fetchAgents: <T = any>(params: { owner?: string; role?: string; streamId?: string; search?: string }) =>
+      fetchAgents<T>(url, params),
+    createAgent: <T = any>(payload: unknown) => createAgent<T>(url, payload),
+    createAgentSubscription: <T = any>(payload: unknown) => createAgentSubscription<T>(url, payload),
+    fetchAgentSubscriptions: <T = any>(params: { owner?: string; agentId?: string; streamId?: string }) =>
+      fetchAgentSubscriptions<T>(url, params),
+    deleteAgentSubscription: <T = any>(id: string) => deleteAgentSubscription<T>(url, id),
     fetchUserProfile: <T = any>(wallet: string) => fetchUserProfile<T>(url, wallet),
     updateUserProfile: <T = any>(wallet: string, payload: { displayName?: string; bio?: string }) =>
       updateUserProfile<T>(url, wallet, payload),

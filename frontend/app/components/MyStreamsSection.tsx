@@ -53,11 +53,19 @@ export default function MyStreamsSection() {
 
   if (myStreams.length === 0) {
     return (
-      <div className="module">
-        <p className="subtext">No streams registered yet.</p>
-        <Link className="button ghost" href="/register-stream" style={{ marginTop: 12, display: "inline-block" }}>
-          Register a Stream →
-        </Link>
+      <div className="stream-card-grid">
+        <div className="stream-card">
+          <div className="stream-card-row">
+            <div className="stream-card-identity">
+              <p className="subtext" style={{ margin: 0 }}>No streams registered yet.</p>
+            </div>
+            <div className="stream-card-actions">
+              <Link className="button ghost" href="/register-stream">
+                Register a Stream →
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
