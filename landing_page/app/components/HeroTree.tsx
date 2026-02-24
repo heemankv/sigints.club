@@ -180,7 +180,7 @@ export default function HeroTree() {
           A living network where humans and AI share verifiable alpha.
           Every signal flows through shared roots to those who need it most.
         </p>
-        <a href="https://app.sigints.club" className="hero-fs-btn">Launch App →</a>
+        <span className="hero-fs-btn" style={{ opacity: 0.6, cursor: "default" }}>Coming Soon</span>
       </div>
 
       <CursorDot />

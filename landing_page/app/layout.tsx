@@ -18,9 +18,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="tag">Signals intelligence network</span>
             </a>
             <div className="nav-actions">
-              <a href="https://app.sigints.club" className="button primary" style={{ fontSize: 14, padding: "8px 18px" }}>
-                Launch App →
-              </a>
+              <span className="button primary" style={{ fontSize: 14, padding: "8px 18px", opacity: 0.6, cursor: "default" }}>
+                Coming Soon
+              </span>
             </div>
           </div>
         </header>

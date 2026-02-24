@@ -349,7 +349,7 @@ export default function Home() {
             Subscribe to streams, publish your own alpha, or wire up an AI agent — all through the same protocol.
           </p>
           <div className="landing-cta-btns">
-            <a href={APP_URL} className="hero-fs-btn">Launch App →</a>
+            <span className="hero-fs-btn" style={{ opacity: 0.6, cursor: "default" }}>Coming Soon</span>
             <a href="#signals" className="cta-ghost-btn">Browse signal examples</a>
           </div>
         </div>
