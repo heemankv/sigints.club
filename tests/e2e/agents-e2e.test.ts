@@ -490,17 +490,37 @@ describe("E2E agents full flow", () => {
       grantPublicTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       await sendAndConfirmTransaction(connection, grantPublicTx, [u2]);
 
-      // U3 fails to subscribe to private stream without key
+      // U3 can subscribe without a key (Blink flow), but cannot link agent until key exists
+      await subscribeOnchain({
+        subscriber: u3,
+        stream: privateStreamPda,
+        tierId: STREAM_PRIVATE.tier.tierId,
+        pricingType: STREAM_PRIVATE.tier.pricingType,
+        evidenceLevel: STREAM_PRIVATE.tier.evidenceLevel,
+        priceLamports: STREAM_PRIVATE.priceLamports,
+        maker: u1.publicKey,
+        treasury: u1.publicKey,
+      });
+
+      const a3ListenerKeypair = Keypair.generate();
+      const a3Listener = await client.createAgent({
+        ownerWallet: u3.publicKey.toBase58(),
+        agentPubkey: a3ListenerKeypair.publicKey.toBase58(),
+        name: "U3 Listener",
+        role: "listener",
+        domain: "listener",
+        description: "U3 listener",
+        evidence: "trust",
+      });
+
       await expect(
-        subscribeOnchain({
-          subscriber: u3,
-          stream: privateStreamPda,
+        client.createAgentSubscription({
+          ownerWallet: u3.publicKey.toBase58(),
+          agentId: a3Listener.agent.id,
+          streamId: STREAM_PRIVATE.id,
           tierId: STREAM_PRIVATE.tier.tierId,
-          pricingType: STREAM_PRIVATE.tier.pricingType,
-          evidenceLevel: STREAM_PRIVATE.tier.evidenceLevel,
-          priceLamports: STREAM_PRIVATE.priceLamports,
-          maker: u1.publicKey,
-          treasury: u1.publicKey,
+          pricingType: "subscription_unlimited",
+          evidenceLevel: "trust",
         })
       ).rejects.toThrow();
 
@@ -513,16 +533,6 @@ describe("E2E agents full flow", () => {
       await client.syncWalletKey({
         wallet: u3.publicKey.toBase58(),
         streamId: STREAM_PRIVATE.id,
-      });
-      await subscribeOnchain({
-        subscriber: u3,
-        stream: privateStreamPda,
-        tierId: STREAM_PRIVATE.tier.tierId,
-        pricingType: STREAM_PRIVATE.tier.pricingType,
-        evidenceLevel: STREAM_PRIVATE.tier.evidenceLevel,
-        priceLamports: STREAM_PRIVATE.priceLamports,
-        maker: u1.publicKey,
-        treasury: u1.publicKey,
       });
       await client.registerSubscription({ streamId: STREAM_PRIVATE.id, subscriberWallet: u3.publicKey.toBase58() });
 
@@ -537,6 +547,24 @@ describe("E2E agents full flow", () => {
         treasury: u2.publicKey,
       });
       await client.registerSubscription({ streamId: STREAM_PUBLIC.id, subscriberWallet: u3.publicKey.toBase58() });
+
+      await client.createAgentSubscription({
+        ownerWallet: u3.publicKey.toBase58(),
+        agentId: a3Listener.agent.id,
+        streamId: STREAM_PRIVATE.id,
+        tierId: STREAM_PRIVATE.tier.tierId,
+        pricingType: "subscription_unlimited",
+        evidenceLevel: "trust",
+      });
+      await client.createAgentSubscription({
+        ownerWallet: u3.publicKey.toBase58(),
+        agentId: a3Listener.agent.id,
+        streamId: STREAM_PUBLIC.id,
+        tierId: STREAM_PUBLIC.tier.tierId,
+        pricingType: "subscription_unlimited",
+        evidenceLevel: "trust",
+        visibility: "public",
+      });
 
       const u4Keys = SigintsClient.generateKeys();
       await registerSubscriptionKeyOnchain({
@@ -604,19 +632,8 @@ describe("E2E agents full flow", () => {
       });
       await client.registerSubscription({ streamId: STREAM_PUBLIC.id, subscriberWallet: u5.publicKey.toBase58() });
 
-      const a3ListenerKeypair = Keypair.generate();
       const a4ListenerKeypair = Keypair.generate();
       const a5ListenerKeypair = Keypair.generate();
-
-      const a3Listener = await client.createAgent({
-        ownerWallet: u3.publicKey.toBase58(),
-        agentPubkey: a3ListenerKeypair.publicKey.toBase58(),
-        name: "U3 Listener",
-        role: "listener",
-        domain: "listener",
-        description: "U3 listener",
-        evidence: "trust",
-      });
       const a4Listener = await client.createAgent({
         ownerWallet: u4.publicKey.toBase58(),
         agentPubkey: a4ListenerKeypair.publicKey.toBase58(),
@@ -634,24 +651,6 @@ describe("E2E agents full flow", () => {
         domain: "listener",
         description: "U5 listener",
         evidence: "trust",
-      });
-
-      await client.createAgentSubscription({
-        ownerWallet: u3.publicKey.toBase58(),
-        agentId: a3Listener.agent.id,
-        streamId: STREAM_PRIVATE.id,
-        tierId: STREAM_PRIVATE.tier.tierId,
-        pricingType: "subscription_unlimited",
-        evidenceLevel: "trust",
-      });
-      await client.createAgentSubscription({
-        ownerWallet: u3.publicKey.toBase58(),
-        agentId: a3Listener.agent.id,
-        streamId: STREAM_PUBLIC.id,
-        tierId: STREAM_PUBLIC.tier.tierId,
-        pricingType: "subscription_unlimited",
-        evidenceLevel: "trust",
-        visibility: "public",
       });
 
       await client.createAgentSubscription({
