@@ -1,7 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import {
+  Connection,
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SYSVAR_RENT_PUBKEY,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAccount,
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
@@ -25,6 +36,7 @@ import {
 import { decodeSubscriptionAccount, type OnChainSubscription } from "./services/OnChainSubscriptionClient";
 import { subscriberIdFromPubkey, generateX25519Keypair } from "./crypto/hybrid";
 import { hashTiersHex } from "./streams/tiersHash";
+import { sha256Bytes } from "./utils/hash";
 
 const router = Router();
 
@@ -590,6 +602,140 @@ router.get("/streams/:id", async (req, res) => {
   return res.json({ stream });
 });
 
+const actionAccountSchema = z.object({
+  account: z.string().min(32),
+});
+
+router.get("/actions/stream/:id", async (req, res) => {
+  if (!tapestryStreamServiceInstance) {
+    return res.status(503).json({ error: "Tapestry is required for stream discovery" });
+  }
+  const stream = await discoveryService.getStream(req.params.id);
+  if (!stream) {
+    return res.status(404).json({ error: "stream not found" });
+  }
+  const apiBase = resolveApiBaseUrl(req);
+  const appBase = resolvePublicBaseUrl(req);
+  const actions = stream.tiers.map((tier) => {
+    const tierId = encodeURIComponent(tier.tierId);
+    return {
+      label: `${tier.tierId} · ${tier.evidenceLevel} · ${tier.price}`,
+      href: `${apiBase}/actions/stream/${stream.id}/subscribe?tierId=${tierId}`,
+    };
+  });
+  const visibilityLine = stream.visibility === "private"
+    ? "Private stream. Encryption key required to decrypt."
+    : "Public stream. Subscription still required to access payloads.";
+  return res.json({
+    type: "action",
+    icon: `${appBase}/generated/subscription-1.svg`,
+    title: `Subscribe to ${stream.name}`,
+    description: `${stream.description}\n${visibilityLine}`,
+    label: "Subscribe",
+    links: { actions },
+  });
+});
+
+router.get("/actions/stream/:id/link", async (req, res) => {
+  const apiBase = resolveApiBaseUrl(req);
+  const appBase = resolvePublicBaseUrl(req);
+  const streamId = encodeURIComponent(req.params.id);
+  const streamUrl = `${appBase}/stream/${streamId}`;
+  const actionUrl = `${apiBase}/actions/stream/${streamId}`;
+  const directBlinkUrl = `${appBase}/?action=${encodeURIComponent(actionUrl)}`;
+  return res.json({
+    streamUrl,
+    actionUrl,
+    blinkUrl: streamUrl,
+    directBlinkUrl,
+  });
+});
+
+router.post("/actions/stream/:id/subscribe", async (req, res) => {
+  const parsed = actionAccountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  if (!tapestryStreamServiceInstance) {
+    return res.status(503).json({ error: "Tapestry is required for stream discovery" });
+  }
+  if (!streamRegistry) {
+    return res.status(503).json({ error: "stream registry not configured" });
+  }
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  const streamRegistryProgramId = process.env.SOLANA_STREAM_REGISTRY_PROGRAM_ID;
+  if (!subscriptionProgramId || !streamRegistryProgramId) {
+    return res.status(503).json({ error: "solana program ids not configured" });
+  }
+  const tierId = typeof req.query.tierId === "string" ? req.query.tierId : undefined;
+  if (!tierId) {
+    return res.status(400).json({ error: "tierId required" });
+  }
+  const stream = await discoveryService.getStream(req.params.id);
+  if (!stream) {
+    return res.status(404).json({ error: "stream not found" });
+  }
+  const tier = stream.tiers.find((entry) => entry.tierId === tierId);
+  if (!tier) {
+    return res.status(404).json({ error: "tier not found" });
+  }
+  if (!stream.authority || !stream.dao || !stream.onchainAddress) {
+    return res.status(500).json({ error: "stream on-chain config missing" });
+  }
+  try {
+    const subscriberPubkey = new PublicKey(parsed.data.account);
+    const streamPubkey = streamRegistry.deriveStreamPda(stream.id);
+    const priceValue = parsePriceValue(tier.price);
+    const priceLamports = Math.round(priceValue * LAMPORTS_PER_SOL);
+    const pricingType = resolvePricingType(tier.pricingType);
+    const evidenceLevel = resolveEvidenceLevel(tier.evidenceLevel);
+    const quotaRemaining = tier.quota ? Math.max(0, Number(tier.quota)) : 0;
+    const ix = await buildSubscribeInstruction({
+      programId: new PublicKey(subscriptionProgramId),
+      streamRegistryProgramId: new PublicKey(streamRegistryProgramId),
+      stream: streamPubkey,
+      subscriber: subscriberPubkey,
+      tierId,
+      pricingType,
+      evidenceLevel,
+      expiresAtMs: defaultExpiryMs(),
+      quotaRemaining,
+      priceLamports,
+      maker: new PublicKey(stream.authority),
+      treasury: new PublicKey(stream.dao),
+    });
+
+    const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+    const connection = new Connection(rpcUrl, "confirmed");
+    const tx = new Transaction().add(ix);
+    tx.feePayer = subscriberPubkey;
+    const latest = await connection.getLatestBlockhash("confirmed");
+    tx.recentBlockhash = latest.blockhash;
+
+    let needsKey = false;
+    if (stream.visibility === "private") {
+      const [subKeyPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("sub_key"), streamPubkey.toBuffer(), subscriberPubkey.toBuffer()],
+        new PublicKey(subscriptionProgramId)
+      );
+      const subKeyAccount = await connection.getAccountInfo(subKeyPda, "confirmed");
+      needsKey = !subKeyAccount;
+    }
+
+    const message = needsKey
+      ? "Subscription created. Register your stream encryption key in the app to decrypt private signals. Soulbound subscription NFT will be minted to your wallet."
+      : "Subscription created. Soulbound subscription NFT will be minted to your wallet.";
+
+    const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+    return res.json({
+      transaction: Buffer.from(serialized).toString("base64"),
+      message,
+    });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message ?? "failed to build subscription transaction" });
+  }
+});
+
 router.get("/streams/:id/subscribers", async (req, res) => {
   if (!streamRegistry || !onChainSubscriptionClient) {
     return res.status(503).json({ error: "on-chain subscription client not configured" });
@@ -635,6 +781,136 @@ function parsePriceValue(input: string): number {
   const value = Number(match[0]);
   if (!Number.isFinite(value)) return 0;
   return value;
+}
+
+function resolvePricingType(value: string): number {
+  if (value === "subscription_unlimited") return 1;
+  throw new Error(`Unsupported pricing type: ${value}`);
+}
+
+function resolveEvidenceLevel(value: string): number {
+  if (value === "trust") return 0;
+  if (value === "verifier") return 1;
+  throw new Error(`Unsupported evidence level: ${value}`);
+}
+
+function defaultExpiryMs(): number {
+  const days = 30;
+  return Date.now() + days * 24 * 60 * 60 * 1000;
+}
+
+const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
+
+function writeBigInt64LE(view: Uint8Array, value: bigint, offset: number) {
+  let temp = BigInt(value);
+  for (let i = 0; i < 8; i += 1) {
+    view[offset + i] = Number(temp & 0xffn);
+    temp >>= 8n;
+  }
+}
+
+function writeUint32LE(view: Uint8Array, value: number, offset: number) {
+  let temp = value >>> 0;
+  for (let i = 0; i < 4; i += 1) {
+    view[offset + i] = temp & 0xff;
+    temp >>= 8;
+  }
+}
+
+async function encodeSubscribeData(params: {
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  expiresAtMs: number;
+  quotaRemaining: number;
+  priceLamports: number;
+}): Promise<Uint8Array> {
+  const tierHash = await sha256Bytes(Buffer.from(params.tierId));
+  const data = new Uint8Array(8 + 32 + 1 + 1 + 8 + 4 + 8);
+  data.set(SUBSCRIBE_DISCRIMINATOR, 0);
+  data.set(tierHash, 8);
+  data[40] = params.pricingType;
+  data[41] = params.evidenceLevel;
+  writeBigInt64LE(data, BigInt(params.expiresAtMs), 42);
+  writeUint32LE(data, params.quotaRemaining, 50);
+  writeBigInt64LE(data, BigInt(params.priceLamports), 54);
+  return data;
+}
+
+async function buildSubscribeInstruction(params: {
+  programId: PublicKey;
+  streamRegistryProgramId: PublicKey;
+  stream: PublicKey;
+  subscriber: PublicKey;
+  tierId: string;
+  pricingType: number;
+  evidenceLevel: number;
+  expiresAtMs: number;
+  quotaRemaining: number;
+  priceLamports: number;
+  maker: PublicKey;
+  treasury: PublicKey;
+}): Promise<TransactionInstruction> {
+  const data = await encodeSubscribeData(params);
+  const [subscription] = PublicKey.findProgramAddressSync(
+    [Buffer.from("subscription"), params.stream.toBuffer(), params.subscriber.toBuffer()],
+    params.programId
+  );
+  const [subscriptionMint] = PublicKey.findProgramAddressSync(
+    [Buffer.from("subscription_mint"), params.stream.toBuffer(), params.subscriber.toBuffer()],
+    params.programId
+  );
+  const [streamState] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stream_state"), params.stream.toBuffer()],
+    params.programId
+  );
+  const tierHash = await sha256Bytes(Buffer.from(params.tierId));
+  const [tierConfig] = PublicKey.findProgramAddressSync(
+    [Buffer.from("tier"), params.stream.toBuffer(), tierHash],
+    params.streamRegistryProgramId
+  );
+  const subscriberAta = getAssociatedTokenAddressSync(
+    subscriptionMint,
+    params.subscriber,
+    false,
+    TOKEN_2022_PROGRAM_ID
+  );
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: subscription, isSigner: false, isWritable: true },
+      { pubkey: subscriptionMint, isSigner: false, isWritable: true },
+      { pubkey: streamState, isSigner: false, isWritable: true },
+      { pubkey: subscriberAta, isSigner: false, isWritable: true },
+      { pubkey: params.stream, isSigner: false, isWritable: false },
+      { pubkey: tierConfig, isSigner: false, isWritable: false },
+      { pubkey: params.streamRegistryProgramId, isSigner: false, isWritable: false },
+      { pubkey: params.subscriber, isSigner: true, isWritable: true },
+      { pubkey: params.maker, isSigner: false, isWritable: true },
+      { pubkey: params.treasury, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+function resolvePublicBaseUrl(req: { protocol: string; get: (name: string) => string | undefined }) {
+  const origin = req.get("origin");
+  if (origin && /^https?:\/\//i.test(origin)) {
+    return origin;
+  }
+  return (
+    process.env.PUBLIC_APP_URL ??
+    process.env.FRONTEND_URL ??
+    `${req.protocol}://${req.get("host")}`
+  );
+}
+
+function resolveApiBaseUrl(req: { protocol: string; get: (name: string) => string | undefined }) {
+  return process.env.PUBLIC_API_URL ?? `${req.protocol}://${req.get("host")}`;
 }
 
 router.post("/streams", async (req, res) => {
@@ -1629,16 +1905,16 @@ router.post("/subscribe", async (req, res) => {
     );
     const subKeyAccount = await connection.getAccountInfo(subKeyPda);
     if (!subKeyAccount) {
-      return res.status(400).json({ error: "subscription encryption key not registered on-chain" });
+      return res.json({ subscriberId: null, needsKey: true });
     }
     const decoded = decodeSubscriptionKey(subKeyAccount.data);
     if (!decoded) {
-      return res.status(400).json({ error: "subscription encryption key invalid" });
+      return res.json({ subscriberId: null, needsKey: true });
     }
     const encPubKeyBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
     const pubDer = Buffer.from(encPubKeyBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pubDer);
-    return res.json({ subscriberId });
+    return res.json({ subscriberId, needsKey: false });
   } catch (error: any) {
     return res.status(400).json({ error: error.message ?? "invalid subscriber wallet" });
   }
@@ -1729,29 +2005,11 @@ router.post("/subscribe/onchain", async (req, res) => {
     }
     const visibility = stream.visibility ?? "private";
     if (visibility === "private") {
-      const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
-      const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
-      if (!subscriptionProgramId) {
-        return res.status(503).json({ error: "subscription program not configured" });
-      }
       const subscriberPubkey = payload.subscriberPubkey
         ? new PublicKey(payload.subscriberPubkey)
         : undefined;
       if (!subscriberPubkey) {
         return res.status(400).json({ error: "subscriberPubkey required for private streams" });
-      }
-      if (!streamRegistry) {
-        return res.status(503).json({ error: "stream registry not configured" });
-      }
-      const streamPda = streamRegistry.deriveStreamPda(payload.streamId);
-      const [subscriptionKeyPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("sub_key"), streamPda.toBuffer(), subscriberPubkey.toBuffer()],
-        new PublicKey(subscriptionProgramId)
-      );
-      const connection = new Connection(rpcUrl, "confirmed");
-      const subscriptionKeyAccount = await connection.getAccountInfo(subscriptionKeyPda);
-      if (!subscriptionKeyAccount) {
-        return res.status(400).json({ error: "subscription encryption key not registered on-chain" });
       }
     }
     if (streamRegistry && (!payload.makerPubkey || !payload.treasuryPubkey)) {

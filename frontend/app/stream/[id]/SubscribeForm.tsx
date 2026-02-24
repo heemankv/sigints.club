@@ -49,7 +49,6 @@ export default function SubscribeForm({
 
   const visibility = streamVisibility ?? "private";
   const requiresKey = visibility === "private";
-  const keyReady = !requiresKey || subscriptionKeyReady === true;
   const isOwner = Boolean(
     publicKey &&
       streamAuthority &&
@@ -112,9 +111,6 @@ export default function SubscribeForm({
       if (isOwner) {
         throw new Error("You can't subscribe to your own stream.");
       }
-      if (requiresKey && subscriptionKeyReady === false) {
-        throw new Error("Register your stream encryption key before subscribing to private streams.");
-      }
       if (!streamOnchainAddress || !streamAuthority || !streamDao) {
         throw new Error("On-chain stream or payout accounts not configured.");
       }
@@ -139,11 +135,15 @@ export default function SubscribeForm({
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
       setChainTx(signature);
-      await registerSubscription({
+      const subscription = await registerSubscription({
         streamId,
         subscriberWallet: publicKey.toBase58(),
       });
-      setChainStatus("Subscribed and registered.");
+      if (requiresKey && (subscription?.needsKey || subscriptionKeyReady === false)) {
+        setChainStatus("Subscribed. Register your stream encryption key to decrypt private signals.");
+      } else {
+        setChainStatus("Subscribed and registered.");
+      }
       if (typeof window !== "undefined") {
         window.localStorage.setItem("subscriptionsDirty", "1");
       }
@@ -160,14 +160,14 @@ export default function SubscribeForm({
       <h3>Subscribe to {tierId}</h3>
       <p className="subtext">
         {requiresKey
-          ? "Private stream: register your stream encryption key first."
+          ? "Private stream: register your encryption key to decrypt signals. You can subscribe first."
           : "Public stream: no encryption key required."}
       </p>
       {requiresKey && subscriptionKeyReady === null && (
         <p className="subtext">Checking encryption key status…</p>
       )}
       {requiresKey && subscriptionKeyReady === false && (
-        <p className="subtext">Stream key missing. Register it above before subscribing.</p>
+        <p className="subtext">Stream key missing. Subscribe now; add a key to decrypt later.</p>
       )}
       {isOwner && (
         <p className="subtext">You are the stream authority and cannot subscribe to your own stream.</p>
@@ -180,7 +180,6 @@ export default function SubscribeForm({
           !streamOnchainAddress ||
           !streamAuthority ||
           !streamDao ||
-          !keyReady ||
           isOwner
         }
       >

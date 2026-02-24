@@ -2,6 +2,7 @@ import {
   createBackendClient,
   buildPublicPayloadMessage as sdkBuildPublicPayloadMessage,
   type SubscribeResponse,
+  type BlinkLinkResponse,
   type SyncWalletKeyResponse,
   type LoginUserResponse,
 } from "../../../sdk/src/backend";
@@ -44,6 +45,10 @@ export function fetchStreams<T = any>(includeTiers?: boolean): Promise<{ streams
 
 export function fetchStreamSubscribers(streamId: string): Promise<{ count: number }> {
   return getClient().fetchStreamSubscribers(streamId);
+}
+
+export function fetchBlinkLink(streamId: string): Promise<BlinkLinkResponse> {
+  return getClient().fetchBlinkLink(streamId);
 }
 
 export function createStream<T = any>(payload: unknown): Promise<{ stream: T }> {

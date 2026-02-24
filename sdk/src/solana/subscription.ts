@@ -168,7 +168,6 @@ export function buildSubscribeInstruction(params: {
       false,
       TOKEN_2022_PROGRAM_ID
     );
-    const subscriptionKey = deriveSubscriptionKeyPda(params.programId, params.stream, params.subscriber);
     const tierHash = await sha256Bytes(params.tierId);
     const tierConfig = deriveTierConfigPda(params.streamRegistryProgramId, params.stream, tierHash);
     return new TransactionInstruction({
@@ -184,7 +183,6 @@ export function buildSubscribeInstruction(params: {
         { pubkey: params.subscriber, isSigner: true, isWritable: true },
         { pubkey: params.maker, isSigner: false, isWritable: true },
         { pubkey: params.treasury, isSigner: false, isWritable: true },
-        { pubkey: subscriptionKey, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },

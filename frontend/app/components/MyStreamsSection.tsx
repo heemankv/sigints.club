@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchStreams, readStreamsCache, fetchStreamSubscribers } from "../lib/api/streams";
 import type { StreamDetail } from "../lib/types";
+import CopyBlinkButton from "./CopyBlinkButton";
 
 export default function MyStreamsSection() {
   const { publicKey } = useWallet();
@@ -73,7 +74,10 @@ export default function MyStreamsSection() {
                   </span>
                 )}
               </div>
-              <h3 className="stream-card-name">{stream.name}</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <h3 className="stream-card-name" style={{ margin: 0 }}>{stream.name}</h3>
+                <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="button ghost" />
+              </div>
               {stream.description && (
                 <p className="stream-card-desc">
                   {stream.description.length > 80

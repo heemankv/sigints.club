@@ -727,9 +727,6 @@
           "writable": true
         },
         {
-          "name": "subscription_key"
-        },
-        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         },

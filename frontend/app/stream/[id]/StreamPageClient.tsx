@@ -12,6 +12,7 @@ import type { StreamDetail as FallbackStreamDetail } from "../../lib/fallback";
 import type { SignalEvent } from "../../lib/types";
 import { fetchSignalEvents } from "../../lib/api/signals";
 import { formatFullTimestamp, timeAgo } from "../../lib/utils";
+import CopyBlinkButton from "../../components/CopyBlinkButton";
 
 type AnyStream = StreamDetail | FallbackStreamDetail;
 
@@ -114,7 +115,10 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
       {/* Shared header */}
       <div className="stream-detail-header">
         {stream.domain && <span className="kicker">{stream.domain}</span>}
-        <h1 className="stream-detail-title">{stream.name}</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h1 className="stream-detail-title" style={{ margin: 0 }}>{stream.name}</h1>
+          <CopyBlinkButton streamId={stream.id} label="Copy Blink" />
+        </div>
         {stream.description && <p className="subtext">{stream.description}</p>}
         {onchainAddress && (
           <p className="subtext">
@@ -183,7 +187,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
           {visibility === "private" && (
             <div className="stream-detail-section">
               <h3 className="stream-detail-section-title">Encryption Key</h3>
-              <p className="subtext">Register an X25519 key for this stream before subscribing.</p>
+              <p className="subtext">Register an X25519 key for this stream to decrypt private signals.</p>
               <KeyManager streamId={stream.id} streamOnchainAddress={onchainAddress} />
             </div>
           )}

@@ -5,6 +5,7 @@ export type SubscribeResponse = {
   subscriberId: string | null;
   public?: boolean;
   bypass?: boolean;
+  needsKey?: boolean;
 };
 
 export type SyncWalletKeyResponse = {
@@ -28,6 +29,13 @@ export type SolanaConfigResponse = {
   subscriptionProgramId: string;
   streamRegistryProgramId: string;
   rpcUrl: string;
+};
+
+export type BlinkLinkResponse = {
+  streamUrl: string;
+  actionUrl: string;
+  blinkUrl: string;
+  directBlinkUrl: string;
 };
 
 const normalizeBackendUrl = (backendUrl: string) => backendUrl.replace(/\/$/, "");
@@ -125,6 +133,13 @@ export async function fetchStreamSubscribers(
   return getJson<{ count: number }>(
     backendUrl,
     `/streams/${encodeURIComponent(streamId)}/subscribers`
+  );
+}
+
+export async function fetchBlinkLink(backendUrl: string, streamId: string): Promise<BlinkLinkResponse> {
+  return getJson<BlinkLinkResponse>(
+    backendUrl,
+    `/actions/stream/${encodeURIComponent(streamId)}/link`
   );
 }
 
@@ -476,6 +491,7 @@ export function createBackendClient(backendUrl: string) {
     fetchStream: <T = any>(streamId: string) => fetchStream<T>(url, streamId),
     fetchStreams: <T = any>(includeTiers?: boolean) => fetchStreams<T>(url, includeTiers),
     fetchStreamSubscribers: (streamId: string) => fetchStreamSubscribers(url, streamId),
+    fetchBlinkLink: (streamId: string) => fetchBlinkLink(url, streamId),
     createStream: <T = any>(payload: unknown) => createStream<T>(url, payload),
     fetchOnchainSubscriptions: <T = any>(subscriber: string, opts?: { fresh?: boolean }) =>
       fetchOnchainSubscriptions<T>(url, subscriber, opts),

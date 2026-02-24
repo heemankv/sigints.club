@@ -30,14 +30,6 @@ pub mod subscription_royalty {
             stream_config.status == StreamStatus::Active as u8,
             ErrorCode::StreamInactive
         );
-        if stream_config.visibility == StreamVisibility::Private as u8 {
-            require_subscription_key(
-                &ctx.accounts.subscription_key,
-                &ctx.accounts.stream,
-                &ctx.accounts.subscriber,
-                &ctx.program_id,
-            )?;
-        }
         let tier_config = validate_tier(
             &ctx.accounts.tier_config,
             &ctx.accounts.stream,
@@ -444,8 +436,6 @@ pub struct Subscribe<'info> {
     pub maker: SystemAccount<'info>,
     #[account(mut)]
     pub treasury: SystemAccount<'info>,
-    /// CHECK: validated in handler for private streams
-    pub subscription_key: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
     pub token_2022_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
