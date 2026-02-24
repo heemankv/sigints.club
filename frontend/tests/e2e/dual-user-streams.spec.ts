@@ -81,20 +81,19 @@ test.describe.serial("dual-user stream flows", () => {
     await registerStream(makerUser.page, streamId, streamName, "private");
     await waitForStreamAvailable(streamId, request, 90_000);
 
-    await takerUser.page.goto(`/profile?tab=actions`);
+    await takerUser.page.goto(`/stream/${streamId}`);
     await ensureConnected(takerUser.page);
 
-    const keyCard = takerUser.page.locator(".card", { hasText: "Wallet Key Manager" });
+    const keyCard = takerUser.page.locator(".key-manager");
     await expect(keyCard).toBeVisible({ timeout: 30_000 });
     const { publicKey } = await (await import("node:crypto")).generateKeyPairSync("x25519");
     const pubKeyValue = publicKey.export({ type: "spki", format: "der" }).toString("base64");
-    await keyCard.locator("textarea").first().fill(pubKeyValue);
+    await keyCard.getByRole("button", { name: /Register New Key/i }).click();
+    await keyCard.getByLabel("Public Key (base64 DER)").fill(pubKeyValue);
     await keyCard.getByRole("button", { name: /Register Key On-chain/i }).click();
     await expect(keyCard.getByText(/Registered on-chain key/i)).toBeVisible({ timeout: 30_000 });
     await expect(keyCard.getByText(/Backend sync complete/i)).toBeVisible({ timeout: 30_000 });
 
-    await takerUser.page.goto(`/stream/${streamId}`);
-    await ensureConnected(takerUser.page);
     const subscribeOnchainBtn = takerUser.page.getByRole("button", { name: /Subscribe on-chain/i });
     await expect(subscribeOnchainBtn).toBeEnabled();
     await subscribeOnchainBtn.click();

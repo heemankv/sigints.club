@@ -491,14 +491,15 @@ router.get("/storage/keybox/:sha", async (req, res) => {
       return res.status(503).json({ error: "subscription program not configured" });
     }
     const connection = new Connection(rpcUrl, "confirmed");
+    const streamPda = streamRegistry.deriveStreamPda(meta.streamId);
     const walletKeyPda = PublicKey.findProgramAddressSync(
-      [Buffer.from("wallet_key"), walletPubkey.toBuffer()],
+      [Buffer.from("sub_key"), streamPda.toBuffer(), walletPubkey.toBuffer()],
       new PublicKey(subscriptionProgramId)
     )[0];
     let onchainEncPub: Uint8Array | null = null;
     const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
     if (walletKeyAccount) {
-      const decodedKey = decodeWalletKey(walletKeyAccount.data);
+      const decodedKey = decodeSubscriptionKey(walletKeyAccount.data);
       if (decodedKey) {
         onchainEncPub = decodedKey.encPubkey;
       }
@@ -1316,6 +1317,17 @@ function decodeWalletKey(data: Buffer): { encPubkey: Uint8Array } | null {
   return { encPubkey };
 }
 
+function decodeSubscriptionKey(data: Buffer): { encPubkey: Uint8Array } | null {
+  if (data.length < 113) {
+    return null;
+  }
+  let offset = 8;
+  offset += 32; // subscriber
+  offset += 32; // stream
+  const encPubkey = data.subarray(offset, offset + 32);
+  return { encPubkey };
+}
+
 function decodeSubscriberKey(data: Buffer): { encPubkey: Uint8Array } | null {
   if (data.length < 145) {
     return null;
@@ -1473,19 +1485,19 @@ async function resolveStreamSubscriberKeys(streamId: string): Promise<{ encPubKe
     return [];
   }
 
-  const walletKeyPdas = activeSubscribers.map((subscriber) =>
+  const subscriptionKeyPdas = activeSubscribers.map((subscriber) =>
     PublicKey.findProgramAddressSync(
-      [Buffer.from("wallet_key"), new PublicKey(subscriber).toBuffer()],
+      [Buffer.from("sub_key"), streamPda.toBuffer(), new PublicKey(subscriber).toBuffer()],
       programId
     )[0]
   );
-  const walletKeyAccounts = await connection.getMultipleAccountsInfo(walletKeyPdas);
+  const subscriptionKeyAccounts = await connection.getMultipleAccountsInfo(subscriptionKeyPdas);
   const subscribers: { encPubKeyDerBase64: string }[] = [];
-  walletKeyAccounts.forEach((account) => {
+  subscriptionKeyAccounts.forEach((account) => {
     if (!account || !account.owner.equals(programId)) {
       return;
     }
-    const decoded = decodeWalletKey(account.data);
+    const decoded = decodeSubscriptionKey(account.data);
     if (!decoded) {
       return;
     }
@@ -1517,7 +1529,7 @@ router.post("/subscribe", async (req, res) => {
     parsed.data.encPubKeyDerBase64 &&
     !(process.env.NODE_ENV === "test" && process.env.TEST_ALLOW_SUBSCRIBE_BYPASS === "true")
   ) {
-    return res.status(400).json({ error: "per-subscription keys are not supported" });
+    return res.status(400).json({ error: "encPubKeyDerBase64 is test-only" });
   }
   if (process.env.NODE_ENV === "test" && process.env.TEST_ALLOW_SUBSCRIBE_BYPASS === "true") {
     if (!parsed.data.encPubKeyDerBase64) {
@@ -1555,17 +1567,17 @@ router.post("/subscribe", async (req, res) => {
     if (!subscriptionAccount) {
       return res.status(400).json({ error: "on-chain subscription not found" });
     }
-    const [walletKeyPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("wallet_key"), subscriberPubkey.toBuffer()],
+    const [subKeyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("sub_key"), streamPda.toBuffer(), subscriberPubkey.toBuffer()],
       new PublicKey(subscriptionProgramId)
     );
-    const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
-    if (!walletKeyAccount) {
-      return res.status(400).json({ error: "wallet encryption key not registered on-chain" });
+    const subKeyAccount = await connection.getAccountInfo(subKeyPda);
+    if (!subKeyAccount) {
+      return res.status(400).json({ error: "subscription encryption key not registered on-chain" });
     }
-    const decoded = decodeWalletKey(walletKeyAccount.data);
+    const decoded = decodeSubscriptionKey(subKeyAccount.data);
     if (!decoded) {
-      return res.status(400).json({ error: "wallet encryption key invalid" });
+      return res.status(400).json({ error: "subscription encryption key invalid" });
     }
     const encPubKeyBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
     const pubDer = Buffer.from(encPubKeyBase64, "base64");
@@ -1576,22 +1588,22 @@ router.post("/subscribe", async (req, res) => {
   }
 });
 
-const walletKeySyncSchema = z.object({
+const subscriptionKeySyncSchema = z.object({
   wallet: z.string(),
-  streamId: z.string().optional(),
+  streamId: z.string(),
   encPubKeyDerBase64: z.string().optional(),
 });
 
-router.post("/wallet-key/sync", async (req, res) => {
-  const parsed = walletKeySyncSchema.safeParse(req.body);
+router.post("/subscription-key/sync", async (req, res) => {
+  const parsed = subscriptionKeySyncSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
   const wallet = parsed.data.wallet;
   if (process.env.NODE_ENV === "test" && process.env.TEST_ALLOW_SUBSCRIBE_BYPASS === "true") {
-    if (!parsed.data.streamId || !parsed.data.encPubKeyDerBase64) {
-      return res.status(400).json({ error: "streamId + encPubKeyDerBase64 required for test bypass" });
+    if (!parsed.data.encPubKeyDerBase64) {
+      return res.status(400).json({ error: "encPubKeyDerBase64 required for test bypass" });
     }
     const pub = Buffer.from(parsed.data.encPubKeyDerBase64, "base64");
     const subscriberId = subscriberIdFromPubkey(pub);
@@ -1602,40 +1614,33 @@ router.post("/wallet-key/sync", async (req, res) => {
   if (!subscriptionProgramId) {
     return res.status(503).json({ error: "subscription program not configured" });
   }
+  if (!streamRegistry) {
+    return res.status(503).json({ error: "stream registry not configured" });
+  }
 
   const walletPubkey = new PublicKey(wallet);
+  const streamPda = streamRegistry.deriveStreamPda(parsed.data.streamId);
   const connection = new Connection(rpcUrl, "confirmed");
-  const [walletKeyPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("wallet_key"), walletPubkey.toBuffer()],
+  const [subKeyPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("sub_key"), streamPda.toBuffer(), walletPubkey.toBuffer()],
     new PublicKey(subscriptionProgramId)
   );
-  const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
-  if (!walletKeyAccount) {
-    return res.status(400).json({ error: "wallet encryption key not registered on-chain" });
+  const subKeyAccount = await connection.getAccountInfo(subKeyPda);
+  if (!subKeyAccount) {
+    return res.status(400).json({ error: "subscription encryption key not registered on-chain" });
   }
-  const decoded = decodeWalletKey(walletKeyAccount.data);
+  const decoded = decodeSubscriptionKey(subKeyAccount.data);
   if (!decoded) {
-    return res.status(400).json({ error: "wallet encryption key invalid" });
+    return res.status(400).json({ error: "subscription encryption key invalid" });
   }
   const encPubKeyDerBase64 = x25519RawToDer(decoded.encPubkey).toString("base64");
   const subscriberId = subscriberIdFromPubkey(Buffer.from(encPubKeyDerBase64, "base64"));
 
-  const existingUser = await userProfileStore.getUser(wallet);
-  const now = Date.now();
-  const registeredAt =
-    !existingUser?.walletKeyRegisteredAt || existingUser.walletKeyPublicKey !== encPubKeyDerBase64
-      ? now
-      : existingUser.walletKeyRegisteredAt;
-  await userProfileStore.upsertUser(wallet, {
-    walletKeyRegisteredAt: registeredAt,
-    walletKeyPublicKey: encPubKeyDerBase64,
-  });
-
   return res.json({
     subscriberId,
-    updated: 0,
-    walletKeyRegisteredAt: registeredAt,
-    walletKeyPublicKey: encPubKeyDerBase64,
+    wallet,
+    streamId: parsed.data.streamId,
+    publicKey: encPubKeyDerBase64,
   });
 });
 
@@ -1679,14 +1684,18 @@ router.post("/subscribe/onchain", async (req, res) => {
       if (!subscriberPubkey) {
         return res.status(400).json({ error: "subscriberPubkey required for private streams" });
       }
-      const [walletKeyPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("wallet_key"), subscriberPubkey.toBuffer()],
+      if (!streamRegistry) {
+        return res.status(503).json({ error: "stream registry not configured" });
+      }
+      const streamPda = streamRegistry.deriveStreamPda(payload.streamId);
+      const [subscriptionKeyPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("sub_key"), streamPda.toBuffer(), subscriberPubkey.toBuffer()],
         new PublicKey(subscriptionProgramId)
       );
       const connection = new Connection(rpcUrl, "confirmed");
-      const walletKeyAccount = await connection.getAccountInfo(walletKeyPda);
-      if (!walletKeyAccount) {
-        return res.status(400).json({ error: "wallet encryption key not registered on-chain" });
+      const subscriptionKeyAccount = await connection.getAccountInfo(subscriptionKeyPda);
+      if (!subscriptionKeyAccount) {
+        return res.status(400).json({ error: "subscription encryption key not registered on-chain" });
       }
     }
     if (streamRegistry && (!payload.makerPubkey || !payload.treasuryPubkey)) {

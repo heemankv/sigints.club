@@ -9,10 +9,10 @@ export type SubscribeResponse = {
 
 export type SyncWalletKeyResponse = {
   subscriberId: string;
-  updated?: number;
+  wallet?: string;
+  streamId?: string;
+  publicKey?: string;
   bypass?: boolean;
-  walletKeyRegisteredAt?: number;
-  walletKeyPublicKey?: string;
 };
 
 export type LoginUserResponse = {
@@ -97,9 +97,12 @@ export async function fetchSolanaConfig(backendUrl: string): Promise<SolanaConfi
 
 export async function syncWalletKey(
   backendUrl: string,
-  input: { wallet: string; streamId?: string; encPubKeyDerBase64?: string }
+  input: { wallet: string; streamId: string; encPubKeyDerBase64?: string }
 ): Promise<SyncWalletKeyResponse> {
-  return postJson<SyncWalletKeyResponse>(backendUrl, "/wallet-key/sync", input);
+  if (!input.streamId) {
+    throw new Error("streamId required for subscription key sync");
+  }
+  return postJson<SyncWalletKeyResponse>(backendUrl, "/subscription-key/sync", input);
 }
 
 export async function fetchStream<T = any>(backendUrl: string, streamId: string): Promise<T> {
@@ -463,7 +466,7 @@ export function createBackendClient(backendUrl: string) {
     registerSubscription: (input: { streamId: string; subscriberWallet: string }) =>
       registerSubscription(url, input),
     fetchSolanaConfig: () => fetchSolanaConfig(url),
-    syncWalletKey: (input: { wallet: string; streamId?: string; encPubKeyDerBase64?: string }) =>
+    syncWalletKey: (input: { wallet: string; streamId: string; encPubKeyDerBase64?: string }) =>
       syncWalletKey(url, input),
     fetchStream: <T = any>(streamId: string) => fetchStream<T>(url, streamId),
     fetchStreams: <T = any>(includeTiers?: boolean) => fetchStreams<T>(url, includeTiers),

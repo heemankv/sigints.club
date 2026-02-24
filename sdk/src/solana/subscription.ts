@@ -11,6 +11,7 @@ import { sha256Bytes, toHex, writeBigInt64LE, writeUint32LE } from "./shared";
 const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
 const REGISTER_KEY_DISCRIMINATOR = new Uint8Array([56, 8, 67, 97, 128, 122, 80, 213]);
 const REGISTER_WALLET_KEY_DISCRIMINATOR = new Uint8Array([245, 147, 210, 179, 245, 73, 184, 9]);
+const REGISTER_SUBSCRIPTION_KEY_DISCRIMINATOR = new Uint8Array([63, 198, 90, 133, 166, 115, 25, 198]);
 
 export function resolvePricingType(value: string): number {
   const mapped = PRICING_TYPE_MAP[value];
@@ -85,6 +86,18 @@ export function deriveWalletKeyPda(programId: PublicKey, subscriber: PublicKey):
   return pda;
 }
 
+export function deriveSubscriptionKeyPda(
+  programId: PublicKey,
+  stream: PublicKey,
+  subscriber: PublicKey
+): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("sub_key"), stream.toBuffer(), subscriber.toBuffer()],
+    programId
+  );
+  return pda;
+}
+
 export async function hasRegisteredWalletKey(
   connection: Connection,
   programId: PublicKey,
@@ -93,6 +106,18 @@ export async function hasRegisteredWalletKey(
 ): Promise<boolean> {
   const walletKey = deriveWalletKeyPda(programId, subscriber);
   const account = await connection.getAccountInfo(walletKey, commitment);
+  return !!account;
+}
+
+export async function hasRegisteredSubscriptionKey(
+  connection: Connection,
+  programId: PublicKey,
+  stream: PublicKey,
+  subscriber: PublicKey,
+  commitment: Commitment = "confirmed"
+): Promise<boolean> {
+  const subscriptionKey = deriveSubscriptionKeyPda(programId, stream, subscriber);
+  const account = await connection.getAccountInfo(subscriptionKey, commitment);
   return !!account;
 }
 
@@ -140,7 +165,7 @@ export function buildSubscribeInstruction(params: {
       false,
       TOKEN_2022_PROGRAM_ID
     );
-    const walletKey = deriveWalletKeyPda(params.programId, params.subscriber);
+    const subscriptionKey = deriveSubscriptionKeyPda(params.programId, params.stream, params.subscriber);
     const tierHash = await sha256Bytes(params.tierId);
     const tierConfig = deriveTierConfigPda(params.streamRegistryProgramId, params.stream, tierHash);
     return new TransactionInstruction({
@@ -156,7 +181,7 @@ export function buildSubscribeInstruction(params: {
         { pubkey: params.subscriber, isSigner: true, isWritable: true },
         { pubkey: params.maker, isSigner: false, isWritable: true },
         { pubkey: params.treasury, isSigner: false, isWritable: true },
-        { pubkey: walletKey, isSigner: false, isWritable: false },
+        { pubkey: subscriptionKey, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -211,6 +236,32 @@ export function buildRegisterWalletKeyInstruction(params: {
     programId: params.programId,
     keys: [
       { pubkey: walletKey, isSigner: false, isWritable: true },
+      { pubkey: params.subscriber, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+export function buildRegisterSubscriptionKeyInstruction(params: {
+  programId: PublicKey;
+  stream: PublicKey;
+  subscriber: PublicKey;
+  encPubKeyBase64: string;
+}): TransactionInstruction {
+  const subscriptionKey = deriveSubscriptionKeyPda(params.programId, params.stream, params.subscriber);
+  const keyBytes = Buffer.from(params.encPubKeyBase64, "base64");
+  if (keyBytes.length !== 32) {
+    throw new Error("Encryption public key must be 32 bytes (base64)");
+  }
+  const data = new Uint8Array(8 + 32);
+  data.set(REGISTER_SUBSCRIPTION_KEY_DISCRIMINATOR, 0);
+  data.set(keyBytes, 8);
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: params.stream, isSigner: false, isWritable: false },
+      { pubkey: subscriptionKey, isSigner: false, isWritable: true },
       { pubkey: params.subscriber, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],

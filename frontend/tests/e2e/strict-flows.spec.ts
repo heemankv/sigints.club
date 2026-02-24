@@ -50,21 +50,18 @@ test("private stream flow (key required + decrypt)", async ({ browser }) => {
   await expect(maker.page.getByRole("heading", { name: streamName })).toBeVisible();
 
   await listener.page.goto(`/stream/${streamId}`);
-  await expect(listener.page.getByText(/Wallet key missing/i)).toBeVisible();
+  await expect(listener.page.getByText(/Stream key missing/i)).toBeVisible();
   const subscribeBtn = listener.page.getByRole("button", { name: /Subscribe on-chain/i });
   await expect(subscribeBtn).toBeDisabled();
 
   const keyStart = Date.now();
-  await listener.page.goto("/profile?tab=actions");
-  await listener.page
-    .locator(".card", { hasText: "Wallet Key Manager" })
-    .locator("textarea")
-    .first()
-    .fill(keys.publicKeyDerBase64);
-  await listener.page.getByRole("button", { name: /Register Key On-chain/i }).click();
-  await expect(listener.page.getByText(/Registered on-chain key/i)).toBeVisible({ timeout: 120_000 });
-  await expect(listener.page.getByText(/Backend sync complete/i)).toBeVisible({ timeout: 120_000 });
-  recordMetric({ name: "register_wallet_key", ms: Date.now() - keyStart, meta: { streamId } });
+  const keyCard = listener.page.locator(".key-manager");
+  await keyCard.getByRole("button", { name: /Register New Key/i }).click();
+  await keyCard.getByLabel("Public Key (base64 DER)").fill(keys.publicKeyDerBase64);
+  await keyCard.getByRole("button", { name: /Register Key On-chain/i }).click();
+  await expect(keyCard.getByText(/Registered on-chain key/i)).toBeVisible({ timeout: 120_000 });
+  await expect(keyCard.getByText(/Backend sync complete/i)).toBeVisible({ timeout: 120_000 });
+  recordMetric({ name: "register_subscription_key", ms: Date.now() - keyStart, meta: { streamId } });
 
   await listener.page.goto(`/stream/${streamId}`);
   await expect(subscribeBtn).toBeEnabled({ timeout: 20_000 });

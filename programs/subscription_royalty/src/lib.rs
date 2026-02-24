@@ -31,8 +31,9 @@ pub mod subscription_royalty {
             ErrorCode::StreamInactive
         );
         if stream_config.visibility == StreamVisibility::Private as u8 {
-            require_wallet_key(
-                &ctx.accounts.wallet_key,
+            require_subscription_key(
+                &ctx.accounts.subscription_key,
+                &ctx.accounts.stream,
                 &ctx.accounts.subscriber,
                 &ctx.program_id,
             )?;
@@ -313,6 +314,20 @@ pub mod subscription_royalty {
         Ok(())
     }
 
+    pub fn register_subscription_key(
+        ctx: Context<RegisterSubscriptionKey>,
+        enc_pubkey: [u8; 32],
+    ) -> Result<()> {
+        let key = &mut ctx.accounts.subscription_key;
+        key.subscriber = ctx.accounts.subscriber.key();
+        key.stream = ctx.accounts.stream.key();
+        key.enc_pubkey = enc_pubkey;
+        let clock = Clock::get()?;
+        key.updated_at = clock.unix_timestamp.saturating_mul(1_000);
+        key.bump = ctx.bumps.subscription_key;
+        Ok(())
+    }
+
     pub fn record_signal(
         ctx: Context<RecordSignal>,
         signal_hash: [u8; 32],
@@ -430,7 +445,7 @@ pub struct Subscribe<'info> {
     #[account(mut)]
     pub treasury: SystemAccount<'info>,
     /// CHECK: validated in handler for private streams
-    pub wallet_key: AccountInfo<'info>,
+    pub subscription_key: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
     pub token_2022_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -490,6 +505,23 @@ pub struct RegisterWalletKey<'info> {
         bump
     )]
     pub wallet_key: Account<'info, WalletKey>,
+    #[account(mut)]
+    pub subscriber: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RegisterSubscriptionKey<'info> {
+    /// CHECK: stream PDA (validated by seeds)
+    pub stream: AccountInfo<'info>,
+    #[account(
+        init_if_needed,
+        payer = subscriber,
+        space = SubscriptionKey::SPACE,
+        seeds = [b"sub_key", stream.key().as_ref(), subscriber.key().as_ref()],
+        bump
+    )]
+    pub subscription_key: Account<'info, SubscriptionKey>,
     #[account(mut)]
     pub subscriber: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -607,6 +639,19 @@ impl WalletKey {
 }
 
 #[account]
+pub struct SubscriptionKey {
+    pub subscriber: Pubkey,
+    pub stream: Pubkey,
+    pub enc_pubkey: [u8; 32],
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+impl SubscriptionKey {
+    pub const SPACE: usize = 8 + 32 + 32 + 32 + 8 + 1;
+}
+
+#[account]
 pub struct SignalRecord {
     pub stream: Pubkey,
     pub signal_hash: [u8; 32],
@@ -709,6 +754,8 @@ pub enum ErrorCode {
     SubscriptionInactive,
     #[msg("Wallet encryption key missing for private stream")]
     WalletKeyMissing,
+    #[msg("Subscription encryption key missing for private stream")]
+    SubscriptionKeyMissing,
     #[msg("Publisher delegate is missing or inactive")]
     UnauthorizedPublisher,
 }
@@ -732,6 +779,31 @@ fn require_wallet_key(
     let mut data: &[u8] = &data[8..];
     let decoded = WalletKey::deserialize(&mut data).map_err(|_| error!(ErrorCode::WalletKeyMissing))?;
     require_keys_eq!(decoded.subscriber, subscriber.key(), ErrorCode::WalletKeyMissing);
+    Ok(())
+}
+
+fn require_subscription_key(
+    subscription_key: &AccountInfo,
+    stream: &AccountInfo,
+    subscriber: &Signer,
+    program_id: &Pubkey,
+) -> Result<()> {
+    let expected = Pubkey::find_program_address(
+        &[b"sub_key", stream.key().as_ref(), subscriber.key().as_ref()],
+        program_id,
+    )
+    .0;
+    require_keys_eq!(expected, *subscription_key.key, ErrorCode::SubscriptionKeyMissing);
+    require_keys_eq!(*subscription_key.owner, *program_id, ErrorCode::SubscriptionKeyMissing);
+    let data = subscription_key.data.borrow();
+    if data.len() < 8 {
+        return Err(error!(ErrorCode::SubscriptionKeyMissing));
+    }
+    let mut data: &[u8] = &data[8..];
+    let decoded = SubscriptionKey::deserialize(&mut data)
+        .map_err(|_| error!(ErrorCode::SubscriptionKeyMissing))?;
+    require_keys_eq!(decoded.subscriber, subscriber.key(), ErrorCode::SubscriptionKeyMissing);
+    require_keys_eq!(decoded.stream, *stream.key, ErrorCode::SubscriptionKeyMissing);
     Ok(())
 }
 

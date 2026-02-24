@@ -10,7 +10,7 @@ import {
   resolveStreamPubkey,
   resolvePricingType,
   resolveProgramId,
-  hasRegisteredWalletKey,
+  hasRegisteredSubscriptionKey,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
 import { explorerTx } from "../../lib/constants";
@@ -43,13 +43,13 @@ export default function SubscribeForm({
   const [loading, setLoading] = useState(false);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
   const [chainTx, setChainTx] = useState<string | null>(null);
-  const [walletKeyReady, setWalletKeyReady] = useState<boolean | null>(null);
+  const [subscriptionKeyReady, setSubscriptionKeyReady] = useState<boolean | null>(null);
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
 
   const visibility = streamVisibility ?? "private";
   const requiresKey = visibility === "private";
-  const keyReady = !requiresKey || walletKeyReady === true;
+  const keyReady = !requiresKey || subscriptionKeyReady === true;
   const isOwner = Boolean(
     publicKey &&
       streamAuthority &&
@@ -58,30 +58,48 @@ export default function SubscribeForm({
 
   useEffect(() => {
     let active = true;
-    async function checkWalletKey() {
+    async function checkSubscriptionKey() {
       if (!publicKey) {
-        setWalletKeyReady(null);
+        setSubscriptionKeyReady(null);
         return;
       }
       if (!requiresKey) {
-        setWalletKeyReady(true);
+        setSubscriptionKeyReady(true);
+        return;
+      }
+      if (!streamOnchainAddress) {
+        setSubscriptionKeyReady(false);
         return;
       }
       try {
         const programId = resolveProgramId();
-        const registered = await hasRegisteredWalletKey(connection, programId, publicKey);
+        const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
+        const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, publicKey);
         if (!active) return;
-        setWalletKeyReady(registered);
+        setSubscriptionKeyReady(registered);
       } catch {
         if (!active) return;
-        setWalletKeyReady(false);
+        setSubscriptionKeyReady(false);
       }
     }
-    void checkWalletKey();
+    void checkSubscriptionKey();
+    const handleKeyUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ streamId?: string }>).detail;
+      if (detail?.streamId && detail.streamId !== streamId) {
+        return;
+      }
+      void checkSubscriptionKey();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("subscriptionKeyUpdated", handleKeyUpdate as EventListener);
+    }
     return () => {
       active = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("subscriptionKeyUpdated", handleKeyUpdate as EventListener);
+      }
     };
-  }, [publicKey, connection, requiresKey]);
+  }, [publicKey, connection, requiresKey, streamOnchainAddress, streamId]);
 
   async function submitOnchain() {
     setLoading(true);
@@ -94,8 +112,8 @@ export default function SubscribeForm({
       if (isOwner) {
         throw new Error("You can't subscribe to your own stream.");
       }
-      if (requiresKey && walletKeyReady === false) {
-        throw new Error("Register your wallet key before subscribing to private streams.");
+      if (requiresKey && subscriptionKeyReady === false) {
+        throw new Error("Register your stream encryption key before subscribing to private streams.");
       }
       if (!streamOnchainAddress || !streamAuthority || !streamDao) {
         throw new Error("On-chain stream or payout accounts not configured.");
@@ -142,14 +160,14 @@ export default function SubscribeForm({
       <h3>Subscribe to {tierId}</h3>
       <p className="subtext">
         {requiresKey
-          ? "Private stream: register your wallet key first."
+          ? "Private stream: register your stream encryption key first."
           : "Public stream: no encryption key required."}
       </p>
-      {requiresKey && walletKeyReady === null && (
-        <p className="subtext">Checking wallet key status…</p>
+      {requiresKey && subscriptionKeyReady === null && (
+        <p className="subtext">Checking encryption key status…</p>
       )}
-      {requiresKey && walletKeyReady === false && (
-        <p className="subtext">Wallet key missing. Register it in Profile → Actions.</p>
+      {requiresKey && subscriptionKeyReady === false && (
+        <p className="subtext">Stream key missing. Register it above before subscribing.</p>
       )}
       {isOwner && (
         <p className="subtext">You are the stream authority and cannot subscribe to your own stream.</p>

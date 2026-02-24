@@ -158,7 +158,7 @@ export class SigintsClient {
 
   async syncWalletKey(
     wallet: string,
-    streamId?: string,
+    streamId: string,
     encPubKeyDerBase64?: string
   ): Promise<SyncWalletKeyResponse> {
     return syncWalletKeyRequest(this.backendUrl, { wallet, streamId, encPubKeyDerBase64 });

@@ -131,8 +131,8 @@ export class OnChainSubscriptionClient {
       [Buffer.from("stream_state"), streamPubkey.toBuffer()],
       this.programId
     );
-    const [walletKey] = PublicKey.findProgramAddressSync(
-      [Buffer.from("wallet_key"), subscriberPubkey.toBuffer()],
+    const [subscriptionKey] = PublicKey.findProgramAddressSync(
+      [Buffer.from("sub_key"), streamPubkey.toBuffer(), subscriberPubkey.toBuffer()],
       this.programId
     );
 
@@ -156,7 +156,7 @@ export class OnChainSubscriptionClient {
         { pubkey: subscriberPubkey, isSigner: true, isWritable: true },
         { pubkey: makerPubkey, isSigner: false, isWritable: true },
         { pubkey: treasuryPubkey, isSigner: false, isWritable: true },
-        { pubkey: walletKey, isSigner: false, isWritable: false },
+        { pubkey: subscriptionKey, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },

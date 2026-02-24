@@ -21,7 +21,6 @@ import {
 import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
-import KeyManager from "../stream/[id]/KeyManager";
 import {
   sha256Bytes,
   buildGrantPublisherInstruction,
@@ -76,7 +75,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [publishStatus, setPublishStatus] = useState<Record<string, string | null>>({});
 
   const activeTab = initialTab;
-  const [actionsTab, setActionsTab] = useState<"editProfile" | "registerKey">("editProfile");
+  const [actionsTab, setActionsTab] = useState<"editProfile" | "streamKeys">("editProfile");
 
   const walletAddr = publicKey?.toBase58();
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
@@ -755,10 +754,10 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                     Edit Profile
                   </button>
                   <button
-                    className={`maker-tab${actionsTab === "registerKey" ? " maker-tab--active" : ""}`}
-                    onClick={() => setActionsTab("registerKey")}
+                    className={`maker-tab${actionsTab === "streamKeys" ? " maker-tab--active" : ""}`}
+                    onClick={() => setActionsTab("streamKeys")}
                   >
-                    Register Key
+                    Stream Keys
                   </button>
                 </div>
 
@@ -791,8 +790,15 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                   </div>
                 )}
 
-                {actionsTab === "registerKey" && (
-                  <KeyManager variant="plain" />
+                {actionsTab === "streamKeys" && (
+                  <div className="x-rail-module" style={{ border: 0, background: "transparent", padding: 0 }}>
+                    <p className="subtext" style={{ marginBottom: 12 }}>
+                      Encryption keys are scoped per stream. Open a stream to register or rotate the key used for private signals.
+                    </p>
+                    <Link className="button secondary" href="/streams" style={{ width: "100%" }}>
+                      Browse Streams
+                    </Link>
+                  </div>
                 )}
 
 

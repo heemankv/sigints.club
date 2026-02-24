@@ -30,7 +30,7 @@ export function registerSubscription(input: { streamId: string; subscriberWallet
   return getClient().registerSubscription(input);
 }
 
-export function syncWalletKey(input: { wallet: string; streamId?: string; encPubKeyDerBase64?: string }): Promise<SyncWalletKeyResponse> {
+export function syncWalletKey(input: { wallet: string; streamId: string; encPubKeyDerBase64?: string }): Promise<SyncWalletKeyResponse> {
   return getClient().syncWalletKey(input);
 }
 

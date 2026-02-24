@@ -6,7 +6,6 @@ import { type WalletName } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import { TestWalletAdapter } from "./lib/TestWalletAdapter";
 import { configureBackend, getTestWallet } from "./lib/sdkBackend";
-import { WalletKeyStatusProvider } from "./lib/walletKeyStatus";
 import { UserProfileProvider } from "./lib/userProfile";
 import WalletPrefetch from "./components/WalletPrefetch";
 
@@ -136,15 +135,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider key={providerKey} wallets={wallets} autoConnect={testWalletActive}>
-        <WalletKeyStatusProvider>
-          <UserProfileProvider>
-            <WalletPrefetch />
-            {testWalletActive && testWalletPubkey && (
-              <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />
-            )}
-            {children}
-          </UserProfileProvider>
-        </WalletKeyStatusProvider>
+        <UserProfileProvider>
+          <WalletPrefetch />
+          {testWalletActive && testWalletPubkey && (
+            <TestWalletAutoConnect walletName={"TestWallet" as WalletName} />
+          )}
+          {children}
+        </UserProfileProvider>
       </WalletProvider>
     </ConnectionProvider>
   );

@@ -6,6 +6,7 @@ import PublishSignal from "./PublishSignal";
 import DecryptPanel from "./DecryptPanel";
 import FollowMaker from "./FollowMaker";
 import SubscribeForm from "./SubscribeForm";
+import KeyManager from "./KeyManager";
 import type { StreamDetail } from "../../lib/types";
 import type { StreamDetail as FallbackStreamDetail } from "../../lib/fallback";
 import type { SignalEvent } from "../../lib/types";
@@ -42,6 +43,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
     stream.authority &&
     publicKey.toBase58() === stream.authority;
   const onchainAddress = "onchainAddress" in stream ? stream.onchainAddress : undefined;
+  const visibility = "visibility" in stream ? stream.visibility : "private";
 
   useEffect(() => {
     let mounted = true;
@@ -176,6 +178,14 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         <>
           {"tapestryProfileId" in stream && stream.tapestryProfileId && (
             <FollowMaker targetProfileId={stream.tapestryProfileId} />
+          )}
+
+          {visibility === "private" && (
+            <div className="stream-detail-section">
+              <h3 className="stream-detail-section-title">Encryption Key</h3>
+              <p className="subtext">Register an X25519 key for this stream before subscribing.</p>
+              <KeyManager streamId={stream.id} streamOnchainAddress={onchainAddress} />
+            </div>
           )}
 
           {stream.tiers.length > 0 && (

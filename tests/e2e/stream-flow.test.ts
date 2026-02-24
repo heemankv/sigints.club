@@ -45,6 +45,9 @@ const STREAM_REGISTRY_PROGRAM_ID = new PublicKey(
 );
 const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);
 const RUN_ID = `${Date.now().toString(36)}-${Math.floor(Math.random() * 1_000_000).toString(36)}`;
+const X25519_SPKI_PREFIX = Buffer.from([
+  0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00,
+]);
 const TEST_STREAMS = [
   {
     key: "eth",
@@ -80,6 +83,15 @@ let server: Server;
 let baseUrl: string;
 let tempKeypairPath: string;
 let authorityKeypair: Keypair;
+
+function x25519DerToRawBase64(base64Der: string): string {
+  const bytes = Buffer.from(base64Der, "base64");
+  if (bytes.length === 32) return bytes.toString("base64");
+  if (bytes.length === 44 && bytes.subarray(0, X25519_SPKI_PREFIX.length).equals(X25519_SPKI_PREFIX)) {
+    return bytes.subarray(X25519_SPKI_PREFIX.length).toString("base64");
+  }
+  throw new Error("Encryption public key must be 32 bytes (base64)");
+}
 
 function loadKeypairFromFile(filePath: string): Keypair {
   const raw = readFileSync(filePath, "utf8");
@@ -332,15 +344,17 @@ async function sendSubscribeTx(args: {
   await sendAndConfirmTransaction(connection, tx, [args.subscriber]);
 }
 
-async function sendRegisterWalletKeyTx(args: {
+async function sendRegisterSubscriptionKeyTx(args: {
+  stream: PublicKey;
   subscriber: Keypair;
-  encPubKeyBase64: string;
+  encPubKeyDerBase64: string;
 }) {
-  const { buildRegisterWalletKeyInstruction } = await import("../../frontend/app/lib/solana.ts");
-  const ix = buildRegisterWalletKeyInstruction({
+  const { buildRegisterSubscriptionKeyInstruction } = await import("../../frontend/app/lib/solana.ts");
+  const ix = buildRegisterSubscriptionKeyInstruction({
     programId: PROGRAM_ID,
+    stream: args.stream,
     subscriber: args.subscriber.publicKey,
-    encPubKeyBase64: args.encPubKeyBase64,
+    encPubKeyBase64: x25519DerToRawBase64(args.encPubKeyDerBase64),
   });
   const tx = new Transaction().add(ix);
   tx.feePayer = args.subscriber.publicKey;
@@ -441,19 +455,21 @@ describe("E2E maker/taker flow", () => {
       keys: SigintsClient.generateKeys(),
     }));
 
-    // Fund takers and register global wallet keys (required for private streams)
+    // Fund takers (subscription keys are registered per stream below)
     for (const taker of takers) {
       await airdrop(connection, taker.wallet.publicKey, 3);
-      await sendRegisterWalletKeyTx({
-        subscriber: taker.wallet,
-        encPubKeyBase64: taker.keys.publicKeyDerBase64,
-      });
     }
 
     // On-chain subscription NFTs
     for (const [idx, taker] of takers.entries()) {
       const stream = streams[idx % streams.length];
       const streamPubkey = streamPubkeys[stream.id];
+      await sendRegisterSubscriptionKeyTx({
+        stream: streamPubkey,
+        subscriber: taker.wallet,
+        encPubKeyDerBase64: taker.keys.publicKeyDerBase64,
+      });
+
       await sendSubscribeTx({
         stream: streamPubkey,
         subscriber: taker.wallet,
@@ -743,9 +759,10 @@ describe("Subscription enforcement", () => {
       args.subscriber.publicKey
     );
     const keys = SigintsClient.generateKeys();
-    await sendRegisterWalletKeyTx({
+    await sendRegisterSubscriptionKeyTx({
+      stream: args.stream,
       subscriber: args.subscriber,
-      encPubKeyBase64: keys.publicKeyDerBase64,
+      encPubKeyDerBase64: keys.publicKeyDerBase64,
     });
     await expect(sendSubscribeTx(args)).rejects.toThrow();
     const account = await connection.getAccountInfo(subscriptionPda, "confirmed");
@@ -783,9 +800,10 @@ describe("Subscription enforcement", () => {
     const subscriber = Keypair.generate();
     await airdrop(connection, subscriber.publicKey, 10);
     const keys = SigintsClient.generateKeys();
-    await sendRegisterWalletKeyTx({
+    await sendRegisterSubscriptionKeyTx({
+      stream,
       subscriber,
-      encPubKeyBase64: keys.publicKeyDerBase64,
+      encPubKeyDerBase64: keys.publicKeyDerBase64,
     });
 
     const makerBefore = await connection.getBalance(authorityKeypair.publicKey, "confirmed");

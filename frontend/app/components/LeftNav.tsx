@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useWalletKeyStatus } from "../lib/walletKeyStatus";
 
 const NAV_ITEMS = [
   {
@@ -52,14 +51,13 @@ const PROFILE_SUB_ITEMS = [
   { href: "/profile/subscriptions", label: "My Subscriptions", tab: "subscriptions" },
   { href: "/profile/streams", label: "My Streams", tab: "streams" },
   { href: "/profile/agents", label: "My Agents", tab: "agents" },
-  { href: "/profile/actions", label: "Actions", tab: "actions", showDot: "walletKey" },
+  { href: "/profile/actions", label: "Actions", tab: "actions" },
 ];
 
 type SubnavState = "closed" | "open" | "closing";
 
 export default function LeftNav() {
   const pathname = usePathname();
-  const { needsWalletKey } = useWalletKeyStatus();
 
   const isProfileSection = pathname.startsWith("/profile");
   const profileSegment = pathname.split("/")[2];
@@ -100,8 +98,6 @@ export default function LeftNav() {
           const isActive = baseHref === "/profile"
             ? isProfileSection
             : pathname === baseHref;
-          const showDot = needsWalletKey && baseHref === "/profile";
-
           return (
             <div key={href} className="x-nav-group">
               <Link
@@ -111,14 +107,12 @@ export default function LeftNav() {
                 {icon}
                 <span className="x-nav-label">
                   {label}
-                  {showDot && <span className="status-dot" aria-label="Wallet key missing" />}
                 </span>
               </Link>
 
               {baseHref === "/profile" && subnavState !== "closed" && (
                 <div className={`x-subnav${subnavClass}`}>
                   {PROFILE_SUB_ITEMS.map((item) => {
-                    const showSubDot = item.showDot === "walletKey" && needsWalletKey;
                     return (
                     <Link
                       key={item.tab}
@@ -127,7 +121,6 @@ export default function LeftNav() {
                     >
                       <span className="x-subnav-label">
                         {item.label}
-                        {showSubDot && <span className="status-dot" aria-label="Wallet key missing" />}
                       </span>
                     </Link>
                     );

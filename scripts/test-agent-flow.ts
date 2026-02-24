@@ -19,7 +19,7 @@ import {
   loginUser,
 } from "../sdk/src/index.ts";
 import { generateX25519Keypair } from "../sdk/src/crypto.ts";
-import { buildRegisterWalletKeyInstruction, deriveWalletKeyPda } from "../sdk/src/solana/index.ts";
+import { buildRegisterSubscriptionKeyInstruction, deriveSubscriptionKeyPda } from "../sdk/src/solana/index.ts";
 
 if (!globalThis.crypto) {
   // WebCrypto is required for PDA derivations in the SDK.
@@ -125,22 +125,25 @@ async function setupStream(params: {
   return streamPda;
 }
 
-async function registerWalletKeyIfNeeded(
+async function registerSubscriptionKeyIfNeeded(
   connection: Connection,
   programId: PublicKey,
-  listener: Keypair
+  listener: Keypair,
+  stream: PublicKey,
+  streamId: string
 ) {
   const keys = generateX25519Keypair();
   const rawBase64 = x25519DerToRawBase64(keys.publicKeyDerBase64);
-  const ix = buildRegisterWalletKeyInstruction({
+  const ix = buildRegisterSubscriptionKeyInstruction({
     programId,
+    stream,
     subscriber: listener.publicKey,
     encPubKeyBase64: rawBase64,
   });
   await sendTx(connection, new Transaction().add(ix), listener);
-  const walletKeyPda = deriveWalletKeyPda(programId, listener.publicKey);
-  await waitForAccount(connection, walletKeyPda);
-  await syncWalletKey(BACKEND_URL, { wallet: listener.publicKey.toBase58() });
+  const subscriptionKeyPda = deriveSubscriptionKeyPda(programId, stream, listener.publicKey);
+  await waitForAccount(connection, subscriptionKeyPda);
+  await syncWalletKey(BACKEND_URL, { wallet: listener.publicKey.toBase58(), streamId });
   return keys;
 }
 
@@ -176,7 +179,13 @@ async function runScenario(visibility: "public" | "private") {
 
   let subscriberKeys: { publicKeyDerBase64: string; privateKeyDerBase64: string } | undefined;
   if (visibility === "private") {
-    subscriberKeys = await registerWalletKeyIfNeeded(connection, subscriptionProgramId, listener);
+    subscriberKeys = await registerSubscriptionKeyIfNeeded(
+      connection,
+      subscriptionProgramId,
+      listener,
+      streamPda,
+      streamId
+    );
   }
 
   const subscribeIx = await buildSubscribeInstruction({

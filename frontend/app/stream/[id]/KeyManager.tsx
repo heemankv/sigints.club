@@ -1,20 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../lib/crypto";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { buildRegisterWalletKeyInstruction, resolveProgramId } from "../../lib/solana";
+import {
+  buildRegisterSubscriptionKeyInstruction,
+  hasRegisteredSubscriptionKey,
+  resolveProgramId,
+  resolveStreamPubkey,
+} from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
 import { syncWalletKey } from "../../lib/sdkBackend";
-import { useWalletKeyStatus } from "../../lib/walletKeyStatus";
-import { useUserProfile } from "../../lib/userProfile";
 
 type KeyManagerProps = {
+  streamId: string;
+  streamOnchainAddress?: string;
   variant?: "card" | "plain";
   className?: string;
 };
 
-export default function KeyManager({ variant = "card", className }: KeyManagerProps) {
+export default function KeyManager({ streamId, streamOnchainAddress, variant = "card", className }: KeyManagerProps) {
   const [pubKey, setPubKey] = useState("");
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -22,10 +27,38 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formClosing, setFormClosing] = useState(false);
+  const [keyRegistered, setKeyRegistered] = useState<boolean | null>(null);
+  const [registeredKey, setRegisteredKey] = useState<string | null>(null);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
-  const { refresh: refreshWalletKey, needsWalletKey } = useWalletKeyStatus();
-  const { profile, refresh: refreshProfile } = useUserProfile();
+
+  useEffect(() => {
+    let active = true;
+    async function checkKeyStatus() {
+      if (!publicKey) {
+        setKeyRegistered(null);
+        return;
+      }
+      if (!streamOnchainAddress) {
+        setKeyRegistered(false);
+        return;
+      }
+      try {
+        const programId = resolveProgramId();
+        const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
+        const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, publicKey);
+        if (!active) return;
+        setKeyRegistered(registered);
+      } catch {
+        if (!active) return;
+        setKeyRegistered(false);
+      }
+    }
+    void checkKeyStatus();
+    return () => {
+      active = false;
+    };
+  }, [publicKey, connection, streamOnchainAddress]);
 
   async function handlePubKeyChange(next: string) {
     setPubKey(next);
@@ -50,13 +83,21 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
       }
+      if (!streamOnchainAddress) {
+        throw new Error("Stream is missing an on-chain address.");
+      }
       if (!pubKey) {
         throw new Error("Generate or paste a public key first.");
       }
+      if (!streamId) {
+        throw new Error("Missing stream id for key registration.");
+      }
       const rawPub = x25519SpkiToRaw(pubKey);
       const programId = resolveProgramId();
-      const ix = buildRegisterWalletKeyInstruction({
+      const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
+      const ix = buildRegisterSubscriptionKeyInstruction({
         programId,
+        stream: streamPubkey,
         subscriber: publicKey,
         encPubKeyBase64: toBase64Bytes(rawPub),
       });
@@ -68,10 +109,14 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
       setChainStatus(`Registered on-chain key: ${signature.slice(0, 10)}…`);
       await syncWalletKey({
         wallet: publicKey.toBase58(),
+        streamId,
       });
       setSyncStatus("Backend sync complete.");
-      await refreshWalletKey();
-      await refreshProfile();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("subscriptionKeyUpdated", { detail: { streamId } }));
+      }
+      setKeyRegistered(true);
+      setRegisteredKey(pubKey);
       setShowForm(false);
       setPubKey("");
       setSubscriberId(null);
@@ -102,24 +147,18 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
     .filter(Boolean)
     .join(" ");
 
-  const registeredAt = profile?.walletKeyRegisteredAt;
-  const registeredAtLabel = registeredAt
-    ? new Date(registeredAt).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : null;
-  const registeredKey = profile?.walletKeyPublicKey;
-  const hasKey = !needsWalletKey;
+  const hasKey = keyRegistered === true;
 
   return (
     <div className={containerClass}>
       {!isPlain && <div className="hud-corners" />}
       <h3 className="key-manager-title">
-        Encryption Key Registration
-        {needsWalletKey && <span className="status-dot" aria-label="Wallet key missing" />}
+        Stream Encryption Key
+        {keyRegistered === false && <span className="status-dot" aria-label="Encryption key missing" />}
       </h3>
+      <p className="subtext">
+        Register one X25519 public key per stream. This key is used to encrypt the symmetric key for your subscription.
+      </p>
 
       {/* Key exists, form hidden — GitHub-style key card */}
       {hasKey && !showForm && (
@@ -135,9 +174,7 @@ export default function KeyManager({ variant = "card", className }: KeyManagerPr
                 {registeredKey.slice(0, 16)}…{registeredKey.slice(-12)}
               </code>
             )}
-            {registeredAtLabel && (
-              <span className="subtext">Added on {registeredAtLabel}</span>
-            )}
+            <span className="subtext">Registered for this stream.</span>
           </div>
           <button
             className="button ghost"
@@ -208,7 +245,7 @@ openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
             <button
               className="button ghost"
               onClick={registerOnchain}
-              disabled={!publicKey}
+              disabled={!publicKey || !streamOnchainAddress}
             >
               {hasKey ? "Update Key On-chain" : "Register Key On-chain"}
             </button>
@@ -220,6 +257,9 @@ openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
             </button>
           </div>
           {!publicKey && <p className="subtext">Connect wallet to register your key.</p>}
+          {!streamOnchainAddress && (
+            <p className="subtext">On-chain stream address missing. Key registration is disabled.</p>
+          )}
           {chainStatus && <p className="subtext">{chainStatus}</p>}
           {syncStatus && <p className="subtext">{syncStatus}</p>}
         </div>
