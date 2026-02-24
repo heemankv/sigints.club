@@ -437,7 +437,7 @@ function hexToBytes(input: string, label: string): Uint8Array {
 }
 
 export { generateX25519Keypair, subscriberIdFromPubkey };
-export type { WrappedKey, AgentAuth };
+export type { WrappedKey };
 export {
   buildRecordSignalIx as buildRecordSignalInstruction,
   buildRecordSignalDelegatedIx as buildRecordSignalDelegatedInstruction,

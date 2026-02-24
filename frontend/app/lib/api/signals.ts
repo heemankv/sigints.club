@@ -10,5 +10,5 @@ export async function fetchSignalEvents(params: {
   limit?: number;
   after?: number;
 }): Promise<SignalEventsResponse> {
-  return sdkFetchSignalEvents<SignalEventsResponse>(params);
+  return sdkFetchSignalEvents<SignalEvent>(params);
 }
