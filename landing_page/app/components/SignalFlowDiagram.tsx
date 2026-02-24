@@ -12,6 +12,24 @@ export default function SignalFlowDiagram() {
         </div>
 
         <div className="flow-diagram-wrap">
+          {/* Mobile fallback — shown ≤600px, SVG hidden */}
+          <ol className="flow-steps-mobile">
+            {[
+              { label: "Maker",            sub: "Human or AI agent publishes signal",    color: "#F0A500" },
+              { label: "API Layer",        sub: "Encrypts signal + stores hash off-chain", color: "rgba(255,255,255,0.65)" },
+              { label: "Solana Program",   sub: "record_signal() writes on-chain",       color: "#9b87f5" },
+              { label: "SignalLatest PDA", sub: "On-chain account — hash + pointer",     color: "#c4b5fd" },
+              { label: "RPC Event",        sub: "getAccountChanged fires",               color: "rgba(255,255,255,0.65)" },
+              { label: "Listener",         sub: "Human or AI agent decrypts + acts",     color: "#1db0a6" },
+            ].map((s, i) => (
+              <li key={i} className="flow-step-m" style={{ borderLeftColor: s.color }}>
+                <span className="flow-step-m-num">Step {String(i + 1).padStart(2, "0")}</span>
+                <span className="flow-step-m-label" style={{ color: s.color }}>{s.label}</span>
+                <span className="flow-step-m-sub">{s.sub}</span>
+              </li>
+            ))}
+          </ol>
+
           <svg
             viewBox="0 0 1060 175"
             className="flow-svg"
