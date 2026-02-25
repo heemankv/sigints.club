@@ -6,5 +6,5 @@ type IntentsPageProps = {
 
 export default function IntentsPage({ searchParams }: IntentsPageProps) {
   const query = typeof searchParams?.q === "string" ? searchParams.q : "";
-  return <FeedClient searchQuery={query} />;
+  return <FeedClient searchQuery={query} initialFilter="intent" />;
 }

@@ -6,5 +6,5 @@ type FeedPageProps = {
 
 export default function FeedPage({ searchParams }: FeedPageProps) {
   const query = typeof searchParams?.q === "string" ? searchParams.q : "";
-  return <FeedClient searchQuery={query} initialTab="feed" />;
+  return <FeedClient searchQuery={query} initialTab="feed" initialFilter="explore" />;
 }

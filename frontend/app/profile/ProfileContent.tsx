@@ -303,6 +303,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                   <span><strong>{followCounts?.following ?? "…"}</strong> Following</span>
                   <span><strong>{followCounts?.followers ?? "…"}</strong> Followers</span>
                   <span><strong>{myStreamCount ?? "…"}</strong> Streams</span>
+                  <span><strong>{subsLoading ? "…" : subscriptionCards.length}</strong> Subscriptions</span>
                   <span><strong>{totalSubscribers ?? "…"}</strong> Subscribers</span>
                   <span><strong>{agentsLoading ? "…" : agents.length}</strong> Agents</span>
                 </div>
@@ -311,6 +312,9 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
             {activeTab === "subscriptions" && (
               <div className="profile-tab-content">
+                <p className="profile-tab-description">
+                  Every sub here is a soul-bound NFT sitting in your wallet — non-transferable, fully yours. Each one is your ticket to an on-chain stream and the signals it puts out.
+                </p>
                 {subscriptionCards.length > 0 && (
                   <div className="data-grid">
                     {subscriptionCards.map((card) => (
@@ -357,15 +361,20 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
             {activeTab === "streams" && (
               <div className="profile-tab-content">
+                <p className="profile-tab-description">
+                  These are your streams, live on Solana. Grab a Blink link and share it anywhere — one click and anyone can subscribe straight from their wallet.
+                </p>
                 <MyStreamsSection />
               </div>
             )}
 
             {activeTab === "agents" && (
               <div className="profile-tab-content">
+                <p className="profile-tab-description">
+                  Meet your agents — they do the heavy lifting so you don&#39;t have to. Spot a <span className="agent-legend-arrow agent-legend-arrow--publish"></span> blue arrow? That one&#39;s pushing signals out. See a <span className="agent-legend-arrow agent-legend-arrow--listen"></span> green arrow? It&#39;s tuned in and listening.
+                </p>
                 <div className="stream-card-grid">
                   {agents.map((agent) => {
-                    const roleLabel = agent.role === "maker" ? "sender" : agent.role === "both" ? "sender + listener" : "listener";
                     const hasLinkedSubs = (agentSubsById.get(agent.id) ?? 0) > 0;
                     const canPublish = agent.role === "maker" || agent.role === "both";
                     const canListen = agent.role === "listener" || agent.role === "both" || hasLinkedSubs;
@@ -397,12 +406,13 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                           </div>
 
                           {/* Middle row: badges */}
-                          <div className="stream-card-middle">
-                            <div className="stream-card-header">
-                              {agent.domain && <span className="badge badge-sm badge-teal">{agent.domain}</span>}
-                              <span className="badge badge-sm badge-gold">{roleLabel}</span>
+                          {agent.domain && (
+                            <div className="stream-card-middle">
+                              <div className="stream-card-header">
+                                <span className="badge badge-sm badge-teal">{agent.domain}</span>
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {/* Bottom row: stats + manage */}
                           <div className="stream-card-bottom">
@@ -461,29 +471,36 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
                 {actionsTab === "editProfile" && (
                   <div className="x-rail-module" style={{ border: 0, background: "transparent", padding: 0 }}>
-                    <input
-                      className="input"
-                      value={editDisplayName}
-                      onChange={(e) => setEditDisplayName(e.target.value)}
-                      placeholder="Username"
-                      style={{ marginBottom: 8 }}
-                    />
-                    <textarea
-                      className="input"
-                      value={editBio}
-                      onChange={(e) => setEditBio(e.target.value)}
-                      placeholder="Bio"
-                      rows={3}
-                      style={{ resize: "vertical", marginBottom: 10 }}
-                    />
-                    <button
-                      className="button secondary"
-                      onClick={saveProfile}
-                      disabled={editSaving}
-                      style={{ width: "100%" }}
-                    >
-                      {editSaving ? "Saving..." : "Save Profile"}
-                    </button>
+                    <p className="profile-tab-description" style={{ marginBottom: 12 }}>
+                      Make it yours — pick a name, drop a bio, and let the network know who&#39;s behind the signals.
+                    </p>
+                    <div style={{ maxWidth: "60%" }}>
+                      <label className="input-label">Name</label>
+                      <input
+                        className="input"
+                        value={editDisplayName}
+                        onChange={(e) => setEditDisplayName(e.target.value)}
+                        placeholder="Username"
+                        style={{ marginBottom: 12 }}
+                      />
+                      <label className="input-label">Description</label>
+                      <textarea
+                        className="input"
+                        value={editBio}
+                        onChange={(e) => setEditBio(e.target.value)}
+                        placeholder="Bio"
+                        rows={3}
+                        style={{ resize: "vertical", marginBottom: 14 }}
+                      />
+                      <button
+                        className="button secondary"
+                        onClick={saveProfile}
+                        disabled={editSaving}
+                        style={{ width: "100%" }}
+                      >
+                        {editSaving ? "Saving..." : "Save Profile"}
+                      </button>
+                    </div>
                     {editStatus && <p className="subtext" style={{ marginTop: 8 }}>{editStatus}</p>}
                   </div>
                 )}

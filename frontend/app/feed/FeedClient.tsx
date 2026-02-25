@@ -38,9 +38,11 @@ import { useCurrentUserProfileId } from "../hooks/useCurrentUserProfileId";
 type FeedClientProps = {
   searchQuery: string;
   initialTab?: FeedTab;
+  initialFilter?: PostFilter;
 };
 
 type FeedTab = "feed" | "streams";
+type PostFilter = "explore" | "intent" | "slashing" | "mine";
 
 function hashSeed(seed: string) {
   let hash = 0;
@@ -73,7 +75,7 @@ function AvatarCircle({ seed }: { seed: string }) {
   );
 }
 
-export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedClientProps) {
+export default function FeedClient({ searchQuery, initialTab = "feed", initialFilter = "explore" }: FeedClientProps) {
   const router = useRouter();
   const { publicKey } = useWalletConnect();
   const wallet = publicKey?.toBase58() ?? null;
@@ -93,6 +95,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeedTab>(initialTab);
+  const [postFilter, setPostFilter] = useState<PostFilter>(initialFilter);
   const [status, setStatus] = useState<string | null>(null);
   const [likes, setLikes] = useState<Record<string, number>>({});
   const [liked, setLiked] = useState<Record<string, boolean>>({});
@@ -104,7 +107,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [confirmDeletePostId, setConfirmDeletePostId] = useState<string | null>(null);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
 
   const [subscribedStreamAddresses, setSubscribedStreamAddresses] = useState<Set<string>>(new Set());
   const [streamSearch, setStreamSearch] = useState("");
@@ -147,6 +152,10 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    setPostFilter(initialFilter);
+  }, [initialFilter]);
 
   useEffect(() => {
     if (activeTab === "streams") {
@@ -276,6 +285,28 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   const slashReady = !isSlashTag || (slashStream.trim().length > 0 && slashTx.trim().length > 0);
 
+  function resolveTags(post: SocialPost) {
+    const raw = post.customProperties?.tags;
+    if (!raw) return [];
+    return raw.split(",").map((tag) => tag.trim()).filter(Boolean);
+  }
+
+  const filteredFeed = useMemo(() => {
+    if (postFilter === "explore") return feed;
+    if (postFilter === "slashing") {
+      return feed.filter((post) => post.type === "slash");
+    }
+    if (postFilter === "intent") {
+      return feed.filter((post) => resolveTags(post).includes("intent"));
+    }
+    return feed.filter((post) =>
+      Boolean(
+        (wallet && post.authorWallet === wallet) ||
+        (currentProfileId && post.profileId === currentProfileId)
+      )
+    );
+  }, [feed, postFilter, wallet, currentProfileId]);
+
   async function postContent() {
     if (posting) return;
     if (!wallet) { openWalletModal(false); return; }
@@ -395,12 +426,15 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
   async function removePost(contentId: string) {
     if (!wallet) { openWalletModal(true); return; }
+    setDeletingPostId(contentId);
     try {
-      setConfirmDeletePostId(null);
       await deletePost(wallet, contentId);
       setFeed((prev) => prev.filter((post) => post.contentId !== contentId));
     } catch (err: any) {
       setStatus(err?.message ?? "Delete failed");
+    } finally {
+      setDeletingPostId(null);
+      setConfirmDeletePostId(null);
     }
   }
 
@@ -411,8 +445,8 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       setStatus("Unable to resolve comment id.");
       return;
     }
+    setDeletingCommentId(commentId);
     try {
-      setConfirmDeleteCommentId(null);
       await deleteComment(wallet, commentId);
       setComments((prev) => {
         const next = (prev[contentId] ?? []).filter((item) => resolveCommentId(item) !== commentId);
@@ -424,13 +458,10 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       }));
     } catch (err: any) {
       setStatus(err?.message ?? "Delete failed");
+    } finally {
+      setDeletingCommentId(null);
+      setConfirmDeleteCommentId(null);
     }
-  }
-
-  function resolveTags(post: SocialPost) {
-    const raw = post.customProperties?.tags;
-    if (!raw) return [];
-    return raw.split(",").map((tag) => tag.trim()).filter(Boolean);
   }
 
   return (
@@ -448,7 +479,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 className="x-composer-textarea"
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}
-                placeholder={isSlashTag ? "Report a false or misleading signal..." : isIntentTag ? "Describe your intent..." : "Share your market intelligence..."}
+                placeholder={isSlashTag ? "Report a false or misleading signal..." : isIntentTag ? "Describe your intent..." : "Cooking Perishable-aplha, will make a stream soon..."}
                 rows={2}
               />
 
@@ -492,11 +523,57 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
           </div>
         )}
 
+        {activeTab !== "streams" && (
+          <>
+          <div className="maker-tabs feed-tabs">
+            <button
+              className={`maker-tab${postFilter === "explore" ? " maker-tab--active" : ""}`}
+              onClick={() => setPostFilter("explore")}
+            >
+              Explore
+            </button>
+            <button
+              className={`maker-tab${postFilter === "intent" ? " maker-tab--active" : ""}`}
+              onClick={() => setPostFilter("intent")}
+            >
+              Intent
+            </button>
+            <button
+              className={`maker-tab${postFilter === "slashing" ? " maker-tab--active" : ""}`}
+              onClick={() => setPostFilter("slashing")}
+            >
+              Slashing
+            </button>
+            <button
+              className={`maker-tab${postFilter === "mine" ? " maker-tab--active" : ""}`}
+              onClick={() => {
+                if (!wallet && !currentProfileId) {
+                  openWalletModal(true);
+                  return;
+                }
+                setPostFilter("mine");
+              }}
+            >
+              My Posts
+            </button>
+          </div>
+          <p className="feed-tab-description">
+            {postFilter === "explore" && "The firehose — everything publishers and listeners are dropping right now. Dive in and see what's cooking."}
+            {postFilter === "intent" && "Got alpha you wish existed? Drop it here. Signal creators watch this space to find out what the market actually wants."}
+            {postFilter === "slashing" && "Think a signal missed the mark? Call it out. The community votes, and bad calls get slashed."}
+            {postFilter === "mine" && "Your published posts, collected in one place."}
+          </p>
+          </>
+        )}
+
         {activeTab !== "streams" && status && <div className="x-status-msg">{status}</div>}
 
         {activeTab === "streams" ? (
           <>
           <div className="streams-search-bar">
+            <p className="streams-search-description">
+              Live data feeds, all on-chain. Find a stream you like, hit subscribe, and start catching signals — encrypted or wide open.
+            </p>
             <input
               type="text"
               placeholder="Search streams…"
@@ -533,7 +610,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
           </>
         ) : (
           <div className="feed-list">
-            {feed.map((post) => {
+            {filteredFeed.map((post) => {
               const tags = resolveTags(post);
               const streamId = post.customProperties?.streamId;
               const makerWallet = post.customProperties?.makerWallet;
@@ -664,14 +741,18 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                             <button
                               className="confirm-toggle__no"
                               onClick={() => setConfirmDeletePostId(null)}
+                              disabled={deletingPostId === post.contentId}
                             >
                               No
                             </button>
                             <button
                               className="confirm-toggle__yes"
                               onClick={() => removePost(post.contentId)}
+                              disabled={deletingPostId === post.contentId}
                             >
-                              Yes
+                              {deletingPostId === post.contentId ? (
+                                <><span className="spinner-inline" /> Deleting</>
+                              ) : "Yes"}
                             </button>
                           </div>
                         ) : (
@@ -721,14 +802,18 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                                     <button
                                       className="confirm-toggle__no"
                                       onClick={() => setConfirmDeleteCommentId(null)}
+                                      disabled={deletingCommentId === commentId}
                                     >
                                       No
                                     </button>
                                     <button
                                       className="confirm-toggle__yes"
                                       onClick={() => removeComment(post.contentId, entry)}
+                                      disabled={deletingCommentId === commentId}
                                     >
-                                      Yes
+                                      {deletingCommentId === commentId ? (
+                                        <><span className="spinner-inline" /> Deleting</>
+                                      ) : "Yes"}
                                     </button>
                                   </div>
                                 ) : (
@@ -790,9 +875,19 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                 ))}
               </div>
             )}
-            {!loading && !feed.length && (
+            {!loading && !filteredFeed.length && (
               <div className="x-empty-state">
-                <p>No posts yet. Be the first to share your market intelligence.</p>
+                <p>
+                  {postFilter === "explore"
+                    ? "No posts yet. Be the first to share your market intelligence."
+                    : postFilter === "intent"
+                      ? "No intent posts yet."
+                      : postFilter === "slashing"
+                        ? "No slashing reports yet."
+                        : wallet || currentProfileId
+                          ? "No posts from you yet."
+                          : "Connect your wallet to view your posts."}
+                </p>
               </div>
             )}
           </div>

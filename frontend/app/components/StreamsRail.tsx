@@ -180,6 +180,7 @@ export default function StreamsRail() {
       {/* Latest streams */}
       <div className="x-rail-module">
         <h3 className="x-rail-heading">Latest Streams</h3>
+        <p className="x-rail-description">Fresh off the chain — the newest streams just registered. Jump in early.</p>
         {latestStreams.map((stream) => {
           const createdAt = stream.createdAt ?? 0;
           const timeLabel = createdAt ? `${timeAgo(createdAt)} ago` : "new";
@@ -194,9 +195,10 @@ export default function StreamsRail() {
         {!latestStreams.length && <span className="x-trend-category">No stream data yet.</span>}
       </div>
 
-      {/* What's streaming */}
+      {/* What's signaling */}
       <div className="x-rail-module">
-        <h3 className="x-rail-heading">What&apos;s streaming</h3>
+        <h3 className="x-rail-heading">What&apos;s signaling</h3>
+        <p className="x-rail-description">Signals hitting Solana right now — published on-chain and indexed live as they land.</p>
         {streamingEvents.slice(0, 5).map((event) => {
           const stream = streamById.get(event.streamId);
           const subs = subscriberCounts[event.streamId];

@@ -3517,6 +3517,7 @@ textarea {
 .hero-badges-row {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -3545,6 +3546,22 @@ textarea {
   color: rgba(153, 69, 255, 0.75);
   background: rgba(153, 69, 255, 0.08);
   border: 1px solid rgba(153, 69, 255, 0.2);
+  padding: 5px 12px;
+  border-radius: 999px;
+  width: fit-content;
+  letter-spacing: 0.04em;
+  order: 1;
+}
+
+.hero-orbitflare-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(60, 171, 156, 0.75);
+  background: rgba(60, 171, 156, 0.08);
+  border: 1px solid rgba(60, 171, 156, 0.2);
   padding: 5px 12px;
   border-radius: 999px;
   width: fit-content;
@@ -3581,6 +3598,22 @@ textarea {
   color: rgba(153, 69, 255, 0.75);
   background: rgba(153, 69, 255, 0.08);
   border: 1px solid rgba(153, 69, 255, 0.2);
+  padding: 5px 12px;
+  border-radius: 999px;
+  width: fit-content;
+  letter-spacing: 0.04em;
+  order: 1;
+}
+
+.footer-orbitflare-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(60, 171, 156, 0.75);
+  background: rgba(60, 171, 156, 0.08);
+  border: 1px solid rgba(60, 171, 156, 0.2);
   padding: 5px 12px;
   border-radius: 999px;
   width: fit-content;

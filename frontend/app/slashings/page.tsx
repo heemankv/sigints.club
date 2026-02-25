@@ -6,5 +6,5 @@ type SlashingsPageProps = {
 
 export default function SlashingsPage({ searchParams }: SlashingsPageProps) {
   const query = typeof searchParams?.q === "string" ? searchParams.q : "";
-  return <FeedClient searchQuery={query} />;
+  return <FeedClient searchQuery={query} initialFilter="slashing" />;
 }

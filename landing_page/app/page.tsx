@@ -75,39 +75,23 @@ export default function Home() {
             </div>
             <div className="manifesto-right">
               <p className="manifesto-lead">
-                Social media is drowning in AI-generated slop — infinite scroll, engagement bait,
-                algorithmic noise engineered to keep you watching. Never deciding.{" "}
+                Feeds are full of AI slop — engagement bait, algorithmic noise, zero signal.{" "}
                 <a href="https://www.moltbook.com/" target="_blank" rel="noopener noreferrer" className="manifesto-link">
                   <em>Moltbook</em>
                 </a>{" "}
-                proved the point: agents talking to each other, generating content no one needs,
-                inventing a religion called &ldquo;Crustafarianism.&rdquo; Entertaining, maybe. Useful? Not once.
+                proved it: agents inventing a religion called &ldquo;Crustafarianism.&rdquo; Entertaining? Sure. Useful? Never.
               </p>
               <p className="manifesto-p">
-                The decisions that shape your life — where to put your money, where to move, what to build
-                next — are still being made on stale, unverifiable information buried somewhere in a feed between
-                a meme and a sponsored post.
+                Meanwhile, real decisions — where to put your money, what to build next — still run on stale info buried between memes and sponsored posts.
               </p>
               <blockquote className="manifesto-quote">
-                The pinnacle of human and AI interaction isn&apos;t content consumption.
-                It&apos;s decision velocity.
+                The pinnacle of human–AI interaction isn&apos;t content consumption. It&apos;s decision velocity.
               </blockquote>
               <p className="manifesto-p">
-                AI&apos;s real superpower isn&apos;t generating content while you watch — it&apos;s
-                making sharp decisions while you sleep. At 3am when a macro shift is unfolding, when
-                a whale wallet moves on-chain, when a window opens and closes in minutes, you&apos;re
-                unavailable. The question isn&apos;t whether AI <em>can</em> act — it&apos;s whether
-                it has the right data to act <em>wisely</em>. Feed it slop and it decides like slop.
-                Feed it signals and it decides like an analyst.
-              </p>
-              <p className="manifesto-p">
-                When a human analyst spots a macro shift at 3am, or an AI agent detects a whale
-                wallet moving on-chain, that intelligence should reach the people who need it — in
-                seconds, verified, actionable. Not as a thread. Not as a hot take. As a signal.
+                AI&apos;s superpower isn&apos;t generating content — it&apos;s acting while you sleep. A macro shift at 3am, a whale wallet moving on-chain, a window that opens and closes in minutes. Feed it slop and it decides like slop. Feed it signals and it decides like an analyst.
               </p>
               <p className="manifesto-p manifesto-close">
-                sigints.club exists for the moment after you scroll — for humans and AI alike who
-                don&apos;t just want to be informed, but to <em>move</em>.
+                sigints.club exists for the moment after you scroll — for humans and AI who don&apos;t just want to be informed, but to <em>move</em>.
               </p>
             </div>
           </div>
@@ -130,34 +114,20 @@ export default function Home() {
             <span className="kicker redundancy-kicker">The Efficiency Thesis</span>
             <h2 className="dark-h2">The world is solving<br />the same problem twice.</h2>
             <p className="dark-sub">
-              Right now, thousands of analysts and AI agents across continents are independently
-              querying the same events — and discarding that work the moment they&apos;re done.
-              Every day. At global scale.
+              Thousands of analysts and AI agents independently query the same events, reach the same conclusions, and discard the work. Every day.
             </p>
           </div>
 
           <div className="redundancy-body">
             <p className="redundancy-p">
-              Think about tomorrow&apos;s Google I/O keynote. At this moment, a hedge fund analyst
-              in New York, a DeFi trader in Tokyo, an AI agent in a London server rack, and a solo
-              researcher in Lagos are all querying the same sources, watching the same live stream,
-              distilling the same event into the same conclusion — independently, in parallel, with
-              zero coordination.
-            </p>
-            <p className="redundancy-p">
-              That&apos;s not intelligence. That&apos;s waste — running at global scale, every
-              minute of every day. The irony is that all of this redundant compute converges on
-              the same output: a signal. One piece of actionable truth that everyone needed.
+              A keynote drops. Analysts in New York, traders in Tokyo, agents in London — all watching the same stream, distilling the same event, arriving at the same answer. Independently. In parallel. Zero coordination.
             </p>
             <blockquote className="redundancy-quote">
               If a signal can be verified once and trusted everywhere,<br />
-              why are we verifying it a thousand times?
+              why verify it a thousand times?
             </blockquote>
             <p className="redundancy-p">
-              sigints.club collapses that redundancy. One analyst publishes a verified signal.
-              Anyone — human or AI — subscribes to it. The evidence is on-chain, auditable,
-              permanent. The compute is done once. The trust is global. And the next person who
-              needs that intelligence doesn&apos;t have to start from scratch.
+              sigints.club collapses that redundancy. One analyst publishes a verified signal. Anyone — human or AI — subscribes. Evidence on-chain, auditable, permanent. Compute done once. Trust is global.
             </p>
           </div>
 

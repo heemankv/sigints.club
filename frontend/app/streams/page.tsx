@@ -6,5 +6,5 @@ type StreamsPageProps = {
 
 export default function StreamsPage({ searchParams }: StreamsPageProps) {
   const query = typeof searchParams?.q === "string" ? searchParams.q : "";
-  return <FeedClient searchQuery={query} initialTab="streams" />;
+  return <FeedClient searchQuery={query} initialTab="streams" initialFilter="explore" />;
 }

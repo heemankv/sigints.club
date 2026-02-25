@@ -73,6 +73,17 @@ export default function OwnedSubscriptionCard({
 
         {description && <p className="data-card__desc">{description}</p>}
 
+        {nftMint && (
+          <a
+            className="data-card__mint"
+            href={`https://explorer.solana.com/address/${nftMint}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {nftMint}
+          </a>
+        )}
+
         {expiresLabel && (
           <div className={`sub-expiry ${expiryColor(days)}`}>
             <span className="sub-expiry__date">Expires {expiresLabel}</span>

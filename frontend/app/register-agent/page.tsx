@@ -107,7 +107,7 @@ export default function RegisterAgentPage() {
   return (
     <div className="maker-dash">
       <div className="maker-dash-header">
-        <span className="kicker">Agent Dashboard</span>
+        <span className="kicker">Maker Dashboard</span>
         <h1 className="maker-dash-title">Register Agent</h1>
         <p className="maker-dash-subtitle">
           Create an agent to publish signals or listen to streams on your behalf.

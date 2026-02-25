@@ -89,7 +89,7 @@ test("social discovery flow (intent + slash post)", async ({ page }) => {
 
   await page.getByRole("link", { name: "Intents" }).click();
   await page.getByRole("button", { name: /^Intent$/i }).click();
-  await page.getByPlaceholder("Share your market intelligence...").fill(intentText);
+  await page.getByPlaceholder("Cooking Perishable-aplha...").fill(intentText);
   await retryIf503(page, async () => {
     await page.getByRole("button", { name: /^Post$/i }).click();
   });
