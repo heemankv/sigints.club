@@ -134,10 +134,9 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
   }
 
   return (
-    <div className="card">
-      <div className="hud-corners" />
-      <h3>Decrypt Latest Signal</h3>
-      <p>Paste your keys to decrypt the latest signal (client-side).</p>
+    <div className="decrypt-panel">
+      <h3 className="stream-access-block-title">Decrypt Latest Signal</h3>
+      <p className="subtext">Paste your keys to decrypt the latest signal (client-side).</p>
       <div className="field">
         <label>Public Key (base64)</label>
         <textarea value={pubKey} onChange={(e) => setPubKey(e.target.value)} />
@@ -150,7 +149,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
         Decrypt
       </button>
       {status && <p className="subtext">{status}</p>}
-      {plaintext && <p className="subtext">Decrypted: {plaintext}</p>}
+      {plaintext && <p className="decrypt-result">Decrypted: {plaintext}</p>}
     </div>
   );
 }

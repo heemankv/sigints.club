@@ -13,7 +13,6 @@ import {
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getCardArtUrl } from "../lib/cardArt";
 import { parseSolLamports } from "../lib/pricing";
-import { explorerTx } from "../lib/constants";
 import { parseQuota } from "../lib/utils";
 
 type SubscriptionCardProps = {
@@ -142,10 +141,7 @@ export default function SubscriptionCard({
         {status && <p className="subtext">{status}</p>}
         {tx && (
           <p className="subtext">
-            Explorer{" "}
-            <a className="link" href={explorerTx(tx)} target="_blank">
-              {tx.slice(0, 10)}…
-            </a>
+            Tx {tx.slice(0, 10)}…
           </p>
         )}
       </div>

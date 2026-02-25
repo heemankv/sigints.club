@@ -13,34 +13,22 @@ import {
 } from "../lib/streamRegistry";
 import type { TierInput } from "../lib/streamRegistry";
 import { parseSolLamports } from "../lib/pricing";
-import { explorerTx } from "../lib/constants";
-import { parseQuota } from "../lib/utils";
-
-const DEFAULT_TIER: TierInput = {
-  tierId: "tier-basic",
-  pricingType: "subscription_unlimited",
-  price: "0.05 SOL/mo",
-  quota: "100 signals",
-  evidenceLevel: "trust",
-};
 
 export default function RegisterStreamPage() {
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
-  // ─── Step wizard ──────────────────────────────────────────────────────────
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // ─── Step wizard (2 steps: Identity → Deploy) ──────────────────────────────
+  const [step, setStep] = useState<1 | 2>(1);
   const [streamId, setStreamId] = useState("stream-");
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [description, setDescription] = useState("");
-  const [accuracy, setAccuracy] = useState("98%");
-  const [latency, setLatency] = useState("2s");
-  const [price, setPrice] = useState("0.05 SOL/mo");
-  const [evidence, setEvidence] = useState("Verifier supported");
+  const [subscriptionPrice, setSubscriptionPrice] = useState(0.05);
+  const [verifierSupported, setVerifierSupported] = useState(false);
   const [visibility, setVisibility] = useState<"public" | "private">("private");
-  const [dao, setDao] = useState(process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "");
-  const [tiers, setTiers] = useState<TierInput[]>([{ ...DEFAULT_TIER }]);
+  const [intervalType, setIntervalType] = useState<"unintervalled" | "intervalled">("unintervalled");
+  const [cronSchedule, setCronSchedule] = useState("0 0 * * *");
   const [deployStatus, setDeployStatus] = useState<string | null>(null);
   const [deployLoading, setDeployLoading] = useState(false);
   const [deployTx, setDeployTx] = useState<string | null>(null);
@@ -59,33 +47,20 @@ export default function RegisterStreamPage() {
     return false;
   }
 
-  // ─── Tier management ──────────────────────────────────────────────────────
+  // ─── Derived tier (single, auto-generated) ─────────────────────────────────
 
-  function updateTier(index: number, patch: Partial<TierInput>) {
-    setTiers((prev) => prev.map((tier, idx) => (idx === index ? { ...tier, ...patch } : tier)));
+  const effectivePrice = visibility === "public" ? 0 : subscriptionPrice;
+  const priceStr = `${effectivePrice} SOL/mo`;
+  const evidenceLevel: "trust" | "verifier" = verifierSupported ? "verifier" : "trust";
+
+  function buildTier(): TierInput {
+    return {
+      tierId: `${streamId}-tier`,
+      pricingType: "subscription_unlimited",
+      price: priceStr,
+      evidenceLevel,
+    };
   }
-
-  function addTier() {
-    setTiers((prev) => [
-      ...prev,
-      {
-        ...DEFAULT_TIER,
-        tierId: `tier-${prev.length + 1}`,
-        price: visibility === "public" ? "0 SOL/mo" : DEFAULT_TIER.price,
-      },
-    ]);
-  }
-
-  function removeTier(index: number) {
-    setTiers((prev) => prev.filter((_, idx) => idx !== index));
-  }
-
-  useEffect(() => {
-    if (visibility === "public") {
-      setPrice("0 SOL/mo");
-      setTiers((prev) => prev.map((tier) => ({ ...tier, price: "0 SOL/mo" })));
-    }
-  }, [visibility]);
 
   // ─── Step navigation ──────────────────────────────────────────────────────
 
@@ -110,6 +85,8 @@ export default function RegisterStreamPage() {
     setDeployTx(null);
     setDeploySuccess(false);
     try {
+      const tier = buildTier();
+      const tiers = [tier];
       const programId = resolveStreamRegistryProgramId();
       const streamPda = await deriveStreamPda(programId, streamId);
       const existing = await connection.getAccountInfo(streamPda);
@@ -122,7 +99,6 @@ export default function RegisterStreamPage() {
           authority: publicKey,
           streamId,
           tiers,
-          dao: dao || undefined,
           visibility,
         });
         const tx = new Transaction().add(instruction);
@@ -138,31 +114,26 @@ export default function RegisterStreamPage() {
         setDeployTx(signature);
       }
 
-      if (tiers.length) {
-        setDeployStatus("Registering tiers…");
-        const streamReady = await connection.getAccountInfo(streamPda);
-        if (!streamReady) {
-          throw new Error("Stream account missing. Ensure create stream transaction is confirmed.");
-        }
-        const tierTx = new Transaction();
-        for (const tier of tiers) {
-          const quota = parseQuota(tier.quota) ?? 0;
-          const ix = await buildUpsertTierInstruction({
-            programId,
-            authority: publicKey,
-            stream: streamPda,
-            tier,
-            priceLamports: parseSolLamports(tier.price),
-            quota,
-            status: 1,
-          });
-          tierTx.add(ix);
-        }
-        tierTx.feePayer = publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        tierTx.recentBlockhash = blockhash;
-        await sendTransaction(tierTx, connection);
+      setDeployStatus("Registering tier…");
+      const streamReady = await connection.getAccountInfo(streamPda);
+      if (!streamReady) {
+        throw new Error("Stream account missing. Ensure create stream transaction is confirmed.");
       }
+      const tierTx = new Transaction();
+      const ix = await buildUpsertTierInstruction({
+        programId,
+        authority: publicKey,
+        stream: streamPda,
+        tier,
+        priceLamports: parseSolLamports(tier.price),
+        quota: 0,
+        status: 1,
+      });
+      tierTx.add(ix);
+      tierTx.feePayer = publicKey;
+      const { blockhash } = await connection.getLatestBlockhash();
+      tierTx.recentBlockhash = blockhash;
+      await sendTransaction(tierTx, connection);
 
       setDeployStatus("Publishing to backend…");
       await sdkCreateStream({
@@ -171,13 +142,12 @@ export default function RegisterStreamPage() {
         domain,
         description,
         visibility,
-        accuracy,
-        latency,
-        price,
-        evidence,
+        price: priceStr,
+        evidence: verifierSupported ? "Verifier supported" : "",
+        signalInterval: intervalType,
+        cronSchedule: intervalType === "intervalled" ? cronSchedule : undefined,
         ownerWallet: publicKey.toBase58(),
         tiers,
-        dao: dao || undefined,
       });
 
       setDeploySuccess(true);
@@ -216,10 +186,9 @@ export default function RegisterStreamPage() {
             {(
               [
                 { n: 1, label: "Identity" },
-                { n: 2, label: "Tiers" },
-                { n: 3, label: "Deploy" },
+                { n: 2, label: "Deploy" },
               ] as const
-            ).map(({ n, label }, idx) => (
+            ).map(({ n, label }) => (
               <div
                 key={n}
                 className={`step-item${step > n ? " step-item--done" : ""}${step === n ? " step-item--active" : ""}`}
@@ -230,11 +199,11 @@ export default function RegisterStreamPage() {
             ))}
           </div>
 
-          {/* ── Step 1: Identity ── */}
+          {/* ── Step 1: Identity + Tier ── */}
           {step === 1 && (
             <div className="step-content">
               <h3>Stream Identity</h3>
-              <p className="subtext">Basic metadata for your stream.</p>
+              <p className="subtext">Basic metadata and pricing for your stream.</p>
               <div className="form-grid form-grid--2col">
                 <input
                   className="input"
@@ -254,31 +223,6 @@ export default function RegisterStreamPage() {
                   onChange={(e) => setDomain(e.target.value)}
                   placeholder="Domain (e.g. pricing, crypto)"
                 />
-                <input
-                  className="input"
-                  value={accuracy}
-                  onChange={(e) => setAccuracy(e.target.value)}
-                  placeholder="Accuracy (e.g. 98%)"
-                />
-                <input
-                  className="input"
-                  value={latency}
-                  onChange={(e) => setLatency(e.target.value)}
-                  placeholder="Latency (e.g. 2s)"
-                />
-                <input
-                  className="input"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="Base price (e.g. 0.05 SOL/mo)"
-                  disabled={visibility === "public"}
-                />
-                <input
-                  className="input"
-                  value={evidence}
-                  onChange={(e) => setEvidence(e.target.value)}
-                  placeholder="Evidence (e.g. Verifier supported)"
-                />
                 <select
                   className="input"
                   value={visibility}
@@ -288,20 +232,72 @@ export default function RegisterStreamPage() {
                   <option value="private">Private stream (encrypted signals)</option>
                   <option value="public">Public stream (open signals)</option>
                 </select>
-                <input
+                <select
                   className="input"
-                  value={dao}
-                  onChange={(e) => setDao(e.target.value)}
-                  placeholder="DAO / Treasury address (optional)"
-                />
+                  value={intervalType}
+                  aria-label="Signal Interval"
+                  onChange={(e) => setIntervalType(e.target.value as "unintervalled" | "intervalled")}
+                >
+                  <option value="unintervalled">Un-intervalled (event-driven)</option>
+                  <option value="intervalled">Intervalled (scheduled)</option>
+                </select>
+                {intervalType === "intervalled" && (
+                  <input
+                    className="input"
+                    value={cronSchedule}
+                    onChange={(e) => setCronSchedule(e.target.value)}
+                    placeholder="Cron schedule (e.g. 0 0 * * *)"
+                  />
+                )}
               </div>
+
+              {/* Subscription price + Verifier side by side */}
+              <div className="form-grid form-grid--2col" style={{ marginTop: 16 }}>
+                <div className="slider-field">
+                  <div className="slider-field-header">
+                    <span className="slider-field-label">Subscription price</span>
+                    <span className="slider-field-value">
+                      {visibility === "public" ? "Free" : `${effectivePrice.toFixed(2)} SOL/mo`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    className="range-slider"
+                    min={0.01}
+                    max={10}
+                    step={0.01}
+                    value={subscriptionPrice}
+                    onChange={(e) => setSubscriptionPrice(parseFloat(e.target.value))}
+                    disabled={visibility === "public"}
+                  />
+                  <div className="slider-field-ticks">
+                    <span>0.01 SOL</span>
+                    <span>10 SOL</span>
+                  </div>
+                </div>
+
+                <div className="register-verifier-panel">
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={verifierSupported}
+                      onChange={(e) => setVerifierSupported(e.target.checked)}
+                    />
+                    <span>Verifier supported</span>
+                  </label>
+                  <p className="subtext" style={{ margin: "6px 0 0" }}>
+                    Enable on-chain verification for signal accuracy.
+                  </p>
+                </div>
+              </div>
+
               <textarea
                 className="input"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Short description of your stream"
                 rows={3}
-                style={{ marginBottom: 0 }}
+                style={{ marginTop: 16, marginBottom: 0 }}
               />
               {deployStatus && (
                 <p className="subtext" style={{ color: "var(--accent)", marginTop: 8 }}>
@@ -316,67 +312,8 @@ export default function RegisterStreamPage() {
             </div>
           )}
 
-          {/* ── Step 2: Tiers ── */}
+          {/* ── Step 2: Deploy ── */}
           {step === 2 && (
-            <div className="step-content">
-              <h3>Subscription Tiers</h3>
-              <p className="subtext">Define pricing tiers for your stream subscribers.</p>
-              <div className="tier-block">
-                {tiers.map((tier, idx) => (
-                  <div key={idx} className="tier-row">
-                    <input
-                      className="input"
-                      value={tier.tierId}
-                      onChange={(e) => updateTier(idx, { tierId: e.target.value })}
-                      placeholder="tier-id"
-                    />
-                    <input
-                      className="input"
-                      value={tier.price}
-                      onChange={(e) => updateTier(idx, { price: e.target.value })}
-                      placeholder="0.05 SOL/mo"
-                      disabled={visibility === "public"}
-                    />
-                    <select
-                      className="input"
-                      value={tier.evidenceLevel}
-                      onChange={(e) =>
-                        updateTier(idx, { evidenceLevel: e.target.value as TierInput["evidenceLevel"] })
-                      }
-                    >
-                      <option value="trust">trust</option>
-                      <option value="verifier">verifier</option>
-                    </select>
-                    <input
-                      className="input"
-                      value={tier.quota ?? ""}
-                      onChange={(e) => updateTier(idx, { quota: e.target.value })}
-                      placeholder="quota (optional)"
-                    />
-                    {tiers.length > 1 && (
-                      <button className="button ghost" onClick={() => removeTier(idx)}>
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <button className="button ghost" onClick={addTier} style={{ marginTop: 8 }}>
-                + Add Tier
-              </button>
-              <div className="step-actions">
-                <button className="button ghost" onClick={() => setStep(1)}>
-                  ← Back
-                </button>
-                <button className="button primary" onClick={() => setStep(3)}>
-                  Next →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 3: Deploy ── */}
-          {step === 3 && (
             <div className="step-content">
               <h3>Deploy Stream</h3>
               <p className="subtext">Review and deploy your stream on-chain.</p>
@@ -394,29 +331,25 @@ export default function RegisterStreamPage() {
                   <strong>{domain || "—"}</strong>
                 </div>
                 <div className="deploy-summary-row">
-                  <span>Evidence</span>
-                  <strong>{evidence}</strong>
-                </div>
-                <div className="deploy-summary-row">
                   <span>Visibility</span>
                   <strong>{visibility === "public" ? "Public" : "Private"}</strong>
                 </div>
                 <div className="deploy-summary-row">
-                  <span>Base Price</span>
-                  <strong>{price}</strong>
+                  <span>Subscription</span>
+                  <strong>{visibility === "public" ? "Free" : priceStr}</strong>
                 </div>
                 <div className="deploy-summary-row">
-                  <span>Tiers</span>
+                  <span>Signal Interval</span>
                   <strong>
-                    {tiers.map((t) => t.tierId).join(", ")} ({tiers.length})
+                    {intervalType === "unintervalled"
+                      ? "Un-intervalled (event-driven)"
+                      : `Intervalled (${cronSchedule})`}
                   </strong>
                 </div>
-                {dao && (
-                  <div className="deploy-summary-row">
-                    <span>DAO</span>
-                    <strong style={{ wordBreak: "break-all", fontSize: 12 }}>{dao}</strong>
-                  </div>
-                )}
+                <div className="deploy-summary-row">
+                  <span>Verifier</span>
+                  <strong>{verifierSupported ? "Yes" : "No"}</strong>
+                </div>
               </div>
 
               {deployStatus && (
@@ -426,18 +359,6 @@ export default function RegisterStreamPage() {
                 >
                   {deployStatus}
                 </p>
-              )}
-
-              {deployTx && (
-                <a
-                  className="link"
-                  href={explorerTx(deployTx)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ display: "inline-block", marginTop: 6 }}
-                >
-                  View on Explorer →
-                </a>
               )}
 
               {deploySuccess && (
@@ -450,7 +371,7 @@ export default function RegisterStreamPage() {
 
               {!deploySuccess && (
                 <div className="step-actions">
-                  <button className="button ghost" onClick={() => setStep(2)} disabled={deployLoading}>
+                  <button className="button ghost" onClick={() => setStep(1)} disabled={deployLoading}>
                     ← Back
                   </button>
                   <button

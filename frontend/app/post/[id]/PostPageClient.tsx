@@ -15,7 +15,6 @@ import {
   deletePost,
 } from "../../lib/api/social";
 import { POST_COMMENTS_PAGE_SIZE } from "../../lib/constants";
-import { explorerTx } from "../../lib/constants";
 import {
   timeAgo,
   formatFullTimestamp,
@@ -253,9 +252,9 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
           <div className="xpost-meta" style={{ marginTop: 10 }}>
             {makerWallet && <span className="subtext">Maker: {makerWallet.slice(0, 10)}…</span>}
             {challengeTx && (
-              <a className="link subtext" href={explorerTx(challengeTx)} target="_blank" rel="noopener noreferrer">
+              <span className="subtext">
                 Tx: {challengeTx.slice(0, 10)}…
-              </a>
+              </span>
             )}
           </div>
         )}

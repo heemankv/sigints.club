@@ -13,9 +13,9 @@ import {
   hasRegisteredSubscriptionKey,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
-import { explorerTx } from "../../lib/constants";
 import { parseQuota } from "../../lib/utils";
 import { registerSubscription } from "../../lib/sdkBackend";
+import { readSubscriptionsCache, fetchOnchainSubscriptions } from "../../lib/api/subscriptions";
 
 export default function SubscribeForm({
   streamId,
@@ -28,6 +28,7 @@ export default function SubscribeForm({
   streamAuthority,
   streamDao,
   streamVisibility,
+  onSubscribed,
 }: {
   streamId: string;
   tierId: string;
@@ -39,8 +40,10 @@ export default function SubscribeForm({
   streamAuthority?: string;
   streamDao?: string;
   streamVisibility?: "public" | "private";
+  onSubscribed?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
   const [chainStatus, setChainStatus] = useState<string | null>(null);
   const [chainTx, setChainTx] = useState<string | null>(null);
   const [subscriptionKeyReady, setSubscriptionKeyReady] = useState<boolean | null>(null);
@@ -100,6 +103,37 @@ export default function SubscribeForm({
     };
   }, [publicKey, connection, requiresKey, streamOnchainAddress, streamId]);
 
+  useEffect(() => {
+    let active = true;
+    const wallet = publicKey?.toBase58() ?? null;
+    if (!wallet || !streamOnchainAddress) return;
+
+    function isSubscribedTo(subs: { subscriptions: { stream: string; status: number }[] } | null) {
+      if (!subs?.subscriptions) return false;
+      return subs.subscriptions.some((s) => s.status === 0 && s.stream === streamOnchainAddress);
+    }
+
+    const cached = readSubscriptionsCache(wallet);
+    if (isSubscribedTo(cached)) {
+      setSubscribed(true);
+      return;
+    }
+
+    (async () => {
+      try {
+        const data = await fetchOnchainSubscriptions(wallet);
+        if (!active) return;
+        if (isSubscribedTo(data)) {
+          setSubscribed(true);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => { active = false; };
+  }, [publicKey, streamOnchainAddress]);
+
   async function submitOnchain() {
     setLoading(true);
     setChainStatus(null);
@@ -139,6 +173,7 @@ export default function SubscribeForm({
         streamId,
         subscriberWallet: publicKey.toBase58(),
       });
+      setSubscribed(true);
       if (requiresKey && (subscription?.needsKey || subscriptionKeyReady === false)) {
         setChainStatus("Subscribed. Register your stream encryption key to decrypt private signals.");
       } else {
@@ -147,6 +182,7 @@ export default function SubscribeForm({
       if (typeof window !== "undefined") {
         window.localStorage.setItem("subscriptionsDirty", "1");
       }
+      onSubscribed?.();
     } catch (err: any) {
       setChainStatus(err.message ?? "On-chain subscribe failed");
     } finally {
@@ -155,46 +191,39 @@ export default function SubscribeForm({
   }
 
   return (
-    <div className="card">
-      <div className="hud-corners" />
-      <h3>Subscribe to {tierId}</h3>
-      <p className="subtext">
-        {requiresKey
-          ? "Private stream: register your encryption key to decrypt signals. You can subscribe first."
-          : "Public stream: no encryption key required."}
-      </p>
-      {requiresKey && subscriptionKeyReady === null && (
-        <p className="subtext">Checking encryption key status…</p>
-      )}
-      {requiresKey && subscriptionKeyReady === false && (
-        <p className="subtext">Stream key missing. Subscribe now; add a key to decrypt later.</p>
-      )}
-      {isOwner && (
-        <p className="subtext">You are the stream authority and cannot subscribe to your own stream.</p>
-      )}
-      <button
-        className="button ghost"
-        onClick={submitOnchain}
-        disabled={
-          loading ||
-          !streamOnchainAddress ||
-          !streamAuthority ||
-          !streamDao ||
-          isOwner
-        }
-      >
-        {loading ? "Submitting…" : "Subscribe on-chain"}
-      </button>
-      {(!streamOnchainAddress || !streamAuthority || !streamDao) && (
-        <p className="subtext">On-chain stream or payout accounts not configured.</p>
+    <div className="subscribe-form">
+      {subscribed ? (
+        <button className="button ghost" disabled>Subscribed</button>
+      ) : (
+        <>
+          {requiresKey && subscriptionKeyReady === false && (
+            <p className="subtext">Stream key missing. Subscribe now; register a listener agent to decrypt later.</p>
+          )}
+          {isOwner && (
+            <p className="subtext">You are the stream authority and cannot subscribe to your own stream.</p>
+          )}
+          <button
+            className="button ghost"
+            onClick={submitOnchain}
+            disabled={
+              loading ||
+              !streamOnchainAddress ||
+              !streamAuthority ||
+              !streamDao ||
+              isOwner
+            }
+          >
+            {loading ? "Submitting…" : "Subscribe on-chain"}
+          </button>
+          {(!streamOnchainAddress || !streamAuthority || !streamDao) && (
+            <p className="subtext">On-chain stream or payout accounts not configured.</p>
+          )}
+        </>
       )}
       {chainStatus && <p className="subtext">{chainStatus}</p>}
       {chainTx && (
         <p className="subtext">
-          Explorer{" "}
-          <a className="link" href={explorerTx(chainTx)} target="_blank">
-            {chainTx.slice(0, 10)}…
-          </a>
+          Tx {chainTx.slice(0, 10)}…
         </p>
       )}
     </div>

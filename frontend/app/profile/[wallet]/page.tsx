@@ -93,7 +93,7 @@ export default function PublicProfilePage() {
       </div>
 
       <div className="profile-tab-content">
-        <div className="data-grid data-grid--single" style={{ marginTop: 8 }}>
+        <div className="stream-card-grid" style={{ marginTop: 8 }}>
           {streams.map((stream) => (
             <StreamCard key={stream.id} stream={stream} />
           ))}

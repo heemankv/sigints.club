@@ -28,11 +28,11 @@ export default function FollowMaker({ targetProfileId }: { targetProfileId?: str
   }
 
   return (
-    <div className="follow-card">
+    <>
       <button className="button ghost" onClick={follow}>
         Follow Maker
       </button>
       {status && <p className="subtext">{status}</p>}
-    </div>
+    </>
   );
 }

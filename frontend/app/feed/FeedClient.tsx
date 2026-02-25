@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import WalletModal from "../components/WalletModal";
-import SubscribeForm from "../stream/[id]/SubscribeForm";
 import StreamCard from "../components/StreamCard";
 import type { SocialPost, CommentEntry, StreamDetail, AgentProfile } from "../lib/types";
 import {
@@ -34,7 +33,6 @@ import {
   resolveCommentAuthorId,
   shortWallet,
 } from "../lib/utils";
-import { explorerTx } from "../lib/constants";
 import { useCurrentUserProfileId } from "../hooks/useCurrentUserProfileId";
 
 type FeedClientProps = {
@@ -79,8 +77,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
-  const [subscribeStreamId, setSubscribeStreamId] = useState<string | null>(null);
-  const [subscribeTierId, setSubscribeTierId] = useState<string | null>(null);
   const [confirmDeletePostId, setConfirmDeletePostId] = useState<string | null>(null);
   const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
 
@@ -121,10 +117,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       return aMatch - bMatch;
     });
   }, [streams, streamSearchNorm, streamMatchSet]);
-  const activeStream = subscribeStreamId ? streamById.get(subscribeStreamId) : undefined;
-  const activeTier =
-    activeStream?.tiers.find((tier) => tier.tierId === subscribeTierId) ??
-    activeStream?.tiers?.[0];
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -413,21 +405,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     return raw.split(",").map((tag) => tag.trim()).filter(Boolean);
   }
 
-  function openSubscribe(streamId: string) {
-    const stream = streamById.get(streamId);
-    if (stream?.authority && wallet && stream.authority === wallet) {
-      setStatus("You can't subscribe to your own stream.");
-      return;
-    }
-    setSubscribeStreamId(streamId);
-    setSubscribeTierId(stream?.tiers?.[0]?.tierId ?? null);
-  }
-
-  function closeSubscribe() {
-    setSubscribeStreamId(null);
-    setSubscribeTierId(null);
-  }
-
   return (
     <>
 
@@ -499,12 +476,11 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
               onChange={(e) => setStreamSearch(e.target.value)}
             />
           </div>
-          <div className="data-grid data-grid--single" style={{ marginTop: 16, marginInline: 16 }}>
+          <div className="stream-card-grid" style={{ marginTop: 16, marginInline: 16 }}>
             {sortedStreams.map((stream) => (
               <StreamCard
                 key={stream.id}
                 stream={stream}
-                onSubscribe={openSubscribe}
                 viewerWallet={wallet}
                 highlight={streamSearchNorm !== "" && streamMatchSet.has(stream.id)}
                 isSubscribed={Boolean(stream.onchainAddress && subscribedStreamAddresses.has(stream.onchainAddress))}
@@ -512,24 +488,16 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
             ))}
             {streamsLoading && !streams.length && (
               <div className="stream-card">
-                <div className="stream-card-row">
-                  <div className="stream-card-identity">
-                    <p className="subtext" style={{ margin: 0 }}>Loading streams…</p>
-                  </div>
-                </div>
+                <p className="subtext" style={{ margin: 0 }}>Loading streams…</p>
               </div>
             )}
             {!streamsLoading && !streams.length && (
               <div className="stream-card">
-                <div className="stream-card-row">
-                  <div className="stream-card-identity">
-                    <p className="subtext" style={{ margin: 0 }}>No streams available yet. Create the first stream to get started.</p>
-                  </div>
-                  <div className="stream-card-actions">
-                    <Link className="button ghost" href="/register-stream">
-                      Register a Stream →
-                    </Link>
-                  </div>
+                <div className="stream-card-bottom">
+                  <p className="subtext" style={{ margin: 0 }}>No streams available yet. Create the first stream to get started.</p>
+                  <Link className="button ghost" href="/register-stream">
+                    Register a Stream →
+                  </Link>
                 </div>
               </div>
             )}
@@ -599,15 +567,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
                     {(makerWallet || challengeTx) && (
                       <div className="xpost-meta" onClick={(e) => e.stopPropagation()}>
                         {makerWallet && <span className="subtext">Maker: {makerWallet.slice(0, 10)}…</span>}
-                        {challengeTx && (
-                          <a
-                            className="link subtext"
-                            href={explorerTx(challengeTx)}
-                            target="_blank"
-                          >
-                            Tx: {challengeTx.slice(0, 10)}…
-                          </a>
-                        )}
+                        {challengeTx && <span className="subtext">Tx: {challengeTx.slice(0, 10)}…</span>}
                       </div>
                     )}
 
@@ -705,7 +665,10 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
 
                       {/* Subscribe */}
                       {streamId && !isOwnerStream && (
-                        <button className="xpost-subscribe-btn" onClick={() => openSubscribe(streamId)}>
+                        <button
+                          className="xpost-subscribe-btn"
+                          onClick={() => router.push(`/stream/${streamId}`)}
+                        >
                           Subscribe
                         </button>
                       )}
@@ -833,49 +796,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
         />
       )}
 
-      {/* Subscribe modal */}
-      {subscribeStreamId && (
-        <div className="modal-overlay" onClick={closeSubscribe}>
-          <div className="modal-card subscribe-modal" onClick={(event) => event.stopPropagation()}>
-            <button className="modal-close" onClick={closeSubscribe} aria-label="Close">×</button>
-            {!activeStream || !activeTier ? (
-              <>
-                <h3>Stream unavailable</h3>
-                <p className="subtext">We could not load tier data for this stream yet.</p>
-              </>
-            ) : (
-              <>
-                <span className="kicker">Subscribe</span>
-                <h2>{activeStream.name}</h2>
-                <p className="subtext">{activeStream.domain} · {activeStream.evidence}</p>
-                <div className="chip-row">
-                  {activeStream.tiers.map((tier) => (
-                    <button
-                      key={tier.tierId}
-                      className={`chip ${tier.tierId === activeTier.tierId ? "chip--active" : ""}`}
-                      onClick={() => setSubscribeTierId(tier.tierId)}
-                    >
-                      {tier.tierId}
-                    </button>
-                  ))}
-                </div>
-                <SubscribeForm
-                  streamId={activeStream.id}
-                  tierId={activeTier.tierId}
-                  pricingType={activeTier.pricingType}
-                  evidenceLevel={activeTier.evidenceLevel}
-                  price={activeTier.price}
-                  quota={activeTier.quota}
-                  streamOnchainAddress={activeStream.onchainAddress}
-                  streamAuthority={activeStream.authority}
-                  streamDao={activeStream.dao}
-                  streamVisibility={activeStream.visibility}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </>
   );
 }

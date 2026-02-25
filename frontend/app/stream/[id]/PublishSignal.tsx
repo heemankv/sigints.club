@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Transaction, PublicKey } from "@solana/web3.js";
 import { prepareSignal, buildRecordSignalInstruction } from "../../lib/sdkPublish";
-import { explorerTx, STREAM_REGISTRY_PROGRAM_ID, SUBSCRIPTION_PROGRAM_ID } from "../../lib/constants";
+import { STREAM_REGISTRY_PROGRAM_ID, SUBSCRIPTION_PROGRAM_ID } from "../../lib/constants";
 import type { StreamTier } from "../../lib/types";
 
 export default function PublishSignal({
@@ -156,10 +156,7 @@ export default function PublishSignal({
       {recordStatus && <p className="subtext">{recordStatus}</p>}
       {txSig && (
         <p className="subtext">
-          On-chain tx{" "}
-          <a className="link" href={explorerTx(txSig)} target="_blank">
-            {txSig.slice(0, 10)}…
-          </a>
+          On-chain tx {txSig.slice(0, 10)}…
         </p>
       )}
     </>

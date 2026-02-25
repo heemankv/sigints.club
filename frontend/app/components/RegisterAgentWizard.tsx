@@ -19,6 +19,19 @@ type RegisterAgentWizardProps = {
   streamCatalog: StreamDetail[];
   ownedSubscriptionOptions: OwnedSubscriptionOption[];
   onAgentCreated: () => void;
+  heading?: string;
+  basicsMode?: "full" | "nameOnly";
+  roleMode?: "both" | "senderOnly" | "listenerOnly";
+  lockStreamId?: boolean;
+  preset?: {
+    senderEnabled?: boolean;
+    listenerEnabled?: boolean;
+    streamId?: string;
+    listenerStreamIds?: string[];
+    initialStep?: 1 | 2 | 3 | 4;
+    domain?: string;
+    evidence?: "trust" | "verifier" | "hybrid";
+  };
 };
 
 type DeployStep = {
@@ -32,27 +45,47 @@ export default function RegisterAgentWizard({
   streamCatalog,
   ownedSubscriptionOptions,
   onAgentCreated,
+  heading = "Register Agent",
+  basicsMode = "full",
+  roleMode = "both",
+  lockStreamId = false,
+  preset,
 }: RegisterAgentWizardProps) {
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const initialStep = preset?.initialStep ?? 1;
+  const allowSender = roleMode !== "listenerOnly";
+  const allowListener = roleMode !== "senderOnly";
+  const initialSenderEnabled = allowSender ? (preset?.senderEnabled ?? false) : false;
+  const initialStreamId = preset?.streamId ?? "";
+  const initialListenerEnabled = allowListener ? (preset?.listenerEnabled ?? false) : false;
+  const initialListenerStreams = preset?.listenerStreamIds ?? [];
+
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep);
 
   // Step 1 — Basics
   const [name, setName] = useState("");
-  const [domain, setDomain] = useState("");
-  const [evidence, setEvidence] = useState<"trust" | "verifier" | "hybrid">("trust");
+  const [description, setDescription] = useState("");
+  const [domain, setDomain] = useState(preset?.domain ?? "");
+  const [evidence, setEvidence] = useState<"trust" | "verifier" | "hybrid">(
+    preset?.evidence ?? "trust"
+  );
 
   // Step 2 — Sender
-  const [senderEnabled, setSenderEnabled] = useState(false);
-  const [streamId, setStreamId] = useState("");
+  const [senderEnabled, setSenderEnabled] = useState(
+    roleMode === "senderOnly" ? true : initialSenderEnabled
+  );
+  const [streamId, setStreamId] = useState(initialStreamId);
   const [streamDropdownOpen, setStreamDropdownOpen] = useState(false);
   const [agentPubkey, setAgentPubkey] = useState("");
   const [agentSecretKey, setAgentSecretKey] = useState("");
 
   // Step 3 — Listener
-  const [listenerEnabled, setListenerEnabled] = useState(false);
-  const [selectedSubscriptions, setSelectedSubscriptions] = useState<string[]>([]);
+  const [listenerEnabled, setListenerEnabled] = useState(
+    roleMode === "listenerOnly" ? true : initialListenerEnabled
+  );
+  const [selectedSubscriptions, setSelectedSubscriptions] = useState<string[]>(initialListenerStreams);
 
   // Step 4 — Deploy
   const [deploySteps, setDeploySteps] = useState<DeployStep[]>([]);
@@ -63,6 +96,8 @@ export default function RegisterAgentWizard({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function computeRole(): "maker" | "listener" | "both" {
+    if (roleMode === "senderOnly") return "maker";
+    if (roleMode === "listenerOnly") return "listener";
     if (senderEnabled && listenerEnabled) return "both";
     if (senderEnabled) return "maker";
     return "listener";
@@ -81,13 +116,43 @@ export default function RegisterAgentWizard({
   }
 
   // Navigation
+  function nextStep(from: 1 | 2 | 3 | 4): 1 | 2 | 3 | 4 {
+    if (from === 1) {
+      if (allowSender) return 2;
+      if (allowListener) return 3;
+      return 4;
+    }
+    if (from === 2) {
+      if (allowListener) return 3;
+      return 4;
+    }
+    return 4;
+  }
+
+  function prevStep(from: 1 | 2 | 3 | 4): 1 | 2 | 3 | 4 {
+    if (from === 4) {
+      if (allowListener) return 3;
+      if (allowSender) return 2;
+      return 1;
+    }
+    if (from === 3) {
+      if (allowSender) return 2;
+      return 1;
+    }
+    return 1;
+  }
+
   function goToStep2() {
-    if (!name.trim() || !domain.trim()) {
-      setValidationError("Agent name and domain are required.");
+    if (!name.trim()) {
+      setValidationError("Agent name is required.");
+      return;
+    }
+    if (basicsMode === "full" && !domain.trim()) {
+      setValidationError("Agent domain is required.");
       return;
     }
     setValidationError(null);
-    setStep(2);
+    setStep(nextStep(1));
   }
 
   function goToStep3() {
@@ -96,7 +161,7 @@ export default function RegisterAgentWizard({
       return;
     }
     setValidationError(null);
-    setStep(3);
+    setStep(nextStep(2));
   }
 
   function goToStep4() {
@@ -117,6 +182,13 @@ export default function RegisterAgentWizard({
     if (!publicKey) return;
     setDeploying(true);
     setDeployDone(false);
+
+    const fallbackDomain =
+      domain.trim() ||
+      preset?.domain ||
+      streamCatalog[0]?.domain ||
+      "listener";
+    const fallbackEvidence = evidence ?? preset?.evidence ?? "trust";
 
     const steps: DeployStep[] = [{ label: "Register agent", status: "pending" }];
     if (senderEnabled) {
@@ -141,11 +213,11 @@ export default function RegisterAgentWizard({
         ownerWallet: walletAddr,
         agentPubkey: agentPubkey.trim() || undefined,
         name: name.trim(),
-        domain: domain.trim(),
-        description: "",
+        domain: fallbackDomain,
+        description: description.trim() || undefined,
         role: computeRole(),
         streamId: senderEnabled ? streamId.trim() : undefined,
-        evidence,
+        evidence: fallbackEvidence,
       });
       createdAgentId = res.agent.id;
       updateStep(stepIdx, { status: "done" });
@@ -218,17 +290,18 @@ export default function RegisterAgentWizard({
   }
 
   function reset() {
-    setStep(1);
+    setStep(initialStep);
     setName("");
-    setDomain("");
-    setEvidence("trust");
-    setSenderEnabled(false);
-    setStreamId("");
+    setDescription("");
+    setDomain(preset?.domain ?? "");
+    setEvidence(preset?.evidence ?? "trust");
+    setSenderEnabled(roleMode === "senderOnly" ? true : initialSenderEnabled);
+    setStreamId(initialStreamId);
     setStreamDropdownOpen(false);
     setAgentPubkey("");
     setAgentSecretKey("");
-    setListenerEnabled(false);
-    setSelectedSubscriptions([]);
+    setListenerEnabled(roleMode === "listenerOnly" ? true : initialListenerEnabled);
+    setSelectedSubscriptions(initialListenerStreams);
     setDeploySteps([]);
     setDeploying(false);
     setDeployDone(false);
@@ -236,27 +309,28 @@ export default function RegisterAgentWizard({
   }
 
   const STEPS = [
-    { n: 1, label: "Basics" },
-    { n: 2, label: "Sender" },
-    { n: 3, label: "Listener" },
-    { n: 4, label: "Deploy" },
+    { n: 1, label: "Basics", show: true },
+    { n: 2, label: "Sender", show: allowSender },
+    { n: 3, label: "Listener", show: allowListener },
+    { n: 4, label: "Deploy", show: true },
   ] as const;
+  const visibleSteps = STEPS.filter((s) => s.show);
 
   return (
     <div
       className="x-rail-module"
       style={{ border: 0, background: "transparent", padding: 0, marginBottom: 24 }}
     >
-      <h3 className="x-rail-heading">Register Agent</h3>
+      <h3 className="x-rail-heading">{heading}</h3>
 
       {/* Step bar */}
       <div className="step-bar">
-        {STEPS.map(({ n, label }) => (
+        {visibleSteps.map(({ n, label }, idx) => (
           <div
             key={n}
             className={`step-item${step > n ? " step-item--done" : ""}${step === n ? " step-item--active" : ""}`}
           >
-            <div className="step-dot">{step > n ? "\u2713" : n}</div>
+            <div className="step-dot">{step > n ? "\u2713" : idx + 1}</div>
             <span className="step-label">{label}</span>
           </div>
         ))}
@@ -266,7 +340,11 @@ export default function RegisterAgentWizard({
       {step === 1 && (
         <div className="step-content">
           <h3>Agent Basics</h3>
-          <p className="subtext">Name, domain, and evidence level for your agent.</p>
+          <p className="subtext">
+            {basicsMode === "full"
+              ? "Name, domain, and evidence level for your agent."
+              : "Name your agent."}
+          </p>
           <input
             className="input"
             value={name}
@@ -274,25 +352,37 @@ export default function RegisterAgentWizard({
             placeholder="Agent name"
             style={{ marginBottom: 8 }}
           />
-          <input
+          <textarea
             className="input"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="Domain (e.g. pricing)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description (optional)"
+            rows={3}
             style={{ marginBottom: 8 }}
           />
-          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-            {(["trust", "verifier", "hybrid"] as const).map((ev) => (
-              <button
-                key={ev}
-                className={`button ${evidence === ev ? "primary" : "ghost"}`}
-                onClick={() => setEvidence(ev)}
-                style={{ flex: 1, fontSize: 11, padding: "6px 4px" }}
-              >
-                {ev}
-              </button>
-            ))}
-          </div>
+          {basicsMode === "full" && (
+            <>
+              <input
+                className="input"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="Domain (e.g. pricing)"
+                style={{ marginBottom: 8 }}
+              />
+              <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                {(["trust", "verifier", "hybrid"] as const).map((ev) => (
+                  <button
+                    key={ev}
+                    className={`button ${evidence === ev ? "primary" : "ghost"}`}
+                    onClick={() => setEvidence(ev)}
+                    style={{ flex: 1, fontSize: 11, padding: "6px 4px" }}
+                  >
+                    {ev}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {validationError && (
             <p className="subtext" style={{ color: "var(--accent)", marginTop: 4 }}>
               {validationError}
@@ -307,7 +397,7 @@ export default function RegisterAgentWizard({
       )}
 
       {/* Step 2: Sender */}
-      {step === 2 && (
+      {step === 2 && allowSender && (
         <div className="step-content">
           <h3>Sender Configuration</h3>
           <p className="subtext">Configure this agent to publish signals to a stream.</p>
@@ -316,53 +406,64 @@ export default function RegisterAgentWizard({
               type="checkbox"
               checked={senderEnabled}
               onChange={(e) => setSenderEnabled(e.target.checked)}
+              disabled={roleMode === "senderOnly"}
             />
             <span>This agent will publish signals</span>
           </label>
           {senderEnabled && (
             <>
-              <div className={`signal-activity${streamDropdownOpen ? " signal-activity--open" : ""}`} style={{ marginBottom: 8 }}>
-                <button
-                  className="signal-activity__toggle"
-                  type="button"
-                  onClick={() => setStreamDropdownOpen((p) => !p)}
-                >
-                  <span>{streamId ? streamCatalog.find((s) => s.id === streamId)?.name ?? streamId : "Select a stream"}</span>
-                  <span className="signal-activity__meta">
-                    {streamId ? streamId : ""}
-                  </span>
-                  <span className="signal-activity__chev">{streamDropdownOpen ? "\u25B4" : "\u25BE"}</span>
-                </button>
-                {streamDropdownOpen && (
-                  <div className="signal-activity__list">
-                    {streamCatalog.filter((s) => s.authority === walletAddr).length === 0 && (
-                      <div className="signal-activity__empty">No streams owned by this wallet.</div>
-                    )}
-                    {streamCatalog
-                      .filter((s) => s.authority === walletAddr)
-                      .map((stream) => (
-                        <button
-                          key={stream.id}
-                          type="button"
-                          className="signal-activity__item"
-                          style={{
-                            cursor: "pointer",
-                            background: streamId === stream.id ? "rgba(255,255,255,0.08)" : "transparent",
-                            border: "none",
-                            borderRadius: 8,
-                            padding: "8px 4px",
-                            width: "100%",
-                            textAlign: "left",
-                          }}
-                          onClick={() => { setStreamId(stream.id); setStreamDropdownOpen(false); }}
-                        >
-                          <span className="signal-activity__time">{stream.name}</span>
-                          <span className="signal-activity__meta">{stream.id}</span>
-                        </button>
-                      ))}
+              {lockStreamId ? (
+                <div className="stream-locked">
+                  <div>
+                    <strong>{streamCatalog.find((s) => s.id === streamId)?.name ?? streamId}</strong>
+                    <span className="subtext">{streamId}</span>
                   </div>
-                )}
-              </div>
+                  <span className="badge">Selected</span>
+                </div>
+              ) : (
+                <div className={`signal-activity${streamDropdownOpen ? " signal-activity--open" : ""}`} style={{ marginBottom: 8 }}>
+                  <button
+                    className="signal-activity__toggle"
+                    type="button"
+                    onClick={() => setStreamDropdownOpen((p) => !p)}
+                  >
+                    <span>{streamId ? streamCatalog.find((s) => s.id === streamId)?.name ?? streamId : "Select a stream"}</span>
+                    <span className="signal-activity__meta">
+                      {streamId ? streamId : ""}
+                    </span>
+                    <span className="signal-activity__chev">{streamDropdownOpen ? "\u25B4" : "\u25BE"}</span>
+                  </button>
+                  {streamDropdownOpen && (
+                    <div className="signal-activity__list">
+                      {streamCatalog.filter((s) => s.authority === walletAddr).length === 0 && (
+                        <div className="signal-activity__empty">No streams owned by this wallet.</div>
+                      )}
+                      {streamCatalog
+                        .filter((s) => s.authority === walletAddr)
+                        .map((stream) => (
+                          <button
+                            key={stream.id}
+                            type="button"
+                            className="signal-activity__item"
+                            style={{
+                              cursor: "pointer",
+                              background: streamId === stream.id ? "rgba(255,255,255,0.08)" : "transparent",
+                              border: "none",
+                              borderRadius: 8,
+                              padding: "8px 4px",
+                              width: "100%",
+                              textAlign: "left",
+                            }}
+                            onClick={() => { setStreamId(stream.id); setStreamDropdownOpen(false); }}
+                          >
+                            <span className="signal-activity__time">{stream.name}</span>
+                            <span className="signal-activity__meta">{stream.id}</span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "stretch" }}>
                 <input
                   className="input"
@@ -402,7 +503,7 @@ export default function RegisterAgentWizard({
             </p>
           )}
           <div className="step-actions">
-            <button className="button ghost" onClick={() => { setValidationError(null); setStep(1); }}>
+            <button className="button ghost" onClick={() => { setValidationError(null); setStep(prevStep(2)); }}>
               &larr; Back
             </button>
             <button className="button primary" onClick={goToStep3}>
@@ -413,7 +514,7 @@ export default function RegisterAgentWizard({
       )}
 
       {/* Step 3: Listener */}
-      {step === 3 && (
+      {step === 3 && allowListener && (
         <div className="step-content">
           <h3>Listener Configuration</h3>
           <p className="subtext">Configure this agent to listen to streams you are subscribed to.</p>
@@ -422,6 +523,7 @@ export default function RegisterAgentWizard({
               type="checkbox"
               checked={listenerEnabled}
               onChange={(e) => setListenerEnabled(e.target.checked)}
+              disabled={roleMode === "listenerOnly"}
             />
             <span>This agent will listen to streams</span>
           </label>
@@ -458,7 +560,7 @@ export default function RegisterAgentWizard({
             </p>
           )}
           <div className="step-actions">
-            <button className="button ghost" onClick={() => { setValidationError(null); setStep(2); }}>
+            <button className="button ghost" onClick={() => { setValidationError(null); setStep(prevStep(3)); }}>
               &larr; Back
             </button>
             <button className="button primary" onClick={goToStep4}>
@@ -479,14 +581,24 @@ export default function RegisterAgentWizard({
               <span>Name</span>
               <strong>{name}</strong>
             </div>
-            <div className="deploy-summary-row">
-              <span>Domain</span>
-              <strong>{domain}</strong>
-            </div>
-            <div className="deploy-summary-row">
-              <span>Evidence</span>
-              <strong>{evidence}</strong>
-            </div>
+            {description.trim() && (
+              <div className="deploy-summary-row">
+                <span>Description</span>
+                <strong>{description}</strong>
+              </div>
+            )}
+            {basicsMode === "full" && (
+              <>
+                <div className="deploy-summary-row">
+                  <span>Domain</span>
+                  <strong>{domain}</strong>
+                </div>
+                <div className="deploy-summary-row">
+                  <span>Evidence</span>
+                  <strong>{evidence}</strong>
+                </div>
+              </>
+            )}
             <div className="deploy-summary-row">
               <span>Role</span>
               <strong>
@@ -562,7 +674,7 @@ export default function RegisterAgentWizard({
             <div className="step-actions">
               <button
                 className="button ghost"
-                onClick={() => { setValidationError(null); setStep(3); }}
+                onClick={() => { setValidationError(null); setStep(prevStep(4)); }}
                 disabled={deploying}
               >
                 &larr; Back

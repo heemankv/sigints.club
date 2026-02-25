@@ -1,5 +1,4 @@
 import { getCardArtUrl } from "../lib/cardArt";
-import { explorerAddress } from "../lib/constants";
 
 type OwnedSubscriptionCardProps = {
   streamName: string;
@@ -85,16 +84,7 @@ export default function OwnedSubscriptionCard({
           </div>
         )}
 
-        <div className="data-card__actions">
-          <a
-            className="button ghost data-card__nft-btn"
-            href={explorerAddress(nftMint)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View NFT ↗
-          </a>
-        </div>
+        <div className="data-card__actions" />
       </div>
     </div>
   );

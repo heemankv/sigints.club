@@ -1,10 +1,9 @@
 import Link from "next/link";
 import type { StreamDetail } from "../lib/types";
-import { getCardArtUrl } from "../lib/cardArt";
+import CopyBlinkButton from "./CopyBlinkButton";
 
 type StreamCardProps = {
   stream: StreamDetail;
-  onSubscribe?: (streamId: string) => void;
   viewerWallet?: string | null;
   highlight?: boolean;
   isSubscribed?: boolean;
@@ -14,93 +13,93 @@ function formatTierLabel(tierId: string): string {
   return tierId.replace(/^tier-/, "").replace(/-/g, " ").toUpperCase();
 }
 
-function formatMeta(stream: StreamDetail): string {
-  const parts = [stream.domain, stream.accuracy, stream.latency].filter(Boolean);
-  return parts.join(" • ");
-}
-
-function formatPricingLabel(pricingType?: string): string {
-  if (!pricingType) return "subscription";
-  if (pricingType === "subscription_unlimited") return "monthly subscription";
-  return pricingType.replace(/_/g, " ");
-}
-
-export default function StreamCard({ stream, onSubscribe, viewerWallet, highlight, isSubscribed }: StreamCardProps) {
+export default function StreamCard({ stream, viewerWallet, highlight, isSubscribed }: StreamCardProps) {
   const primaryTier = stream.tiers?.[0];
-  const tierId = primaryTier?.tierId ?? "tier";
-  const tierLabel = formatTierLabel(tierId);
-  const artUrl = getCardArtUrl(`${stream.id}:${tierId}`);
-  const evidenceLabel = primaryTier?.evidenceLevel ?? stream.evidence;
-  const pricingLabel = formatPricingLabel(primaryTier?.pricingType);
+  const tierLabel = primaryTier ? formatTierLabel(primaryTier.tierId) : null;
   const priceLabel = primaryTier?.price ?? stream.price;
-  const meta = formatMeta(stream);
-  const hasTier = Boolean(primaryTier);
+  const evidenceLabel = primaryTier?.evidenceLevel ?? stream.evidence;
   const visibilityLabel = stream.visibility === "public" ? "Public" : "Private";
   const isOwner = Boolean(viewerWallet && stream.authority && viewerWallet === stream.authority);
+  const hasTier = Boolean(primaryTier);
   const canSubscribe = hasTier && !isOwner;
 
+  const desc = stream.description
+    ? stream.description.length > 120
+      ? `${stream.description.slice(0, 120)}…`
+      : stream.description
+    : null;
+
   return (
-    <div className={`data-card data-card--compact data-card--side${highlight ? " data-card--highlight" : ""}`}>
-      <div className="data-card__media">
-        <img src={artUrl} alt={`${stream.name} art`} />
-        <div className="data-card__overlay">
-          {evidenceLabel && <span className="badge">{evidenceLabel}</span>}
-          <span className="badge">{visibilityLabel}</span>
-          <span className="badge accent">{pricingLabel}</span>
-        </div>
-        <div className="data-card__tier">{tierLabel}</div>
-      </div>
-
-      <div className="data-card__body">
-        <div className="data-card__title">
-          <div>
-            <h3>{stream.name}</h3>
-            <p className="subtext">{meta || "Stream"}</p>
+    <div className={`stream-card${highlight ? " stream-card--highlight" : ""}`}>
+      {/* Price stripe — hidden, revealed on hover */}
+      {priceLabel && (() => {
+        const match = priceLabel.match(/^(.+?)\s*\/\s*mo(?:nth)?$/i);
+        const amount = match ? match[1] : priceLabel;
+        const hasPeriod = Boolean(match);
+        return (
+          <div className="stream-card-price-stripe">
+            <span className="stream-card-price-label">
+              {amount}
+              {hasPeriod && <span className="stream-card-price-period">/month</span>}
+            </span>
           </div>
-          {priceLabel && <div className="data-card__price">{priceLabel}</div>}
-        </div>
+        );
+      })()}
 
-        {stream.description && (
-          <p className="data-card__desc">
-            {stream.description.length > 160
-              ? `${stream.description.slice(0, 160)}…`
-              : stream.description}
-          </p>
-        )}
-
-        {!hasTier && (
-          <p className="subtext">No tiers configured yet.</p>
-        )}
-
-        <div className="data-card__actions">
-          {!isOwner && !isSubscribed && (
-            <button
-              className="button primary"
-              onClick={() => {
-                if (!canSubscribe) return;
-                onSubscribe?.(stream.id);
-              }}
-              disabled={!canSubscribe}
-            >
-              Subscribe
-            </button>
+      {/* Card content — shifts right on hover */}
+      <div className="stream-card-content">
+        {/* Top row: name + Copy Blink left, Yours tag right */}
+        <div className="stream-card-top">
+          <div className="stream-card-name-row">
+            <h3 className="stream-card-name">{stream.name}</h3>
+            <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="stream-card-copy-blink" />
+          </div>
+          {isOwner && (
+            <span className="data-card__owner-tag data-card__owner-tag--inline">
+              <span className="data-card__owner-tag__icon">✉</span>
+              Yours
+            </span>
           )}
           {!isOwner && isSubscribed && (
-            <button className="button ghost" disabled>
+            <span className="data-card__owner-tag data-card__owner-tag--inline data-card__owner-tag--subscribed">
+              <span className="data-card__owner-tag__icon">✓</span>
               Subscribed
-            </button>
+            </span>
           )}
-          <Link className="button ghost" href={`/stream/${stream.id}`}>
-            View Stream →
-          </Link>
+        </div>
+
+        {/* Tags + stats */}
+        <div className="stream-card-middle">
+          <div className="stream-card-header">
+            {stream.domain && <span className="badge badge-sm badge-teal">{stream.domain}</span>}
+            {evidenceLabel && <span className="badge badge-sm badge-gold">{evidenceLabel}</span>}
+            <span className={`badge badge-sm ${stream.visibility === "private" ? "badge-private" : "badge-public"}`}>
+              {visibilityLabel}
+            </span>
+          </div>
+          {(stream.accuracy || stream.latency) && (
+            <div className="stream-card-meta">
+              {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
+              {stream.latency && <span>{stream.latency} latency</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom row: description left, actions right */}
+        <div className="stream-card-bottom">
+          {desc && <p className="stream-card-desc">{desc}</p>}
+          <div className="stream-card-bottom-actions">
+            {!isOwner && !isSubscribed && canSubscribe && (
+              <Link className="button primary" href={`/stream/${stream.id}`}>
+                Subscribe
+              </Link>
+            )}
+            <Link className="button ghost" href={`/stream/${stream.id}`}>
+              View Stream →
+            </Link>
+          </div>
         </div>
       </div>
-      {isOwner && (
-        <span className="data-card__owner-tag">
-          <span className="data-card__owner-tag__icon">✉</span>
-          Yours
-        </span>
-      )}
     </div>
   );
 }

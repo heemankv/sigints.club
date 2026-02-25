@@ -1,5 +1,4 @@
 import { fetchSignals } from "../lib/sdkBackend";
-import { explorerTx } from "../lib/constants";
 
 export default async function SignalsPage() {
   let signals: Array<{
@@ -40,10 +39,7 @@ export default async function SignalsPage() {
               <div className="subtext">Visibility: {s.visibility ?? "private"}</div>
               {s.onchainTx && (
                 <div className="subtext">
-                  On-chain tx{" "}
-                  <a className="link" href={explorerTx(s.onchainTx)} target="_blank">
-                    {s.onchainTx.slice(0, 8)}…
-                  </a>
+                  On-chain tx {s.onchainTx.slice(0, 8)}…
                 </div>
               )}
             </div>

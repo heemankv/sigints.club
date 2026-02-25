@@ -57,86 +57,95 @@ export default function MyStreamsSection() {
 
   return (
     <div className="stream-card-grid">
-      {myStreams.map((stream) => (
-        <div className="stream-card" key={stream.id}>
-          <div className="stream-card-row">
+      {myStreams.map((stream) => {
+        const subCount = subscriberCounts[stream.id];
+        const desc = stream.description
+          ? stream.description.length > 80
+            ? `${stream.description.slice(0, 80)}…`
+            : stream.description
+          : null;
+        const subDesc = [
+          subCount !== undefined ? `${subCount} subs` : null,
+          desc,
+        ].filter(Boolean).join(" | ");
 
-            {/* Identity */}
-            <div className="stream-card-identity">
-              <div className="stream-card-header">
-                {stream.domain && <span className="badge badge-teal">{stream.domain}</span>}
-                {stream.evidence && <span className="badge badge-gold">{stream.evidence}</span>}
-                {stream.visibility && (
-                  <span
-                    className={`badge ${stream.visibility === "private" ? "badge-private" : "badge-public"}`}
-                  >
-                    {stream.visibility}
-                  </span>
+        const priceLabel = stream.tiers?.[0]?.price ?? null;
+        const priceMatch = priceLabel?.match(/^(.+?)\s*\/\s*mo(?:nth)?$/i);
+        const priceAmount = priceMatch ? priceMatch[1] : priceLabel;
+        const hasPeriod = Boolean(priceMatch);
+
+        return (
+          <div className="stream-card" key={stream.id}>
+            {/* Price stripe — solid orange bar, expands on hover */}
+            {priceLabel && (
+              <div className="stream-card-price-stripe">
+                <span className="stream-card-price-label">
+                  {priceAmount}
+                  {hasPeriod && <span className="stream-card-price-period">/month</span>}
+                </span>
+              </div>
+            )}
+
+            <div className="stream-card-content">
+              {/* Top row: name + Copy Blink left, tier chips right */}
+              <div className="stream-card-top">
+                <div className="stream-card-name-row">
+                  <h3 className="stream-card-name">{stream.name}</h3>
+                  <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="stream-card-copy-blink" />
+                </div>
+                {stream.tiers?.length > 0 && (
+                  <div className="chip-row">
+                    {stream.tiers.map((t) => (
+                      <span className="chip" key={t.tierId}>{t.tierId}</span>
+                    ))}
+                  </div>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <h3 className="stream-card-name" style={{ margin: 0 }}>{stream.name}</h3>
-                <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="button ghost" />
-              </div>
-              {stream.description && (
-                <p className="stream-card-desc">
-                  {stream.description.length > 80
-                    ? `${stream.description.slice(0, 80)}…`
-                    : stream.description}
-                </p>
-              )}
-            </div>
 
-            {/* Stats */}
-            <div className="stream-card-stats">
-              {(stream.accuracy || stream.latency || subscriberCounts[stream.id] !== undefined) && (
-                <div className="stream-card-meta">
-                  {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
-                  {stream.latency && <span>{stream.latency} latency</span>}
-                  {subscriberCounts[stream.id] !== undefined && (
-                    <span>{subscriberCounts[stream.id]} subs</span>
+              {/* Tags + stats */}
+              <div className="stream-card-middle">
+                <div className="stream-card-header">
+                  {stream.domain && <span className="badge badge-sm badge-teal">{stream.domain}</span>}
+                  {stream.evidence && <span className="badge badge-sm badge-gold">{stream.evidence}</span>}
+                  {stream.visibility && (
+                    <span
+                      className={`badge badge-sm ${stream.visibility === "private" ? "badge-private" : "badge-public"}`}
+                    >
+                      {stream.visibility}
+                    </span>
                   )}
                 </div>
-              )}
-              {stream.tiers?.length > 0 && (
-                <div className="chip-row">
-                  {stream.tiers.map((t) => (
-                    <span className="chip" key={t.tierId}>{t.tierId}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+                {(stream.accuracy || stream.latency) && (
+                  <div className="stream-card-meta">
+                    {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
+                    {stream.latency && <span>{stream.latency} latency</span>}
+                  </div>
+                )}
+              </div>
 
-            {/* Actions */}
-            <div className="stream-card-actions">
-              <Link className="button ghost" href={`/stream/${stream.id}`}>
-                Manage →
-              </Link>
+              {/* Bottom row: subs | description left, Manage right */}
+              <div className="stream-card-bottom">
+                {subDesc && <p className="stream-card-desc">{subDesc}</p>}
+                <Link className="button ghost" href={`/stream/${stream.id}`}>
+                  Manage →
+                </Link>
+              </div>
             </div>
-
           </div>
-        </div>
-      ))}
+        );
+      })}
       {loading && myStreams.length === 0 && (
         <div className="stream-card">
-          <div className="stream-card-row">
-            <div className="stream-card-identity">
-              <p className="subtext" style={{ margin: 0 }}>Loading your streams…</p>
-            </div>
-          </div>
+          <p className="subtext" style={{ margin: 0 }}>Loading your streams…</p>
         </div>
       )}
       {!loading && myStreams.length === 0 && (
         <div className="stream-card">
-          <div className="stream-card-row">
-            <div className="stream-card-identity">
-              <p className="subtext" style={{ margin: 0 }}>No streams registered yet.</p>
-            </div>
-            <div className="stream-card-actions">
-              <Link className="button ghost" href="/register-stream">
-                Register a Stream →
-              </Link>
-            </div>
+          <div className="stream-card-bottom">
+            <p className="subtext" style={{ margin: 0 }}>No streams registered yet.</p>
+            <Link className="button ghost" href="/register-stream">
+              Register a Stream →
+            </Link>
           </div>
         </div>
       )}

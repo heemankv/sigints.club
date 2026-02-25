@@ -11,6 +11,8 @@ type StreamMetaInput = {
   latency: string;
   price: string;
   evidence: string;
+  signalInterval?: "unintervalled" | "intervalled";
+  cronSchedule?: string;
   ownerWallet: string;
   authority?: string;
   dao?: string;
@@ -137,6 +139,8 @@ export class TapestryStreamService {
       { key: "latency", value: input.latency },
       { key: "price", value: input.price },
       { key: "evidence", value: input.evidence },
+      ...(input.signalInterval ? [{ key: "signalInterval", value: input.signalInterval }] : []),
+      ...(input.cronSchedule ? [{ key: "cronSchedule", value: input.cronSchedule }] : []),
       { key: "ownerWallet", value: input.ownerWallet },
       ...(input.authority ? [{ key: "authority", value: input.authority }] : []),
       ...(input.dao ? [{ key: "dao", value: input.dao }] : []),
