@@ -193,13 +193,7 @@ export class TapestryClient {
         };
       }
     }
-    const fallback = entries?.[0];
-    if (!fallback?.profile) return null;
-    return {
-      profile: fallback.profile,
-      wallet: fallback.wallet,
-      namespace: fallback.namespace,
-    };
+    return null;
   }
 
   async searchProfilesByWallet(walletAddress: string, limit = 20, offset = 0) {

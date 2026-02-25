@@ -77,6 +77,7 @@ export default function PublicProfilePage() {
           <div className="profile-header-name">
             {profile?.displayName ?? walletShort}
           </div>
+          <div className="profile-header-wallet">{wallet}</div>
           {profile?.bio && (
             <div className="x-trend-category" style={{ marginTop: 2 }}>
               {profile.bio}
@@ -88,7 +89,6 @@ export default function PublicProfilePage() {
               <span><strong>{followCounts?.followers ?? "…"}</strong> Followers</span>
             </div>
           )}
-          <div className="profile-header-wallet">{wallet}</div>
         </div>
       </div>
 

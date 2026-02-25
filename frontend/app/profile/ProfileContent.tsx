@@ -2,40 +2,28 @@
 
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import Link from "next/link";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { fetchStreams, readStreamsCache } from "../lib/api/streams";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { fetchStreams, readStreamsCache, fetchStreamSubscribers, readStreamStatsCache, writeStreamStatsCache } from "../lib/api/streams";
 import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
-import {
-  createAgentSubscription as sdkCreateAgentSubscription,
-  deleteAgentSubscription,
-  updateUserProfile,
-} from "../lib/sdkBackend";
+import { updateUserProfile } from "../lib/sdkBackend";
 import {
   fetchAgents,
-  readAgentsCache,
   fetchAgentSubscriptions,
   readAgentSubsCache,
+  readAgentsCache,
 } from "../lib/api/agents";
 import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier, OwnedSubscriptionOption } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
 import RegisterAgentWizard from "../components/RegisterAgentWizard";
-import {
-  sha256Bytes,
-  buildGrantPublisherInstruction,
-  buildRevokePublisherInstruction,
-  deriveStreamPda,
-  resolveStreamRegistryId,
-} from "../lib/solana";
+import { sha256Bytes } from "../lib/solana";
 import { toHex } from "../lib/utils";
 import { useUserProfile, type UserProfile } from "../lib/userProfile";
 
 export type ProfileTab = "subscriptions" | "streams" | "agents" | "actions";
 
 export default function ProfileContent({ initialTab = "subscriptions" }: { initialTab?: ProfileTab }) {
-  const { publicKey, sendTransaction } = useWallet();
-  const { connection } = useConnection();
+  const { publicKey } = useWallet();
   const { profile, setProfile, followCounts, followCountsLoading } = useUserProfile();
 
   const [editDisplayName, setEditDisplayName] = useState("");
@@ -43,21 +31,19 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [editStatus, setEditStatus] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
-  const [agentSubscriptions, setAgentSubscriptions] = useState<AgentSubscription[]>([]);
   const [ownedSubscriptionOptions, setOwnedSubscriptionOptions] = useState<OwnedSubscriptionOption[]>([]);
   const [streamCatalog, setStreamCatalog] = useState<StreamDetail[]>([]);
   const [subscriptionCards, setSubscriptionCards] = useState<ComponentProps<typeof OwnedSubscriptionCard>[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
   const [subsError, setSubsError] = useState<string | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
-
-  const [linkSelections, setLinkSelections] = useState<Record<string, string>>({});
-  const [linkStatus, setLinkStatus] = useState<Record<string, string | null>>({});
-  const [publishStatus, setPublishStatus] = useState<Record<string, string | null>>({});
-  const [managingAgentId, setManagingAgentId] = useState<string | null>(null);
+  const [agentSubscriptions, setAgentSubscriptions] = useState<AgentSubscription[]>([]);
+  const [myStreamCount, setMyStreamCount] = useState<number | null>(null);
+  const [totalSubscribers, setTotalSubscribers] = useState<number | null>(null);
 
   const activeTab = initialTab;
   const [actionsTab, setActionsTab] = useState<"editProfile" | "streamKeys">("editProfile");
+  const [agentsSubTab, setAgentsSubTab] = useState<"active" | "register">("active");
 
   const walletAddr = publicKey?.toBase58();
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
@@ -66,6 +52,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     if (!walletAddr) return;
     void loadAgents();
     void loadAgentSubscriptions();
+    void loadStreamStats();
   }, [walletAddr]);
 
   useEffect(() => {
@@ -198,7 +185,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
       const res = await fetchAgents({ owner: walletAddr });
       setAgents(res.agents ?? []);
     } catch {
-      if (!cached?.length) setAgents([]);
+      // preserve existing UI on transient errors
     } finally {
       setAgentsLoading(false);
     }
@@ -212,111 +199,45 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
       const res = await fetchAgentSubscriptions({ owner: walletAddr });
       setAgentSubscriptions(res.agentSubscriptions ?? []);
     } catch {
-      if (!cached?.length) setAgentSubscriptions([]);
+      // preserve existing UI on transient errors
     }
   }
 
-  async function linkSubscription(agentId: string) {
-    if (!walletAddr) {
-      setLinkStatus((prev) => ({ ...prev, [agentId]: "Connect your wallet first." }));
-      return;
-    }
-    const streamId = linkSelections[agentId];
-    if (!streamId) {
-      setLinkStatus((prev) => ({ ...prev, [agentId]: "Select a subscription to link." }));
-      return;
-    }
-    const option = ownedSubscriptionOptions.find((opt) => opt.streamId === streamId);
-    if (!option) {
-      setLinkStatus((prev) => ({ ...prev, [agentId]: "Subscription details not found." }));
-      return;
-    }
-    setLinkStatus((prev) => ({ ...prev, [agentId]: null }));
-    try {
-      await sdkCreateAgentSubscription({
-        ownerWallet: walletAddr,
-        agentId,
-        streamId: option.streamId,
-        tierId: option.tierId,
-        pricingType: option.pricingType,
-        evidenceLevel: option.evidenceLevel,
-        visibility: option.visibility,
-      });
-      await loadAgentSubscriptions();
-      setLinkSelections((prev) => ({ ...prev, [agentId]: "" }));
-      setLinkStatus((prev) => ({ ...prev, [agentId]: "Subscription linked." }));
-    } catch (err: any) {
-      setLinkStatus((prev) => ({ ...prev, [agentId]: err?.message ?? "Failed to link subscription." }));
-    }
-  }
+  const agentSubsById = useMemo(() => {
+    const map = new Map<string, number>();
+    agentSubscriptions.forEach((sub) => {
+      map.set(sub.agentId, (map.get(sub.agentId) ?? 0) + 1);
+    });
+    return map;
+  }, [agentSubscriptions]);
 
-  async function unlinkSubscription(agentId: string, subscriptionId: string) {
-    try {
-      await deleteAgentSubscription(subscriptionId);
-      await loadAgentSubscriptions();
-      setLinkStatus((prev) => ({ ...prev, [agentId]: "Subscription removed." }));
-    } catch (err: any) {
-      setLinkStatus((prev) => ({ ...prev, [agentId]: err?.message ?? "Failed to remove subscription." }));
+  async function loadStreamStats() {
+    if (!walletAddr) return;
+    // Show cached stats instantly
+    const cached = readStreamStatsCache(walletAddr);
+    if (cached) {
+      setMyStreamCount(cached.streamCount);
+      setTotalSubscribers(cached.totalSubscribers);
     }
-  }
-
-  async function grantPublisher(agent: AgentProfile) {
     try {
-      if (!publicKey) {
-        throw new Error("Connect your wallet first.");
-      }
-      if (!agent.streamId) {
-        throw new Error("Agent is missing a publish stream.");
-      }
-      if (!agent.agentPubkey) {
-        throw new Error("Agent public key is missing.");
-      }
-      const programId = resolveStreamRegistryId();
-      const streamPda = await deriveStreamPda(programId, agent.streamId);
-      const ix = await buildGrantPublisherInstruction({
-        programId,
-        stream: streamPda,
-        authority: publicKey,
-        agent: new PublicKey(agent.agentPubkey),
-      });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      const signature = await sendTransaction(tx, connection);
-      setPublishStatus((prev) => ({ ...prev, [agent.id]: `Publish granted (${signature.slice(0, 10)}…)` }));
-    } catch (err: any) {
-      setPublishStatus((prev) => ({ ...prev, [agent.id]: err?.message ?? "Failed to grant publish." }));
-    }
-  }
-
-  async function revokePublisher(agent: AgentProfile) {
-    try {
-      if (!publicKey) {
-        throw new Error("Connect your wallet first.");
-      }
-      if (!agent.streamId) {
-        throw new Error("Agent is missing a publish stream.");
-      }
-      if (!agent.agentPubkey) {
-        throw new Error("Agent public key is missing.");
-      }
-      const programId = resolveStreamRegistryId();
-      const streamPda = await deriveStreamPda(programId, agent.streamId);
-      const ix = await buildRevokePublisherInstruction({
-        programId,
-        stream: streamPda,
-        authority: publicKey,
-        agent: new PublicKey(agent.agentPubkey),
-      });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      const signature = await sendTransaction(tx, connection);
-      setPublishStatus((prev) => ({ ...prev, [agent.id]: `Publish revoked (${signature.slice(0, 10)}…)` }));
-    } catch (err: any) {
-      setPublishStatus((prev) => ({ ...prev, [agent.id]: err?.message ?? "Failed to revoke publish." }));
+      const data = await fetchStreams({ includeTiers: true });
+      const mine = (data.streams ?? []).filter((s) => s.authority === walletAddr);
+      setMyStreamCount(mine.length);
+      const counts = await Promise.all(
+        mine.map(async (stream) => {
+          try {
+            const res = await fetchStreamSubscribers(stream.id);
+            return res.count;
+          } catch {
+            return 0;
+          }
+        })
+      );
+      const total = counts.reduce((sum, c) => sum + c, 0);
+      setTotalSubscribers(total);
+      writeStreamStatsCache(walletAddr, { streamCount: mine.length, totalSubscribers: total });
+    } catch {
+      // preserve existing UI on transient errors
     }
   }
 
@@ -351,19 +272,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     }
   }
 
-  const streamNameById = useMemo(
-    () => new Map(streamCatalog.map((stream) => [stream.id, stream.name])),
-    [streamCatalog]
-  );
-  const subscriptionsByAgent = useMemo(() => {
-    const map = new Map<string, AgentSubscription[]>();
-    agentSubscriptions.forEach((sub) => {
-      const current = map.get(sub.agentId) ?? [];
-      current.push(sub);
-      map.set(sub.agentId, current);
-    });
-    return map;
-  }, [agentSubscriptions]);
   return (
     <>
         {!publicKey ? (
@@ -381,16 +289,17 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                 <div className="profile-header-name">
                   {profile?.displayName ?? walletShort}
                 </div>
+                <div className="profile-header-wallet">{walletAddr}</div>
                 {profile?.bio && (
                   <div className="x-trend-category" style={{ marginTop: 2 }}>{profile.bio}</div>
                 )}
-                {(followCountsLoading || followCounts) && (
-                  <div className="profile-header-stats">
-                    <span><strong>{followCounts?.following ?? "…"}</strong> Following</span>
-                    <span><strong>{followCounts?.followers ?? "…"}</strong> Followers</span>
-                  </div>
-                )}
-                <div className="profile-header-wallet">{walletAddr}</div>
+                <div className="profile-header-stats">
+                  <span><strong>{followCounts?.following ?? "…"}</strong> Following</span>
+                  <span><strong>{followCounts?.followers ?? "…"}</strong> Followers</span>
+                  <span><strong>{myStreamCount ?? "…"}</strong> Streams</span>
+                  <span><strong>{totalSubscribers ?? "…"}</strong> Subscribers</span>
+                  <span><strong>{agentsLoading ? "…" : agents.length}</strong> Agents</span>
+                </div>
               </div>
             </div>
 
@@ -449,162 +358,83 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
             {activeTab === "agents" && (
               <div className="profile-tab-content">
-                <RegisterAgentWizard
-                  walletAddr={walletAddr!}
-                  streamCatalog={streamCatalog}
-                  ownedSubscriptionOptions={ownedSubscriptionOptions}
-                  onAgentCreated={() => { void loadAgents(); void loadAgentSubscriptions(); }}
-                />
+                <div className="maker-tabs">
+                  <button
+                    className={`maker-tab${agentsSubTab === "active" ? " maker-tab--active" : ""}`}
+                    onClick={() => setAgentsSubTab("active")}
+                  >
+                    Active Agents
+                  </button>
+                  <button
+                    className={`maker-tab${agentsSubTab === "register" ? " maker-tab--active" : ""}`}
+                    onClick={() => setAgentsSubTab("register")}
+                  >
+                    Register
+                  </button>
+                </div>
 
-                <h3 className="x-rail-heading" style={{ marginBottom: 10 }}>Your Agents</h3>
+                {agentsSubTab === "register" && (
+                  <RegisterAgentWizard
+                    walletAddr={walletAddr!}
+                    streamCatalog={streamCatalog}
+                    ownedSubscriptionOptions={ownedSubscriptionOptions}
+                    onAgentCreated={() => { void loadAgents(); setAgentsSubTab("active"); }}
+                  />
+                )}
+
+                {agentsSubTab === "active" && (
                 <div className="stream-card-grid">
                   {agents.map((agent) => {
-                    const linked = subscriptionsByAgent.get(agent.id) ?? [];
-                    const linkedStreamIds = new Set(linked.map((sub) => sub.streamId));
-                    const availableOptions = ownedSubscriptionOptions.filter(
-                      (option) => !linkedStreamIds.has(option.streamId)
-                    );
-                    const isManaging = managingAgentId === agent.id;
                     const roleLabel = agent.role === "maker" ? "sender" : agent.role === "both" ? "sender + listener" : "listener";
+                    const hasLinkedSubs = (agentSubsById.get(agent.id) ?? 0) > 0;
+                    const canPublish = agent.role === "maker" || agent.role === "both";
+                    const canListen = agent.role === "listener" || agent.role === "both" || hasLinkedSubs;
                     return (
                       <div className="stream-card" key={agent.id}>
-                        <div className="stream-card-row">
-                          <div className="stream-card-identity">
-                            <div className="stream-card-header">
-                              {agent.domain && <span className="badge badge-teal">{agent.domain}</span>}
-                              <span className="badge badge-gold">{roleLabel}</span>
-                              {agent.evidence && <span className="badge">{agent.evidence}</span>}
+                        <div className={`agent-flow-indicator${canPublish && canListen ? " agent-flow-indicator--both" : ""}`}>
+                          {canPublish && (
+                            <div className="agent-flow-lane agent-flow-lane--out">
+                              <span>‹</span><span>‹</span><span>‹</span>
                             </div>
-                            <h3 className="stream-card-name">{agent.name}</h3>
-                            <p className="stream-card-desc">
-                              {agent.streamId ? `Stream: ${agent.streamId}` : "No publish stream"}
-                              {agent.agentPubkey ? ` · Key: ${agent.agentPubkey.slice(0, 5)}…${agent.agentPubkey.slice(-4)}` : ""}
-                            </p>
-                          </div>
-
-                          <div className="stream-card-stats">
-                            <div className="stream-card-meta">
-                              <span>{linked.length} linked sub{linked.length !== 1 ? "s" : ""}</span>
+                          )}
+                          {canListen && (
+                            <div className="agent-flow-lane agent-flow-lane--in">
+                              <span>›</span><span>›</span><span>›</span>
                             </div>
-                            {linked.length > 0 && (
+                          )}
+                        </div>
+                        <div className="stream-card-content">
+                          {/* Top row: name + stream chip */}
+                          <div className="stream-card-top">
+                            <div className="stream-card-name-row">
+                              <h3 className="stream-card-name">{agent.name}</h3>
+                            </div>
+                            {agent.streamId && (
                               <div className="chip-row">
-                                {linked.map((sub) => (
-                                  <span className="chip" key={sub.id}>
-                                    {streamNameById.get(sub.streamId) ?? sub.streamId} · {sub.tierId}
-                                  </span>
-                                ))}
+                                <span className="chip">{agent.streamId}</span>
                               </div>
                             )}
                           </div>
 
-                          <div className="stream-card-actions">
-                            <button
-                              className="button ghost"
-                              onClick={() => setManagingAgentId(isManaging ? null : agent.id)}
-                            >
-                              {isManaging ? "Close" : "Manage →"}
-                            </button>
-                          </div>
-                        </div>
-
-                        {isManaging && (
-                          <div className={`signal-activity signal-activity--open`} style={{ marginTop: 10 }}>
-                            <button
-                              className="signal-activity__toggle"
-                              onClick={() => setManagingAgentId(null)}
-                            >
-                              <span>Management</span>
-                              <span className="signal-activity__meta">{agent.name}</span>
-                              <span className="signal-activity__chev">▴</span>
-                            </button>
-
-                            <div className="signal-activity__list">
-                              {/* Grant / Revoke Publish */}
-                              {agent.streamId && (
-                                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                  <button
-                                    className="button secondary"
-                                    onClick={() => void grantPublisher(agent)}
-                                    style={{ padding: "4px 10px", fontSize: 11 }}
-                                  >
-                                    Grant Publish
-                                  </button>
-                                  <button
-                                    className="button ghost"
-                                    onClick={() => void revokePublisher(agent)}
-                                    style={{ padding: "4px 10px", fontSize: 11 }}
-                                  >
-                                    Revoke Publish
-                                  </button>
-                                  {publishStatus[agent.id] && (
-                                    <span className="subtext">{publishStatus[agent.id]}</span>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Linked subscriptions */}
-                              <div>
-                                <span className="signal-activity__meta">Linked subscriptions</span>
-                                {linked.length > 0 ? (
-                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-                                    {linked.map((sub) => (
-                                      <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <span className="chip">
-                                          {streamNameById.get(sub.streamId) ?? sub.streamId} · {sub.tierId}
-                                        </span>
-                                        <button
-                                          className="button ghost"
-                                          onClick={() => void unlinkSubscription(agent.id, sub.id)}
-                                          style={{ padding: "4px 10px", fontSize: 11 }}
-                                        >
-                                          Remove
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="signal-activity__empty" style={{ marginTop: 6 }}>
-                                    No subscriptions linked yet.
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Subscription linker */}
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <select
-                                  className="input"
-                                  value={linkSelections[agent.id] ?? ""}
-                                  onChange={(e) =>
-                                    setLinkSelections((prev) => ({ ...prev, [agent.id]: e.target.value }))
-                                  }
-                                >
-                                  <option value="">Select a subscription</option>
-                                  {availableOptions.map((option) => (
-                                    <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
-                                      {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  className="button secondary"
-                                  onClick={() => void linkSubscription(agent.id)}
-                                  disabled={availableOptions.length === 0}
-                                  style={{ whiteSpace: "nowrap" }}
-                                >
-                                  Link
-                                </button>
-                              </div>
-                              {availableOptions.length === 0 && (
-                                <div className="signal-activity__empty">
-                                  No unlinked subscriptions available.
-                                </div>
-                              )}
-                              {linkStatus[agent.id] && (
-                                <span className="subtext">{linkStatus[agent.id]}</span>
-                              )}
+                          {/* Middle row: badges */}
+                          <div className="stream-card-middle">
+                            <div className="stream-card-header">
+                              {agent.domain && <span className="badge badge-sm badge-teal">{agent.domain}</span>}
+                              <span className="badge badge-sm badge-gold">{roleLabel}</span>
                             </div>
                           </div>
-                        )}
+
+                          {/* Bottom row: stats + manage */}
+                          <div className="stream-card-bottom">
+                            <div className="stream-card-desc">
+                              {agent.agentPubkey && <p style={{ margin: 0 }}>Key: {agent.agentPubkey.slice(0, 5)}…{agent.agentPubkey.slice(-4)}</p>}
+                              {agent.description && <p style={{ margin: 0 }}>{agent.description}</p>}
+                            </div>
+                            <Link className="button ghost" href={`/agent/${agent.id}`}>
+                              Manage →
+                            </Link>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -628,6 +458,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
 

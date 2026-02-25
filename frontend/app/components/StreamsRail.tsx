@@ -36,7 +36,7 @@ export default function StreamsRail() {
         const data = await fetchStreams({ includeTiers: true });
         if (!cancelled) setStreams(data.streams ?? []);
       } catch {
-        if (!cancelled) setStreams([]);
+        // preserve existing UI on transient errors
       }
     }
     load();
@@ -73,7 +73,7 @@ export default function StreamsRail() {
           streamingCursor.current = Math.max(...events.map((e) => e.id));
         }
       } catch {
-        if (!mounted) setStreamingEvents([]);
+        // preserve existing UI on transient errors
       }
     }
 

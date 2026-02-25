@@ -16,7 +16,7 @@ export function readAgentsCache(wallet: string): AgentProfile[] | null {
     const raw = window.localStorage.getItem(AGENTS_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed.wallet !== wallet || Date.now() > parsed.expiresAt) return null;
+    if (parsed.wallet !== wallet) return null;
     return parsed.data ?? null;
   } catch {
     return null;
@@ -44,6 +44,12 @@ export async function fetchAgents(params: {
   return res;
 }
 
+export async function fetchAgent(id: string): Promise<AgentProfile | null> {
+  const res = await sdkFetchAgents<{ agents: AgentProfile[] }>({});
+  const agents = res.agents ?? [];
+  return agents.find((agent) => agent.id === id) ?? null;
+}
+
 // ─── Agent Subscriptions ─────────────────────────────────────────────────────
 
 export function readAgentSubsCache(wallet: string): AgentSubscription[] | null {
@@ -52,7 +58,7 @@ export function readAgentSubsCache(wallet: string): AgentSubscription[] | null {
     const raw = window.localStorage.getItem(AGENT_SUBS_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed.wallet !== wallet || Date.now() > parsed.expiresAt) return null;
+    if (parsed.wallet !== wallet) return null;
     return parsed.data ?? null;
   } catch {
     return null;

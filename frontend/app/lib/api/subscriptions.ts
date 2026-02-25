@@ -18,7 +18,6 @@ export function readSubscriptionsCache(wallet: string): { subscriptions: OnChain
     const parsed = JSON.parse(raw) as SubsCache;
     if (parsed.wallet !== wallet) return null;
     if (!parsed?.data || !Array.isArray(parsed.data.subscriptions)) return null;
-    if (Date.now() > parsed.expiresAt) return null;
     return parsed.data;
   } catch {
     return null;

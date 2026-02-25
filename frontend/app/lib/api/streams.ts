@@ -11,14 +11,19 @@ type StreamsCache = {
   data: { streams: StreamDetail[] };
 };
 
-export function readStreamsCache(): { streams: StreamDetail[] } | null {
+/**
+ * Read streams from localStorage cache.
+ * By default returns data even if stale (expired TTL) so the UI is never empty.
+ * Pass `{ strict: true }` to return null when the cache has expired.
+ */
+export function readStreamsCache(opts?: { strict?: boolean }): { streams: StreamDetail[] } | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(STREAMS_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StreamsCache;
     if (!parsed?.data || !Array.isArray(parsed.data.streams)) return null;
-    if (Date.now() > parsed.expiresAt) return null;
+    if (opts?.strict && Date.now() > parsed.expiresAt) return null;
     return parsed.data;
   } catch {
     return null;
@@ -53,4 +58,37 @@ export async function fetchStream(id: string): Promise<{ stream: StreamDetail }>
 
 export async function fetchStreamSubscribers(streamId: string): Promise<{ count: number }> {
   return sdkFetchStreamSubscribers(streamId);
+}
+
+// ─── Stream Stats (analytics) ────────────────────────────────────────────────
+
+const STREAM_STATS_CACHE_KEY = "stream_stats_cache_v1";
+const STREAM_STATS_CACHE_TTL_MS = 30_000;
+
+export type StreamStats = {
+  streamCount: number;
+  totalSubscribers: number;
+};
+
+export function readStreamStatsCache(wallet: string): StreamStats | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STREAM_STATS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.wallet !== wallet) return null;
+    return parsed.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStreamStatsCache(wallet: string, data: StreamStats) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      STREAM_STATS_CACHE_KEY,
+      JSON.stringify({ wallet, data, expiresAt: Date.now() + STREAM_STATS_CACHE_TTL_MS })
+    );
+  } catch {}
 }

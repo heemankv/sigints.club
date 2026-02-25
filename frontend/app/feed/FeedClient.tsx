@@ -218,7 +218,9 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       if (cached === null) setStreamsLoading(true);
       const data = await fetchStreams({ includeTiers: true });
       setStreams(data.streams ?? []);
-    } catch { setStreams([]); }
+    } catch {
+      // preserve existing UI on transient errors
+    }
     finally { setStreamsLoading(false); }
   }
 
@@ -240,7 +242,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       setCommentTotals((prev) => ({ ...prev, ...(data.commentCounts ?? {}) }));
     } catch (err: any) {
       setStatus(err.message ?? "Failed to load feed");
-      if (!cached?.posts?.length) setFeed([]);
+      // preserve existing feed on transient errors
     } finally {
       setLoading(false);
     }

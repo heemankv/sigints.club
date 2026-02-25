@@ -45,7 +45,7 @@ export default function MyStreamsSection() {
       );
       setSubscriberCounts(Object.fromEntries(countEntries));
     } catch {
-      if (!myStreams.length) setMyStreams([]);
+      // preserve existing UI on transient errors
     } finally {
       setLoading(false);
     }
@@ -87,19 +87,13 @@ export default function MyStreamsSection() {
             )}
 
             <div className="stream-card-content">
-              {/* Top row: name + Copy Blink left, tier chips right */}
+              {/* Top row: name + Copy Blink left, stream ID right */}
               <div className="stream-card-top">
                 <div className="stream-card-name-row">
                   <h3 className="stream-card-name">{stream.name}</h3>
                   <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="stream-card-copy-blink" />
                 </div>
-                {stream.tiers?.length > 0 && (
-                  <div className="chip-row">
-                    {stream.tiers.map((t) => (
-                      <span className="chip" key={t.tierId}>{t.tierId}</span>
-                    ))}
-                  </div>
-                )}
+                <span className="chip">{stream.id}</span>
               </div>
 
               {/* Tags + stats */}

@@ -47,7 +47,6 @@ export function readFeedCache(): FeedResponse | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as FeedCache;
     if (!parsed?.data || !Array.isArray(parsed.data.posts)) return null;
-    if (Date.now() > parsed.expiresAt) return null;
     return parsed.data;
   } catch {
     return null;
@@ -150,7 +149,6 @@ export function readFollowingCache(wallet: string): string[] | null {
     const parsed = JSON.parse(raw) as FollowingCache;
     if (!parsed?.following || !Array.isArray(parsed.following)) return null;
     if (parsed.wallet !== wallet) return null;
-    if (Date.now() > parsed.expiresAt) return null;
     return parsed.following;
   } catch {
     return null;

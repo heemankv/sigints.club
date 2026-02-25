@@ -259,8 +259,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         if (!active) return;
         setAgents(res.agents ?? []);
       } catch {
-        if (!active) return;
-        setAgents([]);
+        // preserve existing UI on transient errors
       } finally {
         if (active) setAgentsLoading(false);
       }
@@ -288,8 +287,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         if (!active) return;
         setAgentSubscriptions(res.agentSubscriptions ?? []);
       } catch {
-        if (!active) return;
-        setAgentSubscriptions([]);
+        // preserve existing UI on transient errors
       }
     })();
 
@@ -341,23 +339,23 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                 {stream.visibility}
               </span>
             )}
+            <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="stream-card-copy-blink" />
           </div>
           {stream.description && <p className="subtext">{stream.description}</p>}
           <div className="stream-detail-meta">
             {onchainAddress && (
               <span className="subtext">
-                On-chain: <CopyableAddress address={onchainAddress} />
+                <CopyableAddress address={onchainAddress} />
               </span>
             )}
             {stream.accuracy && <span className="badge">Accuracy {stream.accuracy}</span>}
             {stream.latency && <span className="badge">Latency {stream.latency}</span>}
           </div>
-          <div className="stream-detail-actions">
-            {"tapestryProfileId" in stream && stream.tapestryProfileId && !isOwner && (
+          {"tapestryProfileId" in stream && stream.tapestryProfileId && !isOwner && (
+            <div className="stream-detail-actions">
               <FollowMaker targetProfileId={stream.tapestryProfileId} />
-            )}
-            <CopyBlinkButton streamId={stream.id} label="Copy Blink" />
-          </div>
+            </div>
+          )}
         </div>
         <div className="stream-detail-header-side">
           <div className="signal-activity signal-activity--open">

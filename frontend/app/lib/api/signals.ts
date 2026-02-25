@@ -20,7 +20,6 @@ export function readSignalsCache(): SignalEventsResponse | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SignalsCache;
     if (!parsed?.data || !Array.isArray(parsed.data.events)) return null;
-    if (Date.now() > parsed.expiresAt) return null;
     return parsed.data;
   } catch {
     return null;
