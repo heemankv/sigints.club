@@ -15,8 +15,6 @@ import type { TierInput } from "../lib/streamRegistry";
 import { parseSolLamports } from "../lib/pricing";
 import { explorerTx } from "../lib/constants";
 import { parseQuota } from "../lib/utils";
-import LeftNav from "../components/LeftNav";
-import StreamsRail from "../components/StreamsRail";
 
 const DEFAULT_TIER: TierInput = {
   tierId: "tier-basic",
@@ -198,10 +196,6 @@ export default function RegisterStreamPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <section className="social-shell">
-      <LeftNav />
-
-      <div className="social-main">
         <div className="maker-dash">
           <div className="maker-dash-header">
             <span className="kicker">Maker Dashboard</span>
@@ -479,9 +473,5 @@ export default function RegisterStreamPage() {
             </>
           )}
         </div>
-      </div>
-
-      <StreamsRail />
-    </section>
   );
 }

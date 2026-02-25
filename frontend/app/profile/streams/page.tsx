@@ -5,7 +5,7 @@ import ProfileContent from "../ProfileContent";
 
 export default function StreamsPage() {
   return (
-    <Suspense fallback={<div className="social-shell"><div className="social-main"><p className="subtext">Loading profile…</p></div></div>}>
+    <Suspense fallback={<p className="subtext">Loading profile…</p>}>
       <ProfileContent initialTab="streams" />
     </Suspense>
   );

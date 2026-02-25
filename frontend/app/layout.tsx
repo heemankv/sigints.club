@@ -9,6 +9,8 @@ import NetworkOnboarding from "./components/NetworkOnboarding";
 import AppToasts from "./components/AppToasts";
 import TapestryHeaderBadge from "./components/TapestryHeaderBadge";
 import OnboardingGate from "./components/OnboardingGate";
+import LeftNav from "./components/LeftNav";
+import StreamsRail from "./components/StreamsRail";
 
 export const metadata = {
   title: "sigints.club",
@@ -38,7 +40,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
           <main className="container">
-            {children}
+            <section className="social-shell">
+              <LeftNav />
+              <div className="social-main">
+                {children}
+              </div>
+              <StreamsRail />
+            </section>
           </main>
           <OnboardingGate />
           <div className="toast-stack">

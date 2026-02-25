@@ -29,8 +29,6 @@ import {
   resolveStreamRegistryId,
 } from "../lib/solana";
 import { toHex } from "../lib/utils";
-import LeftNav from "../components/LeftNav";
-import StreamsRail from "../components/StreamsRail";
 import { useUserProfile, type UserProfile } from "../lib/userProfile";
 
 export type ProfileTab = "subscriptions" | "streams" | "agents" | "actions";
@@ -367,12 +365,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     return map;
   }, [agentSubscriptions]);
   return (
-    <section className="social-shell">
-
-      <LeftNav />
-
-      {/* ─── Center: profile content ─── */}
-      <div className="social-main">
+    <>
         {!publicKey ? (
           <div className="x-empty-state" style={{ padding: 48 }}>
             <p>Connect your wallet to view your profile.</p>
@@ -701,9 +694,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
             )}
           </>
         )}
-      </div>
-
-      <StreamsRail />
-    </section>
+    </>
   );
 }

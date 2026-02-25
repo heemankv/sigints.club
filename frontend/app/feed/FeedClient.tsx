@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import WalletModal from "../components/WalletModal";
 import SubscribeForm from "../stream/[id]/SubscribeForm";
 import StreamCard from "../components/StreamCard";
-import LeftNav from "../components/LeftNav";
-import type { SocialPost, CommentEntry, StreamDetail, AgentProfile, SignalEvent } from "../lib/types";
+import type { SocialPost, CommentEntry, StreamDetail, AgentProfile } from "../lib/types";
 import {
   fetchFeed,
   readFeedCache,
@@ -26,8 +25,6 @@ import {
   readFollowingCache,
   searchAgents,
 } from "../lib/api/social";
-import { fetchSignalEvents } from "../lib/api/signals";
-import { fetchStreamSubscribers } from "../lib/api/streams";
 import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
 import { FEED_COMMENTS_PAGE_SIZE } from "../lib/constants";
 import {
@@ -36,7 +33,6 @@ import {
   resolveCommentId,
   resolveCommentAuthorId,
   shortWallet,
-  formatFullTimestamp,
 } from "../lib/utils";
 import { explorerTx } from "../lib/constants";
 import { useCurrentUserProfileId } from "../hooks/useCurrentUserProfileId";
@@ -68,8 +64,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   }
 
   const [feed, setFeed] = useState<SocialPost[]>([]);
-  const [streamingEvents, setStreamingEvents] = useState<SignalEvent[]>([]);
-  const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
   const [streams, setStreams] = useState<StreamDetail[]>([]);
   const [streamsLoading, setStreamsLoading] = useState(true);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -89,9 +83,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   const [subscribeTierId, setSubscribeTierId] = useState<string | null>(null);
   const [confirmDeletePostId, setConfirmDeletePostId] = useState<string | null>(null);
   const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
-  const streamingCursor = useRef(0);
-  const streamingPoll = useRef<number | null>(null);
-  const subscriberCountFetchedAt = useRef<Record<string, number>>({});
 
   const [subscribedStreamAddresses, setSubscribedStreamAddresses] = useState<Set<string>>(new Set());
   const [streamSearch, setStreamSearch] = useState("");
@@ -109,11 +100,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
     () => new Map(streams.map((stream) => [stream.id, stream])),
     [streams]
   );
-  const latestStreams = useMemo(() => {
-    return [...streams]
-      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-      .slice(0, 6);
-  }, [streams]);
   const streamSearchNorm = streamSearch.trim().toLowerCase();
   const streamMatchSet = useMemo(() => {
     if (!streamSearchNorm) return new Set<string>();
@@ -211,106 +197,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
       active = false;
     };
   }, [wallet]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    function sortEvents(events: SignalEvent[]) {
-      return [...events].sort((a, b) => (b.createdAt - a.createdAt) || (b.id - a.id));
-    }
-
-    async function loadStreamingInitial() {
-      try {
-        const data = await fetchSignalEvents({ limit: 12 });
-        if (!mounted) return;
-        const events = sortEvents(data.events ?? []);
-        setStreamingEvents(events);
-        if (events.length) {
-          streamingCursor.current = Math.max(...events.map((e) => e.id));
-        }
-      } catch {
-        if (!mounted) return;
-        setStreamingEvents([]);
-      }
-    }
-
-    void loadStreamingInitial();
-
-    if (streamingPoll.current) {
-      window.clearInterval(streamingPoll.current);
-      streamingPoll.current = null;
-    }
-
-    streamingPoll.current = window.setInterval(async () => {
-      try {
-        const after = streamingCursor.current || undefined;
-        const data = await fetchSignalEvents({ limit: 12, after });
-        if (!mounted) return;
-        if (data.events?.length) {
-          streamingCursor.current = Math.max(streamingCursor.current, ...data.events.map((e) => e.id));
-          const incoming = sortEvents(data.events ?? []);
-          setStreamingEvents((prev) => {
-            const merged = [...incoming, ...prev];
-            const seen = new Set<number>();
-            const deduped = merged.filter((event) => {
-              if (seen.has(event.id)) return false;
-              seen.add(event.id);
-              return true;
-            });
-            return sortEvents(deduped).slice(0, 12);
-          });
-        }
-      } catch {
-        // ignore polling failures
-      }
-    }, 10_000);
-
-    return () => {
-      mounted = false;
-      if (streamingPoll.current) {
-        window.clearInterval(streamingPoll.current);
-        streamingPoll.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const now = Date.now();
-    const streamIds = Array.from(new Set(streamingEvents.map((event) => event.streamId)));
-    const toFetch = streamIds.filter((id) => {
-      const last = subscriberCountFetchedAt.current[id] ?? 0;
-      return now - last > 60_000;
-    });
-    if (!toFetch.length) return;
-
-    void (async () => {
-      const entries = await Promise.all(
-        toFetch.map(async (id) => {
-          try {
-            const res = await fetchStreamSubscribers(id);
-            return [id, res.count] as const;
-          } catch {
-            return null;
-          }
-        })
-      );
-      if (cancelled) return;
-      const updates = Object.fromEntries(
-        entries.filter((item): item is readonly [string, number] => item !== null)
-      );
-      if (Object.keys(updates).length) {
-        setSubscriberCounts((prev) => ({ ...prev, ...updates }));
-        Object.keys(updates).forEach((id) => {
-          subscriberCountFetchedAt.current[id] = Date.now();
-        });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [streamingEvents]);
 
   useEffect(() => {
     let mounted = true;
@@ -543,12 +429,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
   }
 
   return (
-    <section className="social-shell">
-
-      <LeftNav />
-
-      {/* ─── Center: composer + feed ─── */}
-      <div className="social-main">
+    <>
 
         {/* Composer */}
         {activeTab !== "streams" && (
@@ -925,74 +806,24 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
             )}
           </div>
         )}
-      </div>
 
-      {/* ─── Right: Discovery panels ─── */}
-      <aside className="social-rail">
-
-        {/* Latest streams */}
-        <div className="x-rail-module">
-          <h3 className="x-rail-heading">Latest Streams</h3>
-          {latestStreams.map((stream) => {
-            const createdAt = stream.createdAt ?? 0;
-            const timeLabel = createdAt ? `${timeAgo(createdAt)} ago` : "new";
-            return (
-            <div className="x-trend-item" key={stream.id}>
-              <span className="x-trend-category">{stream.domain} · {timeLabel}</span>
-              <strong className="x-trend-topic">{stream.name}</strong>
-              <span className="x-trend-meta">{stream.evidence} evidence</span>
+      {/* Search results (center panel) */}
+      {searchLabel && (
+        <div className="x-rail-module" style={{ marginTop: 16 }}>
+          <h3 className="x-rail-heading">Search results</h3>
+          <p className="x-trend-category" style={{ marginBottom: 8 }}>Results for &ldquo;{searchLabel}&rdquo;</p>
+          {agents.map((agent) => (
+            <div className="x-trend-item" key={agent.id}>
+              <span className="x-trend-category">
+                {agent.domain} · {agent.role === "maker" ? "sender" : "listener"}
+              </span>
+              <strong className="x-trend-topic">{agent.name}</strong>
+              <span className="x-trend-meta">{agent.evidence}</span>
             </div>
-            );
-          })}
-          {!latestStreams.length && <span className="x-trend-category">No stream data yet.</span>}
-          
+          ))}
+          {!agents.length && <span className="x-trend-category">No agents found.</span>}
         </div>
-
-        {/* What's streaming */}
-        <div className="x-rail-module">
-          <h3 className="x-rail-heading">What&apos;s streaming</h3>
-          {streamingEvents.slice(0, 5).map((event) => {
-            const stream = streamById.get(event.streamId);
-            const subs = subscriberCounts[event.streamId];
-            const subsLabel = typeof subs === "number" ? `${subs} sub${subs === 1 ? "" : "s"}` : null;
-            return (
-              <Link className="x-trend-item" key={event.id} href={`/stream/${event.streamId}`}>
-                <span className="x-trend-category">
-                  Signal · {timeAgo(event.createdAt)} ago
-                </span>
-                <strong className="x-trend-topic">
-                  {stream?.name ?? event.streamId}
-                </strong>
-                <span className="x-trend-meta">
-                  {formatFullTimestamp(event.createdAt)}
-                  {subsLabel ? ` · ${subsLabel}` : ""}
-                </span>
-              </Link>
-            );
-          })}
-          {!streamingEvents.length && (
-            <span className="x-trend-category">No signals yet.</span>
-          )}
-        </div>
-
-        {/* Search */}
-        {searchLabel && (
-          <div className="x-rail-module">
-            <h3 className="x-rail-heading">Search results</h3>
-            <p className="x-trend-category" style={{ marginBottom: 8 }}>Results for &ldquo;{searchLabel}&rdquo;</p>
-            {agents.map((agent) => (
-              <div className="x-trend-item" key={agent.id}>
-                <span className="x-trend-category">
-                  {agent.domain} · {agent.role === "maker" ? "sender" : "listener"}
-                </span>
-                <strong className="x-trend-topic">{agent.name}</strong>
-                <span className="x-trend-meta">{agent.evidence}</span>
-              </div>
-            ))}
-            {!agents.length && <span className="x-trend-category">No agents found.</span>}
-          </div>
-        )}
-      </aside>
+      )}
 
       {/* Wallet modal */}
       {walletModalOpen && (
@@ -1045,6 +876,6 @@ export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedCli
           </div>
         </div>
       )}
-    </section>
+    </>
   );
 }

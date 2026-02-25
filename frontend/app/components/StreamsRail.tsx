@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { StreamDetail, SignalEvent } from "../lib/types";
-import { fetchSignalEvents } from "../lib/api/signals";
+import { fetchSignalEvents, readSignalsCache } from "../lib/api/signals";
 import { fetchStreams, fetchStreamSubscribers, readStreamsCache } from "../lib/api/streams";
 import { timeAgo, formatFullTimestamp } from "../lib/utils";
 
@@ -40,7 +40,11 @@ export default function StreamsRail() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    const interval = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, []);
 
   // Poll signal events
@@ -49,6 +53,14 @@ export default function StreamsRail() {
 
     function sortEvents(events: SignalEvent[]) {
       return [...events].sort((a, b) => (b.createdAt - a.createdAt) || (b.id - a.id));
+    }
+
+    // Hydrate from cache instantly so panel is never empty on navigation
+    const cached = readSignalsCache();
+    if (cached?.events?.length) {
+      const cachedEvents = sortEvents(cached.events);
+      setStreamingEvents(cachedEvents);
+      streamingCursor.current = Math.max(...cachedEvents.map((e) => e.id));
     }
 
     async function loadInitial() {
