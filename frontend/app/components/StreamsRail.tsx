@@ -26,24 +26,45 @@ export default function StreamsRail() {
       .slice(0, 6);
   }, [streams]);
 
-  // Load streams
+  // Load streams (merge-by-ID, 10s poll — mirrors the signals pattern)
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+
+    function mergeStreams(prev: StreamDetail[], incoming: StreamDetail[]): StreamDetail[] {
+      const byId = new Map(prev.map((s) => [s.id, s]));
+      for (const s of incoming) byId.set(s.id, s);
+      return Array.from(byId.values());
+    }
+
+    // Hydrate from cache instantly
+    const cached = readStreamsCache();
+    if (cached?.streams?.length) setStreams(cached.streams);
+
+    async function loadInitial() {
       try {
-        const cached = readStreamsCache();
-        if (cached?.streams?.length && !cancelled) setStreams(cached.streams);
         const data = await fetchStreams({ includeTiers: true });
         if (!cancelled) setStreams(data.streams ?? []);
       } catch {
         // preserve existing UI on transient errors
       }
     }
-    load();
-    const interval = window.setInterval(load, 30_000);
+
+    void loadInitial();
+
+    const poll = window.setInterval(async () => {
+      try {
+        const data = await fetchStreams({ includeTiers: true });
+        if (cancelled) return;
+        const incoming = data.streams ?? [];
+        setStreams((prev) => mergeStreams(prev, incoming));
+      } catch {
+        // preserve existing UI on transient errors
+      }
+    }, 10_000);
+
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearInterval(poll);
     };
   }, []);
 

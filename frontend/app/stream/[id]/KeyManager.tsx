@@ -12,6 +12,7 @@ import {
 } from "../../lib/solana";
 import { Transaction } from "@solana/web3.js";
 import { syncWalletKey } from "../../lib/sdkBackend";
+import { toast } from "../../lib/toast";
 
 type KeyManagerProps = {
   streamId: string;
@@ -137,7 +138,7 @@ export default function KeyManager({ streamId, streamOnchainAddress, variant = "
       setPubKey("");
       setSubscriberId(null);
     } catch (err: any) {
-      setChainStatus(err?.message ?? "Failed to register on-chain key.");
+      toast(err?.message ?? "Failed to register on-chain key.", "error");
     }
   }
 

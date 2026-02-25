@@ -12,6 +12,7 @@ import {
 } from "../lib/streamRegistry";
 import type { TierInput } from "../lib/streamRegistry";
 import { parseSolLamports } from "../lib/pricing";
+import { toast } from "../lib/toast";
 
 type StreamPayload = {
   id: string;
@@ -76,11 +77,11 @@ export default function RegisterStreamForm() {
 
   async function submit() {
     if (!publicKey) {
-      setStatus("Connect your wallet first.");
+      toast("Connect your wallet first.", "warn");
       return;
     }
     if (!streamId || !name) {
-      setStatus("Stream ID and name are required.");
+      toast("Stream ID and name are required.", "warn");
       return;
     }
     setLoading(true);
@@ -145,7 +146,7 @@ export default function RegisterStreamForm() {
         setStatus("On-chain stream already exists. Listing published.");
       }
     } catch (err: any) {
-      setStatus(err.message ?? "Failed to register stream");
+      toast(err.message ?? "Failed to register stream", "error");
     } finally {
       setLoading(false);
     }

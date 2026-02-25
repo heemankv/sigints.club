@@ -11,6 +11,7 @@ import TapestryHeaderBadge from "./components/TapestryHeaderBadge";
 import OnboardingGate from "./components/OnboardingGate";
 import LeftNav from "./components/LeftNav";
 import StreamsRail from "./components/StreamsRail";
+import Fireflies from "./components/Fireflies";
 
 export const metadata = {
   title: "sigints.club",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Providers>
+          <Fireflies />
           <header className="nav">
             <div className="container nav-inner">
               <Link href="/" className="brand">

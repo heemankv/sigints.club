@@ -16,6 +16,7 @@ import { parseSolLamports } from "../../lib/pricing";
 import { parseQuota } from "../../lib/utils";
 import { registerSubscription } from "../../lib/sdkBackend";
 import { readSubscriptionsCache, fetchOnchainSubscriptions } from "../../lib/api/subscriptions";
+import { toast } from "../../lib/toast";
 
 export default function SubscribeForm({
   streamId,
@@ -44,8 +45,6 @@ export default function SubscribeForm({
 }) {
   const [loading, setLoading] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
-  const [chainStatus, setChainStatus] = useState<string | null>(null);
-  const [chainTx, setChainTx] = useState<string | null>(null);
   const [subscriptionKeyReady, setSubscriptionKeyReady] = useState<boolean | null>(null);
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
@@ -136,8 +135,6 @@ export default function SubscribeForm({
 
   async function submitOnchain() {
     setLoading(true);
-    setChainStatus(null);
-    setChainTx(null);
     try {
       if (!publicKey) {
         throw new Error("Connect your wallet first.");
@@ -168,23 +165,21 @@ export default function SubscribeForm({
       const { blockhash } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
-      setChainTx(signature);
       const subscription = await registerSubscription({
         streamId,
         subscriberWallet: publicKey.toBase58(),
       });
       setSubscribed(true);
+      toast(`Subscribed on-chain ${signature.slice(0, 10)}…`, "success");
       if (requiresKey && (subscription?.needsKey || subscriptionKeyReady === false)) {
-        setChainStatus("Subscribed. Register your stream encryption key to decrypt private signals.");
-      } else {
-        setChainStatus("Subscribed and registered.");
+        toast("Subscribed. Register your stream encryption key to decrypt private signals.", "warn");
       }
       if (typeof window !== "undefined") {
         window.localStorage.setItem("subscriptionsDirty", "1");
       }
       onSubscribed?.();
     } catch (err: any) {
-      setChainStatus(err.message ?? "On-chain subscribe failed");
+      toast(err.message ?? "On-chain subscribe failed", "error");
     } finally {
       setLoading(false);
     }
@@ -219,12 +214,6 @@ export default function SubscribeForm({
             <p className="subtext">On-chain stream or payout accounts not configured.</p>
           )}
         </>
-      )}
-      {chainStatus && <p className="subtext">{chainStatus}</p>}
-      {chainTx && (
-        <p className="subtext">
-          Tx {chainTx.slice(0, 10)}…
-        </p>
       )}
     </div>
   );

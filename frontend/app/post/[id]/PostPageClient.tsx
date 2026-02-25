@@ -25,6 +25,7 @@ import {
   shortWallet,
 } from "../../lib/utils";
 import { useCurrentUserProfileId } from "../../hooks/useCurrentUserProfileId";
+import { toast } from "../../lib/toast";
 
 const BackArrow = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -85,7 +86,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
   }
 
   async function toggleLike() {
-    if (!wallet) { setStatus("Connect your wallet to vote."); return; }
+    if (!wallet) { toast("Connect your wallet to vote.", "warn"); return; }
     const prev = liked;
     setLiked(!prev);
     setLikeCount((n) => Math.max(0, n + (prev ? -1 : 1)));
@@ -100,12 +101,12 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
     } catch (err: any) {
       setLiked(prev);
       setLikeCount((n) => Math.max(0, n + (prev ? 1 : -1)));
-      setStatus(err.message ?? "Vote failed");
+      toast(err.message ?? "Vote failed", "error");
     }
   }
 
   async function submitComment() {
-    if (!wallet) { setStatus("Connect your wallet to reply."); return; }
+    if (!wallet) { toast("Connect your wallet to reply.", "warn"); return; }
     const value = commentDraft.trim();
     if (!value) return;
     const optimistic: CommentEntry = { comment: value, createdAt: Date.now() };
@@ -119,13 +120,13 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
     } catch (err: any) {
       setComments((prev) => prev.filter((e) => e !== optimistic));
       setCommentTotal((n) => Math.max(0, n - 1));
-      setStatus(err.message ?? "Comment failed");
+      toast(err.message ?? "Comment failed", "error");
     }
   }
 
   async function handleDeletePost() {
     if (!wallet) {
-      setStatus("Connect your wallet to delete.");
+      toast("Connect your wallet to delete.", "warn");
       return;
     }
     try {
@@ -138,18 +139,18 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
         }
       }, 600);
     } catch (err: any) {
-      setStatus(err?.message ?? "Delete failed");
+      toast(err?.message ?? "Delete failed", "error");
     }
   }
 
   async function handleDeleteComment(entry: CommentEntry) {
     if (!wallet) {
-      setStatus("Connect your wallet to delete.");
+      toast("Connect your wallet to delete.", "warn");
       return;
     }
     const commentId = resolveCommentId(entry);
     if (!commentId) {
-      setStatus("Unable to resolve comment id.");
+      toast("Unable to resolve comment id.", "warn");
       return;
     }
     try {
@@ -158,7 +159,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
       setComments((prev) => prev.filter((item) => resolveCommentId(item) !== commentId));
       setCommentTotal((n) => Math.max(0, n - 1));
     } catch (err: any) {
-      setStatus(err?.message ?? "Delete failed");
+      toast(err?.message ?? "Delete failed", "error");
     }
   }
 

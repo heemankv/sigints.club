@@ -16,6 +16,7 @@ import {
   resolveStreamRegistryId,
 } from "../../lib/solana";
 import { toHex } from "../../lib/utils";
+import { toast } from "../../lib/toast";
 
 export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
   const { publicKey, sendTransaction } = useWallet();
@@ -25,11 +26,9 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
   const [ownedSubscriptionOptions, setOwnedSubscriptionOptions] = useState<OwnedSubscriptionOption[]>([]);
   const [streamCatalog, setStreamCatalog] = useState<StreamDetail[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
-  const [subsError, setSubsError] = useState<string | null>(null);
   const [linkSelection, setLinkSelection] = useState("");
   const [linkStatus, setLinkStatus] = useState<string | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
-  const [publishError, setPublishError] = useState<string | null>(null);
   const [publishActive, setPublishActive] = useState<boolean | null>(null);
   const [publishLoading, setPublishLoading] = useState(false);
   const [agentSubsLoading, setAgentSubsLoading] = useState(false);
@@ -123,7 +122,6 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
 
   async function loadOwnedSubscriptions(forceFresh = false) {
     if (!agent.ownerWallet) return;
-    setSubsError(null);
 
     const cachedSubs = readSubscriptionsCache(agent.ownerWallet);
     const cachedStreams = readStreamsCache();
@@ -140,7 +138,7 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
       ]);
       await processSubscriptions(subsRes.subscriptions ?? [], streamsRes.streams ?? []);
     } catch (err: any) {
-      setSubsError(err?.message ?? "Failed to load subscriptions.");
+      toast(err?.message ?? "Failed to load subscriptions.", "error");
       setOwnedSubscriptionOptions([]);
     } finally {
       setSubsLoading(false);
@@ -166,20 +164,20 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
   async function linkSubscription() {
     if (linkLoading) return;
     if (!publicKey) {
-      setLinkStatus("Connect your wallet first.");
+      toast("Connect your wallet first.", "warn");
       return;
     }
     if (publicKey.toBase58() !== agent.ownerWallet) {
-      setLinkStatus("Connect the agent owner wallet to link subscriptions.");
+      toast("Connect the agent owner wallet to link subscriptions.", "warn");
       return;
     }
     if (!linkSelection) {
-      setLinkStatus("Select a subscription to link.");
+      toast("Select a subscription to link.", "warn");
       return;
     }
     const option = ownedSubscriptionOptions.find((opt) => opt.streamId === linkSelection);
     if (!option) {
-      setLinkStatus("Subscription details not found.");
+      toast("Subscription details not found.", "warn");
       return;
     }
     setLinkStatus(null);
@@ -200,11 +198,12 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
     } catch (err: any) {
       const rawMessage = err?.message ?? "Failed to link subscription.";
       if (rawMessage.toLowerCase().includes("subscription encryption key not registered")) {
-        setLinkStatus(
-          "Create a subscription encryption key on that stream first, then you can link it to this agent."
+        toast(
+          "Create a subscription encryption key on that stream first, then you can link it to this agent.",
+          "error"
         );
       } else {
-        setLinkStatus(rawMessage);
+        toast(rawMessage, "error");
       }
     } finally {
       setLinkLoading(false);
@@ -217,7 +216,7 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
       await loadAgentSubscriptions();
       setLinkStatus("Subscription removed.");
     } catch (err: any) {
-      setLinkStatus(err?.message ?? "Failed to remove subscription.");
+      toast(err?.message ?? "Failed to remove subscription.", "error");
     }
   }
 
@@ -251,7 +250,7 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
       await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
       setPublishActive(true);
     } catch (err: any) {
-      setPublishError(err?.message ?? "Failed to grant publish.");
+      toast(err?.message ?? "Failed to grant publish.", "error");
     }
   }
 
@@ -285,7 +284,7 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
       await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
       setPublishActive(false);
     } catch (err: any) {
-      setPublishError(err?.message ?? "Failed to revoke publish.");
+      toast(err?.message ?? "Failed to revoke publish.", "error");
     }
   }
 
@@ -316,7 +315,6 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
   async function togglePublishAccess(next: boolean) {
     if (publishLoading) return;
     setPublishLoading(true);
-    setPublishError(null);
     try {
       if (next) {
         await grantPublisher();
@@ -412,7 +410,6 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
                     <span className="publish-toggle__thumb" />
                   </span>
                 </button>
-                {publishError && <span className="subtext">{publishError}</span>}
               </div>
             </div>
           </div>
@@ -484,7 +481,6 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
                 No unlinked subscriptions available.
               </div>
             )}
-            {subsError && <p className="subtext">{subsError}</p>}
             {linkStatus && <p className="subtext">{linkStatus}</p>}
           </div>
         </div>

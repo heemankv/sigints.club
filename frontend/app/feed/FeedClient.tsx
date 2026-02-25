@@ -42,9 +42,35 @@ type FeedClientProps = {
 
 type FeedTab = "feed" | "streams";
 
+function hashSeed(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function gradientForSeed(seed: string) {
+  if (!seed) return "var(--accent-2)";
+  const hash = hashSeed(seed);
+  const hueA = hash % 360;
+  const hueB = (hash * 7) % 360;
+  const satA = 62 + (hash % 18);
+  const satB = 58 + ((hash >> 3) % 18);
+  const lightA = 46 + ((hash >> 5) % 12);
+  const lightB = 38 + ((hash >> 9) % 12);
+  return `linear-gradient(135deg, hsl(${hueA}, ${satA}%, ${lightA}%), hsl(${hueB}, ${satB}%, ${lightB}%))`;
+}
+
 function AvatarCircle({ seed }: { seed: string }) {
   const char = seed?.[0]?.toUpperCase() ?? "?";
-  return <div className="xpost-avatar-circle">{char}</div>;
+  const gradient = gradientForSeed(seed ?? "");
+  return (
+    <div className="xpost-avatar-circle" style={{ background: gradient }}>
+      {char}
+    </div>
+  );
 }
 
 export default function FeedClient({ searchQuery, initialTab = "feed" }: FeedClientProps) {

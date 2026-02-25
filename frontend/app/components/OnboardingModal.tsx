@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "../lib/toast";
 
 type Props = {
   onComplete: (data: { displayName: string; bio?: string }) => Promise<void>;
@@ -11,17 +12,15 @@ export default function OnboardingModal({ onComplete }: Props) {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
     const trimmed = username.trim();
     if (!trimmed) return;
     setSubmitting(true);
-    setError(null);
     try {
       await onComplete({ displayName: trimmed, bio: bio.trim() || undefined });
     } catch (err: any) {
-      setError(err?.message ?? "Something went wrong. Please try again.");
+      toast(err?.message ?? "Something went wrong. Please try again.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -58,8 +57,6 @@ export default function OnboardingModal({ onComplete }: Props) {
             rows={3}
           />
         </div>
-
-        {error && <p className="subtext" style={{ color: "var(--accent)" }}>{error}</p>}
 
         <div className="modal-actions">
           <button

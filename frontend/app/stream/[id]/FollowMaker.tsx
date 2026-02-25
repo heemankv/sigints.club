@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { followProfile } from "../../lib/api/social";
+import { toast } from "../../lib/toast";
 
 export default function FollowMaker({ targetProfileId }: { targetProfileId?: string }) {
   const { publicKey } = useWallet();
@@ -16,14 +17,14 @@ export default function FollowMaker({ targetProfileId }: { targetProfileId?: str
   async function follow() {
     setStatus(null);
     if (!wallet) {
-      setStatus("Connect your wallet to follow.");
+      toast("Connect your wallet to follow.", "warn");
       return;
     }
     try {
       await followProfile(wallet, targetProfileId!);
       setStatus("Following maker on Tapestry.");
     } catch (err: any) {
-      setStatus(err.message ?? "Follow failed");
+      toast(err.message ?? "Follow failed", "error");
     }
   }
 

@@ -10,6 +10,7 @@ import {
   buildPublicPayloadMessage,
 } from "../../lib/sdkBackend";
 import { decryptAesGcm, deriveSharedKey, fromBase64, importX25519PrivateKey, importX25519PublicKey, subscriberIdFromPubkey } from "../../lib/crypto";
+import { toast } from "../../lib/toast";
 
 const storageKey = (streamId: string) => `stream.keys.${streamId}`;
 
@@ -17,7 +18,6 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
   const [pubKey, setPubKey] = useState("");
   const [privKey, setPrivKey] = useState("");
   const [plaintext, setPlaintext] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const { publicKey, signMessage } = useWallet();
 
   useEffect(() => {
@@ -33,7 +33,6 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
   }, [streamId]);
 
   async function decrypt() {
-    setStatus(null);
     setPlaintext(null);
     try {
       const { signals } = await fetchSignals<{
@@ -43,7 +42,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
         visibility?: "public" | "private";
       }>(streamId);
       if (!signals.length) {
-        setStatus("No signals available");
+        toast("No signals available", "warn");
         return;
       }
       const latest = signals[signals.length - 1];
@@ -51,11 +50,11 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       if (latest.visibility === "public") {
         const signalSha = latest.signalPointer.split("/").pop();
         if (!publicKey) {
-          setStatus("Connect wallet to access public stream signals");
+          toast("Connect wallet to access public stream signals", "warn");
           return;
         }
         if (!signMessage) {
-          setStatus("Wallet does not support message signing");
+          toast("Wallet does not support message signing", "warn");
           return;
         }
         const message = buildPublicPayloadMessage(signalSha!);
@@ -70,22 +69,22 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       }
 
       if (!pubKey || !privKey) {
-        setStatus("Keys required for private stream signals");
+        toast("Keys required for private stream signals", "warn");
         return;
       }
       if (!publicKey) {
-        setStatus("Connect wallet to decrypt private stream signals");
+        toast("Connect wallet to decrypt private stream signals", "warn");
         return;
       }
       if (!signMessage) {
-        setStatus("Wallet does not support message signing");
+        toast("Wallet does not support message signing", "warn");
         return;
       }
 
       const keyboxSha = latest.keyboxPointer?.split("/").pop();
       const signalSha = latest.signalPointer.split("/").pop();
       if (!keyboxSha) {
-        setStatus("Missing keybox pointer for private stream signal");
+        toast("Missing keybox pointer for private stream signal", "warn");
         return;
       }
 
@@ -129,7 +128,7 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
 
       setPlaintext(new TextDecoder().decode(plain));
     } catch (err: any) {
-      setStatus(err.message ?? "Failed");
+      toast(err.message ?? "Decryption failed", "error");
     }
   }
 
@@ -148,7 +147,6 @@ export default function DecryptPanel({ streamId }: { streamId: string }) {
       <button className="button primary" onClick={decrypt}>
         Decrypt
       </button>
-      {status && <p className="subtext">{status}</p>}
       {plaintext && <p className="decrypt-result">Decrypted: {plaintext}</p>}
     </div>
   );

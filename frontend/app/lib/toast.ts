@@ -1,4 +1,4 @@
-export type ToastVariant = "warn" | "error";
+export type ToastVariant = "warn" | "error" | "success";
 
 type AddToastFn = (message: string, variant: ToastVariant) => void;
 

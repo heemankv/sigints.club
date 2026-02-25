@@ -11,7 +11,7 @@ type ToastItem = {
 };
 
 let nextId = 0;
-const DISPLAY_MS = 4700;
+const DISPLAY_MS = 5000;
 const LEAVE_MS = 300;
 
 export default function AppToasts() {
@@ -40,7 +40,7 @@ export default function AppToasts() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`net-toast${t.variant === "error" ? " danger" : ""}${t.leaving ? " net-toast--leaving" : ""}`}
+          className={`net-toast${t.variant === "error" ? " danger" : ""}${t.variant === "success" ? " success" : ""}${t.leaving ? " net-toast--leaving" : ""}`}
         >
           <div className="net-toast-icon">
             {t.variant === "error" ? (
@@ -48,6 +48,11 @@ export default function AppToasts() {
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            ) : t.variant === "success" ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9 12l2 2 4-4" />
               </svg>
             ) : (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -58,7 +63,9 @@ export default function AppToasts() {
             )}
           </div>
           <div className="net-toast-body">
-            <div className="net-toast-title">{t.variant === "error" ? "Error" : "Warning"}</div>
+            <div className="net-toast-title">
+              {t.variant === "error" ? "Error" : t.variant === "success" ? "Success" : "Warning"}
+            </div>
             <div className="net-toast-msg">{t.message}</div>
           </div>
           <button className="net-toast-close" onClick={() => startLeave(t.id)} aria-label="Dismiss">

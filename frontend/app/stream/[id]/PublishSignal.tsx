@@ -6,6 +6,7 @@ import { Transaction, PublicKey } from "@solana/web3.js";
 import { prepareSignal, buildRecordSignalInstruction } from "../../lib/sdkPublish";
 import { STREAM_REGISTRY_PROGRAM_ID, SUBSCRIPTION_PROGRAM_ID } from "../../lib/constants";
 import type { StreamTier } from "../../lib/types";
+import { toast } from "../../lib/toast";
 
 export default function PublishSignal({
   streamId,
@@ -25,20 +26,16 @@ export default function PublishSignal({
   const [message, setMessage] = useState("ETH best price at Venue X");
   const [selectedTier, setSelectedTier] = useState(tierId);
   const [preparedMeta, setPreparedMeta] = useState<any | null>(null);
-  const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
-  const [recordStatus, setRecordStatus] = useState<string | null>(null);
   const [prepareLoading, setPrepareLoading] = useState(false);
   const [recordLoading, setRecordLoading] = useState(false);
   const [txSig, setTxSig] = useState<string | null>(null);
 
   async function prepare() {
     if (!message.trim()) {
-      setPrepareStatus("Signal message required.");
+      toast("Signal message required.", "warn");
       return;
     }
     setPrepareLoading(true);
-    setPrepareStatus(null);
-    setRecordStatus(null);
     setPreparedMeta(null);
     setTxSig(null);
     try {
@@ -48,9 +45,9 @@ export default function PublishSignal({
         plaintext: message,
       });
       setPreparedMeta(meta);
-      setPrepareStatus(`Prepared signal ${meta.signalHash.slice(0, 10)}…`);
+      toast(`Prepared signal ${meta.signalHash.slice(0, 10)}…`, "success");
     } catch (err: any) {
-      setPrepareStatus(err.message ?? "Failed to prepare");
+      toast(err.message ?? "Failed to prepare", "error");
     } finally {
       setPrepareLoading(false);
     }
@@ -58,19 +55,18 @@ export default function PublishSignal({
 
   async function recordOnchain() {
     if (!publicKey) {
-      setRecordStatus("Connect your wallet to sign the on-chain publish.");
+      toast("Connect your wallet to sign the on-chain publish.", "warn");
       return;
     }
     if (!preparedMeta) {
-      setRecordStatus("Prepare the signal first.");
+      toast("Prepare the signal first.", "warn");
       return;
     }
     if (!SUBSCRIPTION_PROGRAM_ID || !STREAM_REGISTRY_PROGRAM_ID) {
-      setRecordStatus("Program IDs not configured.");
+      toast("Program IDs not configured.", "error");
       return;
     }
     setRecordLoading(true);
-    setRecordStatus(null);
     try {
       const ix = await buildRecordSignalInstruction({
         programId: new PublicKey(SUBSCRIPTION_PROGRAM_ID),
@@ -87,9 +83,9 @@ export default function PublishSignal({
       const sig = await sendTransaction(tx, connection);
       await connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
       setTxSig(sig);
-      setRecordStatus(`On-chain publish ${sig.slice(0, 10)}…`);
+      toast(`On-chain publish confirmed ${sig.slice(0, 10)}…`, "success");
     } catch (err: any) {
-      setRecordStatus(err.message ?? "Failed to record on-chain");
+      toast(err.message ?? "Failed to record on-chain", "error");
     } finally {
       setRecordLoading(false);
     }
@@ -152,13 +148,6 @@ export default function PublishSignal({
           </button>
         )}
       </div>
-      {prepareStatus && <p className="subtext">{prepareStatus}</p>}
-      {recordStatus && <p className="subtext">{recordStatus}</p>}
-      {txSig && (
-        <p className="subtext">
-          On-chain tx {txSig.slice(0, 10)}…
-        </p>
-      )}
     </>
   );
 }

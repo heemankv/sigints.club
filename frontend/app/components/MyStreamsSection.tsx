@@ -109,12 +109,6 @@ export default function MyStreamsSection() {
                     </span>
                   )}
                 </div>
-                {(stream.accuracy || stream.latency) && (
-                  <div className="stream-card-meta">
-                    {stream.accuracy && <span>{stream.accuracy} accuracy</span>}
-                    {stream.latency && <span>{stream.latency} latency</span>}
-                  </div>
-                )}
               </div>
 
               {/* Bottom row: subs | description left, Manage right */}

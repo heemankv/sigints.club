@@ -15,10 +15,10 @@ import {
 import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier, OwnedSubscriptionOption } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
-import RegisterAgentWizard from "../components/RegisterAgentWizard";
 import { sha256Bytes } from "../lib/solana";
 import { toHex } from "../lib/utils";
 import { useUserProfile, type UserProfile } from "../lib/userProfile";
+import { toast } from "../lib/toast";
 
 export type ProfileTab = "subscriptions" | "streams" | "agents" | "actions";
 
@@ -35,7 +35,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [streamCatalog, setStreamCatalog] = useState<StreamDetail[]>([]);
   const [subscriptionCards, setSubscriptionCards] = useState<ComponentProps<typeof OwnedSubscriptionCard>[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
-  const [subsError, setSubsError] = useState<string | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agentSubscriptions, setAgentSubscriptions] = useState<AgentSubscription[]>([]);
   const [myStreamCount, setMyStreamCount] = useState<number | null>(null);
@@ -43,7 +42,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   const activeTab = initialTab;
   const [actionsTab, setActionsTab] = useState<"editProfile" | "streamKeys">("editProfile");
-  const [agentsSubTab, setAgentsSubTab] = useState<"active" | "register">("active");
 
   const walletAddr = publicKey?.toBase58();
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
@@ -147,11 +145,13 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   async function loadSubscriptions(forceFresh = false) {
     if (!walletAddr) return;
-    setSubsError(null);
 
     // Show cached data instantly before setting loading
     const cachedSubs = readSubscriptionsCache(walletAddr);
     const cachedStreams = readStreamsCache();
+    if (cachedStreams?.streams?.length) {
+      setStreamCatalog(cachedStreams.streams);
+    }
     const hasCacheHit = cachedSubs !== null && cachedStreams !== null;
     if (cachedSubs?.subscriptions?.length && cachedStreams?.streams?.length) {
       await processSubscriptions(cachedSubs.subscriptions, cachedStreams.streams);
@@ -160,13 +160,19 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     // Only show loading UI if there's no cache at all
     if (!hasCacheHit) setSubsLoading(true);
     try {
-      const [subsRes, streamsRes] = await Promise.all([
-        fetchOnchainSubscriptions(walletAddr, { fresh: forceFresh }),
-        fetchStreams({ includeTiers: true }),
-      ]);
-      await processSubscriptions(subsRes.subscriptions ?? [], streamsRes.streams ?? []);
+      let streamList: StreamDetail[] = cachedStreams?.streams ?? [];
+      try {
+        const streamsRes = await fetchStreams({ includeTiers: true });
+        streamList = streamsRes.streams ?? [];
+        setStreamCatalog(streamList);
+      } catch {
+        // keep cached streams if available
+      }
+
+      const subsRes = await fetchOnchainSubscriptions(walletAddr, { fresh: forceFresh });
+      await processSubscriptions(subsRes.subscriptions ?? [], streamList);
     } catch (err: any) {
-      setSubsError(err?.message ?? "Failed to load subscriptions.");
+      toast(err?.message ?? "Failed to load subscriptions.", "error");
       if (!cachedSubs?.subscriptions?.length) {
         setSubscriptionCards([]);
         setOwnedSubscriptionOptions([]);
@@ -243,7 +249,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
   async function saveProfile() {
     if (!walletAddr) {
-      setEditStatus("Connect your wallet first.");
+      toast("Connect your wallet first.", "warn");
       return;
     }
     setEditStatus(null);
@@ -266,7 +272,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
       setProfile(res.user);
       setEditStatus("Profile updated.");
     } catch (err: any) {
-      setEditStatus(err?.message ?? "Failed to update profile.");
+      toast(err?.message ?? "Failed to update profile.", "error");
     } finally {
       setEditSaving(false);
     }
@@ -323,8 +329,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                     </div>
                   </div>
                 )}
-                {subsError && <p className="subtext">{subsError}</p>}
-                {!subsLoading && !subsError && subscriptionCards.length === 0 && (
+                {!subsLoading && subscriptionCards.length === 0 && (
                   <div className="stream-card-grid">
                     <div className="stream-card">
                       <div className="stream-card-row">
@@ -358,31 +363,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
 
             {activeTab === "agents" && (
               <div className="profile-tab-content">
-                <div className="maker-tabs">
-                  <button
-                    className={`maker-tab${agentsSubTab === "active" ? " maker-tab--active" : ""}`}
-                    onClick={() => setAgentsSubTab("active")}
-                  >
-                    Active Agents
-                  </button>
-                  <button
-                    className={`maker-tab${agentsSubTab === "register" ? " maker-tab--active" : ""}`}
-                    onClick={() => setAgentsSubTab("register")}
-                  >
-                    Register
-                  </button>
-                </div>
-
-                {agentsSubTab === "register" && (
-                  <RegisterAgentWizard
-                    walletAddr={walletAddr!}
-                    streamCatalog={streamCatalog}
-                    ownedSubscriptionOptions={ownedSubscriptionOptions}
-                    onAgentCreated={() => { void loadAgents(); setAgentsSubTab("active"); }}
-                  />
-                )}
-
-                {agentsSubTab === "active" && (
                 <div className="stream-card-grid">
                   {agents.map((agent) => {
                     const roleLabel = agent.role === "maker" ? "sender" : agent.role === "both" ? "sender + listener" : "listener";
@@ -458,7 +438,6 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                     </div>
                   )}
                 </div>
-                )}
               </div>
             )}
 

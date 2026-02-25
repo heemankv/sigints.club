@@ -13,6 +13,7 @@ import {
 } from "../lib/streamRegistry";
 import type { TierInput } from "../lib/streamRegistry";
 import { parseSolLamports } from "../lib/pricing";
+import { toast } from "../lib/toast";
 
 export default function RegisterStreamPage() {
   const { publicKey, sendTransaction } = useWallet();
@@ -77,7 +78,7 @@ export default function RegisterStreamPage() {
 
   async function deploy() {
     if (!publicKey) {
-      setDeployStatus("Connect your wallet first.");
+      toast("Connect your wallet first.", "warn");
       return;
     }
     setDeployLoading(true);
@@ -151,13 +152,15 @@ export default function RegisterStreamPage() {
       });
 
       setDeploySuccess(true);
-      setDeployStatus(
+      setDeployStatus(null);
+      toast(
         signature
-          ? `Stream registered! Tx: ${signature.slice(0, 12)}…`
+          ? `Stream registered! Tx ${signature.slice(0, 12)}…`
           : "Stream already on-chain. Listing published.",
+        "success"
       );
     } catch (err: unknown) {
-      setDeployStatus(err instanceof Error ? err.message : "Failed to register stream");
+      toast(err instanceof Error ? err.message : "Failed to register stream", "error");
     } finally {
       setDeployLoading(false);
     }
@@ -353,16 +356,13 @@ export default function RegisterStreamPage() {
               </div>
 
               {deployStatus && (
-                <p
-                  className="subtext"
-                  style={{ marginTop: 12, color: deploySuccess ? "var(--accent-2)" : undefined }}
-                >
+                <p className="subtext" style={{ marginTop: 12 }}>
                   {deployStatus}
                 </p>
               )}
 
               {deploySuccess && (
-                <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
                   <Link className="button ghost" href={`/stream/${streamId}`}>
                     View Stream →
                   </Link>

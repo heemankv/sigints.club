@@ -14,6 +14,7 @@ import { PublicKey, Transaction } from "@solana/web3.js";
 import { getCardArtUrl } from "../lib/cardArt";
 import { parseSolLamports } from "../lib/pricing";
 import { parseQuota } from "../lib/utils";
+import { toast } from "../lib/toast";
 
 type SubscriptionCardProps = {
   streamId: string;
@@ -54,14 +55,10 @@ export default function SubscriptionCard({
 }: SubscriptionCardProps) {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tx, setTx] = useState<string | null>(null);
 
   async function subscribeOnchain() {
     setLoading(true);
-    setStatus(null);
-    setTx(null);
     try {
       if (!publicKey) {
         throw new Error("Connect your wallet to buy this subscription.");
@@ -89,10 +86,9 @@ export default function SubscriptionCard({
       const { blockhash } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;
       const signature = await sendTransaction(tx, connection);
-      setTx(signature);
-      setStatus("Subscription minted on-chain.");
+      toast(`Subscription minted on-chain ${signature.slice(0, 10)}…`, "success");
     } catch (err: any) {
-      setStatus(err.message ?? "Failed to subscribe");
+      toast(err.message ?? "Failed to subscribe", "error");
     } finally {
       setLoading(false);
     }
@@ -137,12 +133,6 @@ export default function SubscriptionCard({
         </div>
         {disabled && (
           <p className="subtext">On-chain stream or payout accounts not configured.</p>
-        )}
-        {status && <p className="subtext">{status}</p>}
-        {tx && (
-          <p className="subtext">
-            Tx {tx.slice(0, 10)}…
-          </p>
         )}
       </div>
     </div>

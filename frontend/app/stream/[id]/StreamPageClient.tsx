@@ -386,8 +386,8 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
             {senderAgents.length === 0 ? (
               <div className="stream-detail-section stream-step">
                 <div className="stream-step-header">
-                  <h3 className="stream-detail-section-title">Register Sender Agent</h3>
-                  <span className="subtext">Create a sender agent so you can publish signals from this stream.</span>
+                  <h3 className="stream-detail-section-title">Register Publisher Agent</h3>
+                  <span className="subtext">Create a publisher agent so you can publish signals from this stream.</span>
                 </div>
                 <RegisterAgentWizard
                   key={`sender-${stream.id}`}
@@ -395,7 +395,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                   streamCatalog={"tiers" in stream ? [stream as StreamDetail] : []}
                   ownedSubscriptionOptions={[]}
                   onAgentCreated={() => { void refreshAgents(); }}
-                  heading="Register Sender Agent"
+                  heading="Register Publisher Agent"
                   basicsMode="nameOnly"
                   roleMode="senderOnly"
                   lockStreamId
@@ -409,14 +409,14 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
               </div>
             ) : (
               <div className="stream-detail-section stream-step">
-                <h3 className="stream-detail-section-title">Sender Agents</h3>
+                <h3 className="stream-detail-section-title">Publisher Agents</h3>
                 <div className="agent-list">
                   {senderAgents.map((agent) => (
                     <div key={agent.id} className="agent-list-item">
                       <div>
                         <strong>{agent.name}</strong>
                         <span className="subtext">
-                          {agent.domain} · {agent.role === "both" ? "sender + listener" : "sender"}
+                          {agent.domain} · {agent.role === "both" ? "publisher + listener" : "publisher"}
                         </span>
                       </div>
                       {agent.agentPubkey && (

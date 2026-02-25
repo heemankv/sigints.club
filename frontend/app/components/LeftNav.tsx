@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -36,6 +35,20 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/register-agent",
+    label: "Register Agent",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <circle cx="9" cy="10" r="1.5" />
+        <circle cx="15" cy="10" r="1.5" />
+        <path d="M9 15h6" />
+        <line x1="9" y1="2" x2="9" y2="4" />
+        <line x1="15" y1="2" x2="15" y2="4" />
+      </svg>
+    ),
+  },
+  {
     href: "/profile",
     label: "Profile",
     icon: (
@@ -54,8 +67,6 @@ const PROFILE_SUB_ITEMS = [
   { href: "/profile/actions", label: "Actions", tab: "actions" },
 ];
 
-type SubnavState = "closed" | "open" | "closing";
-
 export default function LeftNav() {
   const pathname = usePathname();
 
@@ -64,31 +75,6 @@ export default function LeftNav() {
   const currentTab = (profileSegment === "streams" || profileSegment === "agents" || profileSegment === "actions")
     ? profileSegment
     : "subscriptions";
-
-  const [subnavState, setSubnavState] = useState<SubnavState>(
-    isProfileSection ? "open" : "closed"
-  );
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (isProfileSection) {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-      setSubnavState("open");
-    } else {
-      setSubnavState((prev) => {
-        if (prev === "open") {
-          closeTimer.current = setTimeout(() => setSubnavState("closed"), 460);
-          return "closing";
-        }
-        return prev;
-      });
-    }
-    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); };
-  }, [isProfileSection]);
-
-  const subnavClass =
-    subnavState === "open" ? " x-subnav--open" :
-    subnavState === "closing" ? " x-subnav--closing" : "";
 
   return (
     <aside className="x-sidebar">
@@ -110,8 +96,8 @@ export default function LeftNav() {
                 </span>
               </Link>
 
-              {baseHref === "/profile" && subnavState !== "closed" && (
-                <div className={`x-subnav${subnavClass}`}>
+              {baseHref === "/profile" && (
+                <div className="x-subnav">
                   {PROFILE_SUB_ITEMS.map((item) => {
                     return (
                     <Link
