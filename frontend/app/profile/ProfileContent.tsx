@@ -507,24 +507,25 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                     <p className="profile-tab-description" style={{ marginBottom: 12 }}>
                       Make it yours — pick a name, drop a bio, and let the network know who&#39;s behind the signals.
                     </p>
-                    <div style={{ maxWidth: "60%" }}>
-                      <label className="input-label">Name</label>
-                      <input
-                        className="input"
-                        value={editDisplayName}
-                        onChange={(e) => setEditDisplayName(e.target.value)}
-                        placeholder="Username"
-                        style={{ marginBottom: 12 }}
-                      />
-                      <label className="input-label">Description</label>
-                      <textarea
-                        className="input"
-                        value={editBio}
-                        onChange={(e) => setEditBio(e.target.value)}
-                        placeholder="Bio"
-                        rows={3}
-                        style={{ resize: "vertical", marginBottom: 14 }}
-                      />
+                    <div className="md-grid" style={{ maxWidth: "60%", gap: 20 }}>
+                      <div className="md-field">
+                        <label className="md-label">Name</label>
+                        <input
+                          className="md-input"
+                          value={editDisplayName}
+                          onChange={(e) => setEditDisplayName(e.target.value)}
+                          placeholder="Username"
+                        />
+                      </div>
+                      <div className="md-field">
+                        <label className="md-label">Description</label>
+                        <textarea
+                          className="md-textarea"
+                          value={editBio}
+                          onChange={(e) => setEditBio(e.target.value)}
+                          placeholder="Bio"
+                        />
+                      </div>
                       <button
                         className="button secondary"
                         onClick={saveProfile}

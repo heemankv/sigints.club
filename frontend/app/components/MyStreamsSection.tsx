@@ -128,7 +128,7 @@ export default function MyStreamsSection() {
         </div>
       )}
       {!loading && myStreams.length === 0 && (
-        <div className="stream-card">
+        <div className="stream-card" style={{ maxWidth: "50%" }}>
           <div className="stream-card-bottom">
             <p className="subtext" style={{ margin: 0 }}>No streams registered yet.</p>
             <Link className="button ghost" href="/register-stream">

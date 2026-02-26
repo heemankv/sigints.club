@@ -47,10 +47,11 @@ export default function RegisterStreamPage() {
   const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [intervalType, setIntervalType] = useState<"unintervalled" | "intervalled">("unintervalled");
   const [cronSchedule, setCronSchedule] = useState("0 0 * * *");
+  const [deployPhase, setDeployPhase] = useState<"idle" | "stream" | "tier" | "indexing" | "done">("idle");
   const [deployStatus, setDeployStatus] = useState<string | null>(null);
   const [deployLoading, setDeployLoading] = useState(false);
-  const [deployTx, setDeployTx] = useState<string | null>(null);
-  const [deploySuccess, setDeploySuccess] = useState(false);
+  const [streamDone, setStreamDone] = useState(false);
+  const [tierDone, setTierDone] = useState(false);
 
   useEffect(() => {}, [publicKey]); // kept for lint
 
@@ -101,64 +102,97 @@ export default function RegisterStreamPage() {
     }
   }
 
-  // ─── Deploy ───────────────────────────────────────────────────────────────
+  // ─── Deploy: 3-phase pipeline ────────────────────────────────────────────
 
-  async function deploy() {
-    if (!publicKey) {
-      toast("Connect your wallet first.", "warn");
-      return;
-    }
+  async function deployStream() {
+    if (!publicKey) { toast("Connect your wallet first.", "warn"); return; }
     setDeployLoading(true);
-    setDeployStatus("Preparing on-chain transaction…");
-    setDeployTx(null);
-    setDeploySuccess(false);
+    setDeployPhase("stream");
+    setDeployStatus("Preparing stream transaction…");
     try {
       const tier = buildTier();
       const tiers = [tier];
       const programId = resolveStreamRegistryId();
       const streamPda = await deriveStreamPda(programId, streamId);
       const existing = await connection.getAccountInfo(streamPda);
-      let signature: string | null = null;
 
-      if (!existing) {
-        setDeployStatus("Sending create stream transaction…");
-        const { transaction, latestBlockhash } = await buildCreateStreamTransaction({
-          connection,
-          authority: publicKey,
-          streamId,
-          tiers,
-          visibility,
-        });
-        signature = await sendTransaction(transaction, connection);
-        await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
-        const ready = await waitForStreamAccount(streamPda);
-        if (!ready) {
-          throw new Error("Stream account not initialized yet. Try again in a moment.");
-        }
-        setDeployTx(signature);
+      if (existing) {
+        setStreamDone(true);
+        setDeployPhase("tier");
+        setDeployStatus(null);
+        toast("Stream already exists on-chain. Proceed to deploy tier.", "success");
+        return;
       }
 
-      setDeployStatus("Registering tier…");
+      setDeployStatus("Confirm the transaction in your wallet…");
+      const { transaction, latestBlockhash } = await buildCreateStreamTransaction({
+        connection,
+        authority: publicKey,
+        streamId,
+        tiers,
+        visibility,
+      });
+      const signature = await sendTransaction(transaction, connection);
+      setDeployStatus("Confirming on-chain…");
+      await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
+      const ready = await waitForStreamAccount(streamPda);
+      if (!ready) throw new Error("Stream account not initialized yet. Try again in a moment.");
+
+      setStreamDone(true);
+      setDeployPhase("tier");
+      setDeployStatus(null);
+      toast(`Stream deployed! Tx ${signature.slice(0, 12)}…`, "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to deploy stream", "error");
+      setDeployPhase("idle");
+      setDeployStatus(null);
+    } finally {
+      setDeployLoading(false);
+    }
+  }
+
+  async function deployTier() {
+    if (!publicKey) { toast("Connect your wallet first.", "warn"); return; }
+    setDeployLoading(true);
+    setDeployPhase("tier");
+    setDeployStatus("Preparing tier transaction…");
+    try {
+      const tier = buildTier();
+      const programId = resolveStreamRegistryId();
+      const streamPda = await deriveStreamPda(programId, streamId);
       const streamReady = await connection.getAccountInfo(streamPda);
-      if (!streamReady) {
-        throw new Error("Stream account missing. Ensure create stream transaction is confirmed.");
-      }
+      if (!streamReady) throw new Error("Stream account missing. Deploy the stream first.");
+
+      setDeployStatus("Confirm the transaction in your wallet…");
       const { transaction } = await buildUpsertTiersTransaction({
         connection,
         authority: publicKey,
         stream: streamPda,
-        tiers: [
-          {
-            tier,
-            priceLamports: parseSolLamports(tier.price),
-            quota: 0,
-            status: 1,
-          },
-        ],
+        tiers: [{ tier, priceLamports: parseSolLamports(tier.price), quota: 0, status: 1 }],
       });
       await sendTransaction(transaction, connection);
 
-      setDeployStatus("Publishing to backend…");
+      setTierDone(true);
+      setDeployStatus(null);
+      toast("Tier deployed!", "success");
+
+      // Auto-trigger indexing
+      await indexBackend();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to deploy tier", "error");
+      setDeployStatus(null);
+    } finally {
+      setDeployLoading(false);
+    }
+  }
+
+  async function indexBackend() {
+    if (!publicKey) return;
+    setDeployPhase("indexing");
+    setDeployStatus(null);
+    toast("Indexing on backend…", "success");
+    try {
+      const tier = buildTier();
       await sdkCreateStream({
         id: streamId,
         name,
@@ -170,21 +204,14 @@ export default function RegisterStreamPage() {
         signalInterval: intervalType,
         cronSchedule: intervalType === "intervalled" ? cronSchedule : undefined,
         ownerWallet: publicKey.toBase58(),
-        tiers,
+        tiers: [tier],
       });
-
-      setDeploySuccess(true);
+      setDeployPhase("done");
       setDeployStatus(null);
-      toast(
-        signature
-          ? `Stream registered! Tx ${signature.slice(0, 12)}…`
-          : "Stream already on-chain. Listing published.",
-        "success"
-      );
+      toast("Stream indexed and live!", "success");
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to register stream", "error");
-    } finally {
-      setDeployLoading(false);
+      toast(err instanceof Error ? err.message : "Failed to index on backend", "error");
+      setDeployStatus(null);
     }
   }
 
@@ -229,55 +256,73 @@ export default function RegisterStreamPage() {
             <div className="step-content">
               <h3>Stream Identity</h3>
               <p className="subtext">Basic metadata and pricing for your stream.</p>
-              <div className="form-grid form-grid--2col">
-                <input
-                  className="input"
-                  value={streamId}
-                  onChange={(e) => setStreamId(e.target.value)}
-                  placeholder="stream-id (e.g. stream-eth-price)"
-                />
-                <input
-                  className="input"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Stream name"
-                />
-                <input
-                  className="input"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="Domain (e.g. pricing, crypto)"
-                />
-                <select
-                  className="input"
-                  value={visibility}
-                  aria-label="Visibility"
-                  onChange={(e) => setVisibility(e.target.value as "public" | "private")}
-                >
-                  <option value="private">Private stream (encrypted signals)</option>
-                  <option value="public">Public stream (open signals)</option>
-                </select>
-                <select
-                  className="input"
-                  value={intervalType}
-                  aria-label="Signal Interval"
-                  onChange={(e) => setIntervalType(e.target.value as "unintervalled" | "intervalled")}
-                >
-                  <option value="unintervalled">Un-intervalled (event-driven)</option>
-                  <option value="intervalled">Intervalled (scheduled)</option>
-                </select>
-                {intervalType === "intervalled" && (
+              <div className="md-grid md-grid--2col">
+                <div className="md-field">
+                  <label className="md-label">Stream ID</label>
                   <input
-                    className="input"
-                    value={cronSchedule}
-                    onChange={(e) => setCronSchedule(e.target.value)}
-                    placeholder="Cron schedule (e.g. 0 0 * * *)"
+                    className="md-input"
+                    value={streamId}
+                    onChange={(e) => setStreamId(e.target.value)}
+                    placeholder="stream-eth-price"
                   />
+                </div>
+                <div className="md-field">
+                  <label className="md-label">Name</label>
+                  <input
+                    className="md-input"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="ETH Price Feed"
+                  />
+                </div>
+                <div className="md-field">
+                  <label className="md-label">Domain</label>
+                  <input
+                    className="md-input"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="pricing, crypto"
+                  />
+                </div>
+                <div className="md-field">
+                  <label className="md-label">Visibility</label>
+                  <select
+                    className="md-select"
+                    value={visibility}
+                    aria-label="Visibility"
+                    onChange={(e) => setVisibility(e.target.value as "public" | "private")}
+                  >
+                    <option value="private">Private stream (encrypted signals)</option>
+                    <option value="public">Public stream (open signals)</option>
+                  </select>
+                </div>
+                <div className="md-field">
+                  <label className="md-label">Signal Interval</label>
+                  <select
+                    className="md-select"
+                    value={intervalType}
+                    aria-label="Signal Interval"
+                    onChange={(e) => setIntervalType(e.target.value as "unintervalled" | "intervalled")}
+                  >
+                    <option value="unintervalled">Un-intervalled (event-driven)</option>
+                    <option value="intervalled">Intervalled (scheduled)</option>
+                  </select>
+                </div>
+                {intervalType === "intervalled" && (
+                  <div className="md-field">
+                    <label className="md-label">Cron Schedule</label>
+                    <input
+                      className="md-input"
+                      value={cronSchedule}
+                      onChange={(e) => setCronSchedule(e.target.value)}
+                      placeholder="0 0 * * *"
+                    />
+                  </div>
                 )}
               </div>
 
               {/* Subscription price + Verifier side by side */}
-              <div className="form-grid form-grid--2col" style={{ marginTop: 16 }}>
+              <div className="md-grid md-grid--2col" style={{ marginTop: 20 }}>
                 <div className="slider-field">
                   <div className="slider-field-header">
                     <span className="slider-field-label">Subscription price</span>
@@ -327,14 +372,15 @@ export default function RegisterStreamPage() {
                 </div>
               </div>
 
-              <textarea
-                className="input"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short description of your stream"
-                rows={3}
-                style={{ marginTop: 16, marginBottom: 0 }}
-              />
+              <div className="md-field md-grid--full" style={{ marginTop: 20 }}>
+                <label className="md-label">Description</label>
+                <textarea
+                  className="md-textarea"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Short description of your stream"
+                />
+              </div>
               {deployStatus && (
                 <p className="subtext" style={{ color: "var(--accent)", marginTop: 8 }}>
                   {deployStatus}
@@ -388,36 +434,67 @@ export default function RegisterStreamPage() {
                 </div>
               </div>
 
+              {/* Deploy pipeline */}
+              <div className="deploy-pipeline">
+                {deployPhase === "idle" && (
+                  <button className="button ghost" onClick={() => setStep(1)} style={{ marginRight: "auto" }}>
+                    ← Back
+                  </button>
+                )}
+
+                {/* Step 1: Deploy Stream */}
+                <button
+                  className={`deploy-pipeline-btn${
+                    streamDone ? " deploy-pipeline-btn--done"
+                    : deployPhase === "stream" && deployLoading ? " deploy-pipeline-btn--loading"
+                    : (deployPhase === "idle" || deployPhase === "stream") && !streamDone ? " deploy-pipeline-btn--active"
+                    : ""
+                  }`}
+                  onClick={!streamDone && !deployLoading ? deployStream : undefined}
+                  disabled={streamDone || deployLoading}
+                >
+                  {streamDone ? "✓ Stream" : deployPhase === "stream" && deployLoading ? "Deploying…" : "Deploy Stream"}
+                </button>
+
+                <span className={`deploy-pipeline-arrow${streamDone ? " deploy-pipeline-arrow--active" : ""}`}>→</span>
+
+                {/* Step 2: Deploy Tier */}
+                <button
+                  className={`deploy-pipeline-btn${
+                    tierDone ? " deploy-pipeline-btn--done"
+                    : deployPhase === "tier" && deployLoading ? " deploy-pipeline-btn--loading"
+                    : deployPhase === "tier" && !deployLoading ? " deploy-pipeline-btn--active"
+                    : ""
+                  }`}
+                  onClick={streamDone && !tierDone && !deployLoading ? deployTier : undefined}
+                  disabled={!streamDone || tierDone || deployLoading}
+                >
+                  {tierDone ? "✓ Tier" : deployPhase === "tier" && deployLoading ? "Deploying…" : "Deploy Tier"}
+                </button>
+
+                <span className={`deploy-pipeline-arrow${tierDone ? " deploy-pipeline-arrow--active" : ""}`}>→</span>
+
+                {/* Step 3: Indexing (auto) */}
+                <span className={`deploy-pipeline-status${deployPhase === "indexing" ? " deploy-pipeline-status--active" : ""}`}>
+                  {deployPhase === "done" ? "✓ Indexed" : deployPhase === "indexing" ? "Indexing…" : "Indexing"}
+                </span>
+              </div>
+
               {deployStatus && (
-                <p className="subtext" style={{ marginTop: 12 }}>
+                <p className="subtext" style={{ marginTop: 12, textAlign: "right" }}>
                   {deployStatus}
                 </p>
               )}
 
-              {deploySuccess && (
-                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+              {deployPhase === "done" && (
+                <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
                   <Link className="button ghost" href={`/stream/${streamId}`}>
                     View Stream →
                   </Link>
                 </div>
               )}
 
-              {!deploySuccess && (
-                <div className="step-actions">
-                  <button className="button ghost" onClick={() => setStep(1)} disabled={deployLoading}>
-                    ← Back
-                  </button>
-                  <button
-                    className="button primary"
-                    onClick={deploy}
-                    disabled={deployLoading || !publicKey}
-                  >
-                    {deployLoading ? "Deploying…" : "Deploy Stream"}
-                  </button>
-                </div>
-              )}
-
-              {!publicKey && !deploySuccess && (
+              {!publicKey && deployPhase === "idle" && (
                 <p className="subtext" style={{ marginTop: 8 }}>
                   Connect your wallet to deploy.
                 </p>

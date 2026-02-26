@@ -5170,3 +5170,167 @@ textarea {
 }
 
 /* ─── end Profile page ────────────────────────────────────────────────────── */
+
+/* ─── Material Design underline inputs ───────────────────────────────────── */
+
+.md-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.md-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.md-input,
+.md-select,
+.md-textarea {
+  width: 100%;
+  padding: 10px 0;
+  border: none;
+  border-bottom: 1.5px solid rgba(60, 90, 140, 0.35);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.md-input::placeholder,
+.md-textarea::placeholder {
+  color: var(--fg-dim);
+  opacity: 0.5;
+}
+
+.md-input:focus,
+.md-select:focus,
+.md-textarea:focus {
+  border-bottom-color: var(--accent);
+  box-shadow: 0 1px 0 0 var(--accent);
+}
+
+.md-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237B8FAD' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  padding-right: 20px;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.md-select option {
+  background: #0C1631;
+  color: var(--ink);
+}
+
+.md-textarea {
+  min-height: 0;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+}
+
+.md-grid {
+  display: grid;
+  gap: 20px 24px;
+}
+
+.md-grid--2col {
+  grid-template-columns: 1fr 1fr;
+}
+
+.md-grid--full {
+  grid-column: 1 / -1;
+}
+
+/* ─── end Material Design underline inputs ───────────────────────────────── */
+
+/* ─── Deploy pipeline ────────────────────────────────────────────────────── */
+
+.deploy-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+.deploy-pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.deploy-pipeline-btn {
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 13px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  cursor: default;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.deploy-pipeline-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(255, 107, 53, 0.25);
+}
+
+.deploy-pipeline-btn--active:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(255, 107, 53, 0.35);
+}
+
+.deploy-pipeline-btn--done {
+  background: rgba(29, 176, 166, 0.15);
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.deploy-pipeline-btn--loading {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.deploy-pipeline-arrow {
+  color: var(--muted);
+  font-size: 16px;
+  margin: 0 10px;
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+
+.deploy-pipeline-arrow--active {
+  opacity: 1;
+  color: var(--accent-2);
+}
+
+.deploy-pipeline-status {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.deploy-pipeline-status--active {
+  color: var(--accent);
+}
+
+/* ─── end Deploy pipeline ────────────────────────────────────────────────── */

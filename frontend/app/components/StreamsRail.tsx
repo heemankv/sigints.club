@@ -23,7 +23,7 @@ export default function StreamsRail() {
   const latestStreams = useMemo(() => {
     return [...streams]
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-      .slice(0, 6);
+      .slice(0, 3);
   }, [streams]);
 
   // Load streams (merge-by-ID, 10s poll — mirrors the signals pattern)

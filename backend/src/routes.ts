@@ -1232,7 +1232,14 @@ router.post("/users/login", async (req, res) => {
     bio: parsed.data.bio,
   });
   try {
-    await socialServiceInstance.ensureProfile(parsed.data.wallet, parsed.data.displayName);
+    const profileId = await socialServiceInstance.ensureProfile(parsed.data.wallet, parsed.data.displayName);
+    if (profileId && (parsed.data.displayName || parsed.data.bio)) {
+      await tapestryClient.updateProfileCore({
+        profileId,
+        username: parsed.data.displayName,
+        bio: parsed.data.bio,
+      });
+    }
     const refreshed = await userProfileStore.getUser(parsed.data.wallet);
     if (refreshed) {
       profile = refreshed;
@@ -1249,8 +1256,14 @@ router.get("/users/:wallet", async (req, res) => {
   const cached = await userProfileStore.getUser(wallet);
   const profile = await fetchTapestryProfileByWallet(wallet, cached?.tapestryProfileId);
   if (profile) {
-    const displayName = readCustomProperty(profile, "displayName") ?? profile.username;
-    const bio = readCustomProperty(profile, "bio") ?? profile.bio;
+    const displayName =
+      readCustomProperty(profile, "displayName") ??
+      cached?.displayName ??
+      profile.username;
+    const bio =
+      readCustomProperty(profile, "bio") ??
+      cached?.bio ??
+      profile.bio;
     const updated = await userProfileStore.upsertUser(wallet, {
       displayName: displayName ?? undefined,
       bio: bio ?? undefined,
