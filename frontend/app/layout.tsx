@@ -42,7 +42,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="nav">
             <div className="container nav-inner">
               <Link href="/" className="brand">
-                <span className="logo">sigints.club</span>
+                <span className="logo">
+                  <svg className="brand-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="9" cy="3" r="2" fill="#ff6b35"/>
+                    <circle cx="9" cy="3" r="3.5" fill="#ff6b35" opacity="0.25"/>
+                  </svg>
+                  sigints.club
+                </span>
                 <span className="tag">Signals intelligence network</span>
               </Link>
 <div className="nav-actions">

@@ -218,12 +218,19 @@ main {
   position: relative;
 }
 
+.brand-icon {
+  flex-shrink: 0;
+}
+
 .logo {
   font-family: "Space Grotesk", sans-serif;
   font-weight: 700;
   font-size: 20px;
   letter-spacing: 0.02em;
   color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tag {
@@ -4717,6 +4724,7 @@ textarea {
 }
 
 .profile-tab-content .data-card__media {
+  position: relative;
   width: 5px;
   min-width: 5px;
   height: auto;
@@ -4730,6 +4738,21 @@ textarea {
   min-width: 180px;
   height: 100%;
   object-fit: cover;
+}
+
+.data-card__media-badge {
+  position: absolute;
+  top: 50%;
+  left: 90px;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .profile-tab-content .data-card:hover .data-card__media {

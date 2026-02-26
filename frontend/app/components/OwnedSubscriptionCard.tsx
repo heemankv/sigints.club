@@ -56,6 +56,11 @@ export default function OwnedSubscriptionCard({
     <div className="data-card">
       <div className="data-card__media">
         <img src={artUrl} alt={`${streamName} art`} />
+        {evidenceLevel && (
+          <span className="data-card__media-badge badge">
+            {evidenceLevel === "verifier" ? "verifiable" : evidenceLevel}
+          </span>
+        )}
       </div>
 
       <div className="data-card__body">
@@ -93,7 +98,7 @@ export default function OwnedSubscriptionCard({
 
         <div className="data-card__actions">
           <div className="data-card__tags">
-            {evidenceLevel && <span className="badge badge-sm">{evidenceLevel}</span>}
+            {evidenceLevel && <span className="badge badge-sm">{evidenceLevel === "verifier" ? "verifiable" : evidenceLevel}</span>}
             {pricingLabel && <span className="badge badge-sm badge-gold">{pricingLabel}</span>}
             <span className="badge badge-sm badge-teal">{tierLabel}</span>
           </div>

@@ -654,7 +654,7 @@ router.get("/actions/stream/:id", async (req, res) => {
   const userDescription = stream.description?.trim() ? stream.description.trim() : "No description.";
   return res.json({
     type: "action",
-    icon: `${appBase}/generated/subscription-1.svg`,
+    icon: `${appBase}/icon.svg`,
     title: `${stream.name} (${stream.id})`,
     description: `${userDescription}\n${domainLine}\n${visibilityTag}\n${onchainLine}\n${lastSignalLine}\n${tierLine}\n${visibilityLine}`,
     label: "Subscribe",
