@@ -637,11 +637,29 @@ router.get("/actions/stream/:id", async (req, res) => {
   const tierLine = actions.length > 1
     ? "Choose Trust or Verifier for this stream."
     : "Monthly subscription.";
+  let lastSignalLine = "Last signal: n/a";
+  try {
+    const signals = await signalStore.listSignals(stream.id);
+    const latest = signals.sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (latest?.createdAt) {
+      lastSignalLine = `Last signal: ${formatTimeAgo(latest.createdAt)}`;
+    }
+  } catch {
+    // ignore signal lookup failures
+  }
+  const onchainAddress = stream.onchainAddress ?? "n/a";
+  const shortOnchain = onchainAddress.length > 12
+    ? `${onchainAddress.slice(0, 6)}…${onchainAddress.slice(-4)}`
+    : onchainAddress;
+  const domainLine = `Domain: ${stream.domain || "n/a"}`;
+  const visibilityTag = `Visibility: ${stream.visibility ?? "private"}`;
+  const onchainLine = `On-chain: ${shortOnchain}`;
+  const userDescription = stream.description?.trim() ? stream.description.trim() : "No description.";
   return res.json({
     type: "action",
     icon: `${appBase}/generated/subscription-1.svg`,
-    title: `Subscribe to ${stream.name}`,
-    description: `${stream.description}\n${tierLine}\n${visibilityLine}`,
+    title: `${stream.name} (${stream.id})`,
+    description: `${userDescription}\n${domainLine}\n${visibilityTag}\n${onchainLine}\n${lastSignalLine}\n${tierLine}\n${visibilityLine}`,
     label: "Subscribe",
     links: { actions },
   });
@@ -924,6 +942,20 @@ function resolvePublicBaseUrl(req: { protocol: string; get: (name: string) => st
 
 function resolveApiBaseUrl(req: { protocol: string; get: (name: string) => string | undefined }) {
   return process.env.PUBLIC_API_URL ?? `${req.protocol}://${req.get("host")}`;
+}
+
+function formatTimeAgo(timestampMs?: number | null): string {
+  if (!timestampMs) return "n/a";
+  const deltaMs = Date.now() - timestampMs;
+  if (deltaMs < 0) return "just now";
+  const seconds = Math.floor(deltaMs / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 router.post("/streams", async (req, res) => {
