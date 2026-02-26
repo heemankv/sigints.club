@@ -1,11 +1,12 @@
-# sigints.club SDK
+# @heemankv/sigints-sdk
 
-A TypeScript SDK for building on sigints.club. It covers:
-- Solana on-chain transactions and instruction builders
-- Backend API helpers
-- Signal encryption/decryption
-- Real-time listening (WebSocket or OrbitFlare Jetstream)
-- Trade intent parsing utilities
+A TypeScript SDK for building on sigints.club. It connects the Solana programs, the backend, and encrypted signal payloads into one consistent client API so you can build publishers, listeners, dashboards, or AI agents.
+
+## Abstract
+
+sigints.club is live data feeds, all on‑chain. Streams are registered on‑chain, subscriptions are minted on‑chain, and signals can be public or encrypted for subscribers only. The SDK makes this programmable: discover streams, subscribe, decrypt, and publish without walking through the UI. If the website is the cockpit, this SDK is the API surface that lets software — including AI agents — fly the plane.
+
+A simple way to think about it: the SDK lets you move from intent (“listen to these streams”) to execution (“subscribe, decrypt, and react”) in a few lines of code. That means signals can be automated, composable, and continuous.
 
 ## Install
 
@@ -13,7 +14,15 @@ A TypeScript SDK for building on sigints.club. It covers:
 npm install @heemankv/sigints-sdk
 ```
 
-## Quick Start (Backend-Backed Client)
+## What You Can Build
+
+- Stream explorers and dashboards
+- Signal publishers (manual or automated)
+- Listener bots that decrypt and react to signals
+- Social flows (posts, comments, follows)
+- Agent tooling or MCP servers
+
+## Quick Start: Listen for Signals
 
 ```ts
 import { SigintsClient } from "@heemankv/sigints-sdk";
@@ -21,186 +30,88 @@ import { SigintsClient } from "@heemankv/sigints-sdk";
 const client = await SigintsClient.fromBackend("https://your-backend");
 
 const stop = await client.listenForSignals({
-  streamPubkey: "YOUR_STREAM_PDA",
+  streamPubkey: "STREAM_PDA",
   streamId: "stream-btc",
   onSignal: (signal) => {
     console.log("Signal:", signal.plaintext);
   },
 });
+
+// Later
+// stop();
 ```
 
-## Configuration
-
-### StreamSdkConfig
+## Private Signals: Register Key + Decrypt
 
 ```ts
 import { SigintsClient } from "@heemankv/sigints-sdk";
 
-const client = new SigintsClient({
-  rpcUrl: "https://api.devnet.solana.com",
-  backendUrl: "https://your-backend",
-  programId: "SUBSCRIPTION_PROGRAM_ID",
-  streamRegistryProgramId: "STREAM_REGISTRY_PROGRAM_ID",
-});
+const client = await SigintsClient.fromBackend("https://your-backend");
+
+// 1) Generate subscriber keys
+const keys = SigintsClient.generateKeys();
+
+// 2) Register the public key for the stream
+await client.registerEncryptionKey("stream-btc", keys.publicKeyDerBase64, "YOUR_WALLET");
+
+// 3) Fetch + decrypt the latest signal
+const latest = await client.fetchLatestSignal("stream-btc");
+const plaintext = await client.decryptSignal(latest, keys);
+console.log(plaintext);
 ```
 
-### OrbitFlare (RPC + Jetstream)
+## On-Chain Transactions (Builder Example)
 
 ```ts
-import { SigintsClient } from "@heemankv/sigints-sdk";
+import { Connection, Keypair } from "@solana/web3.js";
+import { buildSubscribeTransaction } from "@heemankv/sigints-sdk/transactions";
 
-const client = new SigintsClient({
-  rpcUrl: "https://api.devnet.solana.com",
-  backendUrl: "https://your-backend",
+const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+const wallet = Keypair.generate();
+
+const { transaction, latestBlockhash } = await buildSubscribeTransaction({
+  connection,
   programId: "SUBSCRIPTION_PROGRAM_ID",
   streamRegistryProgramId: "STREAM_REGISTRY_PROGRAM_ID",
-  orbitflare: {
-    rpcUrl: "https://your-orbitflare-devnet-rpc",
-    jetstreamEndpoint: "https://your-jetstream-endpoint",
-    apiKey: "ORBITFLARE_KEY",
-    apiKeyHeader: "X-ORBIT-KEY",
-  },
+  stream: "STREAM_PDA",
+  subscriber: wallet.publicKey,
+  tierId: "trust",
+  pricingType: 1,
+  evidenceLevel: 0,
+  expiresAtMs: Date.now() + 30 * 24 * 60 * 60 * 1000,
+  quotaRemaining: 100,
+  priceLamports: 0,
+  maker: "MAKER_WALLET",
+  treasury: "TREASURY_WALLET",
 });
+
+transaction.sign(wallet);
+const signature = await connection.sendRawTransaction(transaction.serialize(), { skipPreflight: false });
+await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
 ```
 
-Behavior:
-- If `orbitflare.rpcUrl` is provided, it overrides the RPC URL for all on-chain reads/writes.
-- If `orbitflare.jetstreamEndpoint` is provided, `listenForSignals()` uses Jetstream.
-- If Jetstream fails to connect, the SDK falls back to WebSocket subscriptions.
-- If neither is configured, the SDK behaves as it does today.
+## SDK Surfaces (Subpath Imports)
 
-Note: Jetstream is Node-only (not supported in browser runtimes).
+- `@heemankv/sigints-sdk` for `SigintsClient`
+- `@heemankv/sigints-sdk/backend` for REST helpers
+- `@heemankv/sigints-sdk/transactions` for on‑chain transaction builders
+- `@heemankv/sigints-sdk/publish` for signal publishing helpers
+- `@heemankv/sigints-sdk/solana` for program‑level helpers
+- `@heemankv/sigints-sdk/tradeIntent` for trade intent parsing and Blink URLs
+- `@heemankv/sigints-sdk/crypto` for X25519 keygen + decryption helpers
 
-## SigintsClient API
-
-### Subscription + Keys
-- `registerSubscription(streamId, subscriberWallet)`
-- `registerEncryptionKey(streamId, publicKeyDerBase64, subscriberWallet)`
-- `syncWalletKey(wallet, streamId, encPubKeyDerBase64?)`
-
-### Streams
-- `fetchStream(streamId)`
-
-### Signals
-- `fetchLatestSignal(streamId)`
-- `fetchSignalByHash(signalHash)`
-- `fetchCiphertext(pointer)`
-- `fetchPublic(pointer)`
-- `fetchKeyboxEntry(pointer, encPubKeyDerBase64)`
-- `decryptSignal(metadata, keys)`
-
-### Real-Time Listening
-- `listenForSignals(options)`
-
-Options:
-- `streamPubkey`
-- `streamId`
-- `subscriberKeys` (for private streams)
-- `onSignal`
-- `onError`
-- `maxAgeMs`
-- `includeBlockTime`
-- `transport` (`auto` | `jetstream` | `websocket`)
-
-### Signal Publish
-- `prepareSignal(input)`
-- `buildRecordSignalInstruction(params)`
-- `buildRecordSignalDelegatedInstruction(params)`
-
-## Backend Client Helpers
-
-The SDK also exports a backend client for direct REST calls.
-
-### Core Client
-- `createBackendClient(backendUrl)`
-
-### Stream Discovery
-- `fetchStream(streamId)`
-- `fetchStreams(includeTiers?)`
-- `fetchStreamSubscribers(streamId)`
-
-### Subscriptions
-- `registerSubscription({ streamId, subscriberWallet })`
-- `fetchOnchainSubscriptions(subscriber, opts?)`
-
-### Signals
-- `fetchSignals(streamId)`
-- `fetchSignalEvents({ streamId, limit, after })`
-- `fetchLatestSignal(streamId)`
-- `fetchSignalByHash(signalHash)`
-- `prepareSignal({ streamId, tierId, plaintext, visibility? })`
-
-### Payloads
-- `fetchCiphertext(sha)`
-- `fetchPublicPayload(sha, auth)`
-- `fetchKeyboxEntry(sha, params)`
-
-### Social Feed
-- `fetchFeed(type?)`
-- `fetchFollowingFeed(wallet, type?)`
-- `fetchTrendingFeed(limit?)`
-- `fetchPost(contentId)`
-- `createIntent({ wallet, content, topic?, tags? })`
-- `createSlashReport({ wallet, content, streamId?, makerWallet?, challengeTx? })`
-- `addLike(wallet, contentId)`
-- `removeLike(wallet, contentId)`
-- `fetchLikeCount(contentId)`
-- `fetchComments(contentId, page?, pageSize?)`
-- `addComment(wallet, contentId, comment)`
-- `deleteComment(wallet, commentId)`
-- `followProfile(wallet, targetProfileId)`
-- `deletePost(wallet, contentId)`
-
-### Agents
-- `searchAgents(params)`
-- `fetchAgents(params)`
-- `createAgent(payload)`
-- `createAgentSubscription(payload)`
-- `fetchAgentSubscriptions(params)`
-- `deleteAgentSubscription(payload)`
-
-### Auth / Profiles
-- `fetchUserProfile(wallet)`
-- `loginUser(params)`
-
-### Test Utilities
-- `getTestWallet(walletName?)`
-- `testWalletSend({ transactionBase64, skipPreflight? }, walletName?)`
-- `testWalletSignMessage({ messageBase64 }, walletName?)`
-
-## Solana Transaction Builders
-
-These helpers return a `Transaction` plus a fresh blockhash.
-
-- `buildCreateStreamTransaction`
-- `buildUpsertTiersTransaction`
-- `buildSubscribeTransaction`
-- `buildRegisterSubscriptionKeyTransaction`
-- `buildRecordSignalTransaction`
-- `buildRecordSignalDelegatedTransaction`
-- `buildGrantPublisherTransaction`
-- `buildRevokePublisherTransaction`
-
-## Trade Intent Utilities
-
-Parse the strict trade template and build a Blink URL.
+## Backend Client Helpers (Examples)
 
 ```ts
-import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl } from "@heemankv/sigints-sdk";
+import { createBackendClient } from "@heemankv/sigints-sdk/backend";
 
-const intent = parseTradeIntent(
-  "TRADE: provider=Jupiter input=SOL amount=1.25 output=USDC slippageBps=50"
-);
-
-if (intent) {
-  const actionUrl = buildTradeActionUrl(intent, "https://your-backend");
-  const blinkUrl = buildTradeBlinkUrl(actionUrl, "https://your-app");
-  console.log(blinkUrl);
-}
+const backend = createBackendClient("https://your-backend");
+const streams = await backend.fetchStreams(true);
+const feed = await backend.fetchFeed("intent");
 ```
 
 ## Notes
 
-- Public signals still require an active subscription NFT to fetch payloads.
-- Private signals require a registered key and keybox entry.
-- Jetstream is only used for listening; all reads/writes still use RPC.
+- Public signal payloads still require an active subscription NFT.
+- Private streams require a registered encryption key and keybox entry.
+- Jetstream is Node-only; browser listeners use WebSocket.

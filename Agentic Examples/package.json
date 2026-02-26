@@ -1,0 +1,8 @@
+{
+  "name": "sigints-agentic-examples",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@heemankv/sigints-sdk": "^1.0.1"
+  }
+}

@@ -1,30 +1,50 @@
 # Backend (MVP)
 
+## Abstract
+
+Ten seconds is the difference between a signal that can be acted on and a signal that becomes lore. It is the window where freshness still matters but verification is still possible. The backend is the part of sigints.club that makes that window real. It stores encrypted payloads, tracks keyboxes, records metadata, and connects the on-chain state to the off-chain reality of delivery.
+
+If the chain is the source of truth and the frontend is the cockpit, this backend is the control plane that keeps signals moving, indexed, and verifiable within that 10 second rhythm.
+
+## How This Backend Contributes
+
+- Stores ciphertext, keyboxes, and public payloads
+- Serves signal metadata and delivery endpoints
+- Bridges Solana program state with backend storage
+- Powers the social layer (intents, slashing, likes, comments)
+- Provides config bootstrapping for the SDK
+
 ## Purpose
-Minimal backend for sigints.club MVP. Handles ciphertext/keybox storage, signal metadata, and integration glue.
+
+Minimal backend for sigints.club MVP. Handles ciphertext and keybox storage, signal metadata, and integration glue.
 
 ## Storage Providers
+
 This backend uses a pluggable StorageProvider interface so we can switch from backend storage to a DA layer without changing the rest of the code.
 
 - BackendStorage: MVP default
 - DAStorage: placeholder for future DA integration
 
 ## Integration Tests
+
 Integration tests live in `backend/tests/integration` and should cover:
+
 1. Storing and fetching ciphertext and keyboxes.
 2. Storing and fetching public signal payloads.
 3. Hash verification.
 4. End-to-end signal delivery flow.
 
 ## Agent Scripts
-- `npm run provider`: registers subscribers and publishes a demo signal.
-- `npm run listener`: decrypts the latest signal for a given subscriber.
-- `npm run tapestry:profile`: create or find a Tapestry profile.
-- `npm run tapestry:content`: post a Tapestry content item (signal or request).
-- `npm run tapestry:follow`: follow a profile in Tapestry.
-- `npm run streams:create`: create stream PDAs on-chain and write `SOLANA_STREAM_MAP`.
+
+- `npm run provider`: registers subscribers and publishes a demo signal
+- `npm run listener`: decrypts the latest signal for a given subscriber
+- `npm run tapestry:profile`: create or find a Tapestry profile
+- `npm run tapestry:content`: post a Tapestry content item (signal or request)
+- `npm run tapestry:follow`: follow a profile in Tapestry
+- `npm run streams:create`: create stream PDAs on-chain and write `SOLANA_STREAM_MAP`
 
 ## Tapestry Env Vars
+
 - `TAPESTRY_API_KEY`
 - `TAPESTRY_BASE_URL` (optional, defaults to https://api.usetapestry.dev/v1/)
 - `TAPESTRY_PROFILE_ID` (default profile for publishing signals)
@@ -32,6 +52,7 @@ Integration tests live in `backend/tests/integration` and should cover:
 - `TAPESTRY_REGISTRY_PROFILE_ID` (optional registry profile for stream discovery)
 
 ## Solana Env Vars (On-chain record_signal)
+
 When these are set, the backend sends a real Anchor transaction to record signals.
 
 - `SOLANA_SUBSCRIPTION_PROGRAM_ID` (required to enable on-chain)
@@ -40,16 +61,19 @@ When these are set, the backend sends a real Anchor transaction to record signal
 - `SOLANA_STREAM_REGISTRY_PROGRAM_ID` (required for stream PDA creation)
 
 ## Solana Config Endpoint
+
 The SDK can bootstrap from the backend using:
 
-- `GET /config/solana` → `{ subscriptionProgramId, streamRegistryProgramId, rpcUrl }`
+- `GET /config/solana` -> `{ subscriptionProgramId, streamRegistryProgramId, rpcUrl }`
 
 ## On-chain subscription endpoints
+
 - `POST /subscribe/onchain` create subscription PDA and store tier params on-chain
 - `POST /subscribe/onchain/renew` renew subscription
 - `POST /subscribe/onchain/cancel` cancel subscription
 
 ## Social profile endpoints
+
 - `POST /users/login` register wallet-based profile
 - `GET /users/:wallet` fetch profile
 - `PATCH /users/:wallet` update profile
@@ -60,14 +84,15 @@ The SDK can bootstrap from the backend using:
 - `GET /feed` aggregate signal feed
 
 ## Social layer (Tapestry-backed)
+
 - `POST /social/intents` create intent post
 - `POST /social/slash` create slashing report post
-- `GET /social/feed?type=` list intent/slash feed
+- `GET /social/feed?type=` list intent or slash feed
 - `GET /social/feed/trending?limit=` list feed sorted by like counts
 - `POST /social/follow` follow a profile
 - `POST /social/likes` vote (like)
 - `DELETE /social/likes` remove vote
-- `GET /social/likes?contentId=` list likes/count
+- `GET /social/likes?contentId=` list likes or count
 - `POST /social/comments` comment on a post
 - `GET /social/comments?contentId=` list comments
 - `SOLANA_IDL_PATH` (optional, defaults to `backend/idl/subscription_royalty.json`)
@@ -75,4 +100,6 @@ The SDK can bootstrap from the backend using:
 - `SOLANA_STREAM_DEFAULT` (optional fallback stream pubkey)
 
 ## Persistence
-- `PERSIST=true` enables file-based persistence for subscribers and signals (default for non-test).
+
+- `PERSIST=true` enables file-based persistence for subscribers and signals (default for non-test)
+
