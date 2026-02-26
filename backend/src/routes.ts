@@ -648,12 +648,9 @@ router.get("/actions/stream/:id", async (req, res) => {
     // ignore signal lookup failures
   }
   const onchainAddress = stream.onchainAddress ?? "n/a";
-  const shortOnchain = onchainAddress.length > 12
-    ? `${onchainAddress.slice(0, 6)}…${onchainAddress.slice(-4)}`
-    : onchainAddress;
   const domainLine = `Domain: ${stream.domain || "n/a"}`;
   const visibilityTag = `Visibility: ${stream.visibility ?? "private"}`;
-  const onchainLine = `On-chain: ${shortOnchain}`;
+  const onchainLine = `On-chain: ${onchainAddress}`;
   const userDescription = stream.description?.trim() ? stream.description.trim() : "No description.";
   return res.json({
     type: "action",
