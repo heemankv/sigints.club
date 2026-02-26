@@ -50,3 +50,4 @@ accounts
 
 frontend/test-results/
 frontend/tests/e2e/.artifacts/
+.vercel

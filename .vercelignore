@@ -1,0 +1,8 @@
+.solana-test-ledger
+.localnet-ledger
+backend
+sdk
+mcp-server
+scripts
+Agentic Examples
+*.md

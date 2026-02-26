@@ -649,16 +649,21 @@ router.get("/actions/stream/:id", async (req, res) => {
   const verifierTier = tiers.find((tier) => tier.evidenceLevel === "verifier");
   const wantsVerifier = stream.evidence?.toLowerCase?.().includes("verifier") || stream.evidence?.toLowerCase?.().includes("hybrid");
   const pickedTiers = wantsVerifier && verifierTier ? [trustTier, verifierTier] : trustTier ? [trustTier] : [];
-  const actions = pickedTiers
-    .filter(Boolean)
-    .map((tier) => {
-      const tierId = encodeURIComponent(tier!.tierId);
-      const evidenceLabel = tier!.evidenceLevel === "verifier" ? "Verifier" : "Trust";
-      return {
-        label: `Monthly · ${evidenceLabel} · ${tier!.price}`,
-        href: `${apiBase}/actions/stream/${stream.id}/subscribe?tierId=${tierId}`,
-      };
-    });
+  const uniqueTiers = pickedTiers.reduce<NonNullable<typeof trustTier>[]>((acc, tier) => {
+    if (!tier) return acc;
+    if (!acc.some((entry) => entry.tierId === tier.tierId)) {
+      acc.push(tier);
+    }
+    return acc;
+  }, []);
+  const actions = uniqueTiers.map((tier) => {
+    const tierId = encodeURIComponent(tier.tierId);
+    const evidenceLabel = tier.evidenceLevel === "verifier" ? "Verifier" : "Trust";
+    return {
+      label: `Monthly · ${evidenceLabel} · ${tier.price}`,
+      href: `${apiBase}/actions/stream/${stream.id}/subscribe?tierId=${tierId}`,
+    };
+  });
   const visibilityLine = stream.visibility === "private"
     ? "Private stream. Encryption key required to decrypt."
     : "Public stream. Subscription still required to access payloads.";
