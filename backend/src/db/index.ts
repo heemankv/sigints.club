@@ -1,11 +1,11 @@
 import pg from "pg";
-import type { Pool } from "pg";
+import type { Pool as PgPool } from "pg";
 import { schemaSql } from "./schema";
 
-let pool: Pool | null = null;
+let pool: PgPool | null = null;
 const { Pool } = pg;
 
-export function getDb(): Pool {
+export function getDb(): PgPool {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is required for SQL storage");

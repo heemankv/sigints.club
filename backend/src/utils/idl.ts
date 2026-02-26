@@ -1,8 +1,10 @@
 import type * as anchor from "@coral-xyz/anchor";
 
+type IdlTypeDef = any;
+
 type IdlWithAccounts = anchor.Idl & {
-  accounts?: Array<{ name: string; type?: anchor.IdlTypeDefTy }>;
-  types?: Array<{ name: string; type: anchor.IdlTypeDefTy }>;
+  accounts?: Array<{ name: string; type?: IdlTypeDef }>;
+  types?: Array<{ name: string; type: IdlTypeDef }>;
 };
 
 export function hydrateIdlAccounts(idl: anchor.Idl): anchor.Idl {
@@ -13,14 +15,15 @@ export function hydrateIdlAccounts(idl: anchor.Idl): anchor.Idl {
 
   const typeMap = new Map(withAccounts.types.map((t) => [t.name, t.type]));
   const accounts = withAccounts.accounts.map((account) => {
-    if (account.type) {
-      return account;
+    const accountAny = account as any;
+    if (accountAny.type) {
+      return accountAny;
     }
     const type = typeMap.get(account.name);
     if (!type) {
-      return account;
+      return accountAny;
     }
-    return { ...account, type };
+    return { ...accountAny, type };
   });
 
   return { ...withAccounts, accounts } as anchor.Idl;

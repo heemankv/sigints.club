@@ -10,9 +10,8 @@ async function main() {
   const content = process.env.CONTENT ?? "Signal: ETH best price at Venue X";
   const res = await client.createContent({
     profileId,
-    content,
-    contentType: "text",
-    customProperties: [
+    properties: [
+      { key: "text", value: content },
       { key: "type", value: process.env.TYPE ?? "signal" },
       { key: "domain", value: process.env.DOMAIN ?? "pricing" },
     ],

@@ -14,6 +14,7 @@ export type StreamSummary = {
   createdAt?: number;
   onchainAddress?: string;
   tapestryProfileId?: string;
+  visibility?: "public" | "private";
 };
 
 export type TierOption = StreamTier;

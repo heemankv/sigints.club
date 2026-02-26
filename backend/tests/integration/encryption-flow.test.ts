@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BackendStorage } from "../../src/storage/providers/BackendStorage";
+import type { SignalStore } from "../../src/signals/SignalStore";
 import { InMemoryMetadata } from "../../src/metadata/providers/InMemoryMetadata";
 import { SignalService } from "../../src/services/SignalService";
 import { ListenerService } from "../../src/services/ListenerService";
@@ -8,9 +9,9 @@ import { generateX25519Keypair } from "../../src/crypto/hybrid";
 
 describe("Hybrid encryption flow", () => {
   it("publishes and decrypts a signal", async () => {
-    const storage = new BackendStorage();
+    const storage = new BackendStorage() as unknown as SignalStore;
     const metadata = new InMemoryMetadata();
-    const signalService = new SignalService(storage, metadata);
+    const signalService = new SignalService(storage as any);
     const listenerService = new ListenerService(storage);
 
     const kp = generateX25519Keypair();

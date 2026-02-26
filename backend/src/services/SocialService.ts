@@ -1,6 +1,7 @@
 import { SocialPost, SocialPostType } from "../social/SocialPostStore";
 import { UserStore } from "../social/UserStore";
 import { TapestryClient } from "../tapestry/TapestryClient";
+import { MockTapestryClient } from "../tapestry/mock";
 import { randomUUID } from "node:crypto";
 
 const TAPESTRY_TIMEOUT_MS = 30_000;
@@ -26,7 +27,7 @@ export type CreateSlashInput = {
 
 export class SocialService {
   constructor(
-    private client: TapestryClient,
+    private client: TapestryClient | MockTapestryClient,
     private users: UserStore
   ) {}
 
@@ -34,7 +35,7 @@ export class SocialService {
     const user = await this.users.getUser(wallet);
     if (user?.tapestryProfileId) {
       try {
-        const details = await this.client.getProfileDetails(user.tapestryProfileId);
+        const details = (await this.client.getProfileDetails(user.tapestryProfileId)) as any;
         const profileId = details?.profile?.id ?? details?.id;
         if (profileId) {
           return profileId;
@@ -56,11 +57,11 @@ export class SocialService {
     }
     const username =
       displayName?.replace(/\s+/g, "-").toLowerCase() ?? `stream-${wallet.slice(0, 6)}`;
-    const res = await this.client.createProfile({
+    const res = (await this.client.createProfile({
       walletAddress: wallet,
       username,
       bio: user?.bio,
-    });
+    })) as any;
     const profileId = res?.profile?.id ?? res?.data?.id ?? res?.id;
     if (profileId) {
       await this.users.upsertUser(wallet, { tapestryProfileId: profileId });
@@ -82,11 +83,11 @@ export class SocialService {
       { key: "wallet", value: input.wallet },
     ];
     const contentId = `intent-${randomUUID()}`;
-    const res = await this.createContentWithRetry({
+    const res = (await this.createContentWithRetry({
       profileId,
       id: contentId,
       properties,
-    });
+    })) as any;
     const resolvedId = res?.content?.id ?? res?.data?.id ?? res?.id ?? contentId;
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");
@@ -119,11 +120,11 @@ export class SocialService {
       { key: "validatorWallet", value: input.wallet },
     ];
     const contentId = `slash-${randomUUID()}`;
-    const res = await this.createContentWithRetry({
+    const res = (await this.createContentWithRetry({
       profileId,
       id: contentId,
       properties,
-    });
+    })) as any;
     const resolvedId = res?.content?.id ?? res?.data?.id ?? res?.id ?? contentId;
     if (!resolvedId) {
       throw new Error("Tapestry content creation failed");

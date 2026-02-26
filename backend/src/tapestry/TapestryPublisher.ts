@@ -1,10 +1,11 @@
 import { TapestryClient } from "./TapestryClient";
+import { MockTapestryClient } from "./mock";
 import { SocialPublishInput, SocialPublisher } from "../services/SocialPublisher";
 import { TapestryStreamService } from "../services/TapestryStreamService";
 
 export class TapestryPublisher implements SocialPublisher {
   constructor(
-    private client: TapestryClient,
+    private client: TapestryClient | MockTapestryClient,
     private defaultProfileId?: string,
     private profileMap?: Record<string, string>,
     private tapestryStreams?: TapestryStreamService

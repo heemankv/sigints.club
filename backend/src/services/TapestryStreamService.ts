@@ -1,4 +1,5 @@
 import { TapestryClient } from "../tapestry/TapestryClient";
+import { MockTapestryClient } from "../tapestry/mock";
 import { StreamTier } from "../streams/StreamStore";
 
 type StreamMetaInput = {
@@ -34,7 +35,7 @@ const REGISTRY_TYPE = "registry";
 
 export class TapestryStreamService {
   constructor(
-    private client: TapestryClient,
+    private client: TapestryClient | MockTapestryClient,
     private registryProfileId?: string
   ) {}
 
@@ -91,13 +92,13 @@ export class TapestryStreamService {
     }
     try {
       const properties = [{ key: "type", value: REGISTRY_TYPE }];
-      const res = await this.client.createProfile({
+      const res = (await this.client.createProfile({
         walletAddress,
         username: DEFAULT_REGISTRY_ID,
         id: DEFAULT_REGISTRY_ID,
         bio: "Sigints stream registry",
         properties,
-      });
+      })) as any;
       this.registryProfileId =
         res?.profile?.id ?? res?.data?.id ?? res?.id ?? DEFAULT_REGISTRY_ID;
     } catch {
@@ -112,13 +113,13 @@ export class TapestryStreamService {
       { key: "streamId", value: input.streamId },
       { key: "ownerWallet", value: input.ownerWallet },
     ];
-    const res = await this.client.createProfile({
+    const res = (await this.client.createProfile({
       walletAddress: input.ownerWallet,
       username,
       bio: input.description,
       id: username,
       properties,
-    });
+    })) as any;
     const profileId = res?.profile?.id ?? res?.data?.id ?? res?.id ?? username;
     if (!profileId) {
       throw new Error("Unable to create Tapestry stream profile");
@@ -148,12 +149,12 @@ export class TapestryStreamService {
     ];
 
     const contentId = streamMetaContentId(input.streamId);
-    const created = await this.client.createContent({
+    const created = (await this.client.createContent({
       profileId,
       id: contentId,
       properties,
       execution: "FAST_UNCONFIRMED",
-    });
+    })) as any;
     const resolvedId = created?.content?.id ?? created?.data?.id ?? created?.id ?? contentId;
     if (resolvedId) {
       await this.client.updateContent({ contentId: resolvedId, properties });
@@ -172,12 +173,12 @@ export class TapestryStreamService {
         ...(tier.quota ? [{ key: "quota", value: tier.quota }] : []),
       ];
       const contentId = tierContentId(streamId, tier.tierId);
-      const created = await this.client.createContent({
+      const created = (await this.client.createContent({
         profileId,
         id: contentId,
         properties,
         execution: "FAST_UNCONFIRMED",
-      });
+      })) as any;
       const resolvedId = created?.content?.id ?? created?.data?.id ?? created?.id ?? contentId;
       if (resolvedId) {
         await this.client.updateContent({ contentId: resolvedId, properties });
@@ -186,14 +187,14 @@ export class TapestryStreamService {
   }
 
   private async fetchStreamFromProfile(profileId: string): Promise<TapestryStreamProfile | null> {
-    const metaResponse = await this.client.listContents({
+    const metaResponse = (await this.client.listContents({
       profileId,
       filterField: "type",
       filterValue: STREAM_META_TYPE,
       orderByField: "created_at",
       orderByDirection: "DESC",
       pageSize: 1,
-    });
+    })) as any;
     const metaEntry = metaResponse.contents?.[0];
     const meta = extractContent(metaEntry);
     if (!meta) return null;
@@ -205,17 +206,17 @@ export class TapestryStreamService {
     const streamId = String(meta.streamId ?? "").trim();
     if (!streamId) return null;
 
-    const tiersResponse = await this.client.listContents({
+    const tiersResponse = (await this.client.listContents({
       profileId,
       filterField: "type",
       filterValue: TIER_TYPE,
       orderByField: "created_at",
       orderByDirection: "DESC",
       pageSize: 50,
-    });
+    })) as any;
     const tiers = (tiersResponse.contents ?? [])
-      .map((entry) => parseTier(entry))
-      .filter((tier): tier is StreamTier => Boolean(tier));
+      .map((entry: any) => parseTier(entry))
+      .filter((tier: StreamTier | null): tier is StreamTier => Boolean(tier));
 
     return {
       id: streamId,
@@ -225,7 +226,10 @@ export class TapestryStreamService {
       name: String(meta.name ?? meta.text ?? meta.streamId ?? "Stream"),
       domain: String(meta.domain ?? "general"),
       description: String(meta.description ?? ""),
-      visibility: meta.visibility ? String(meta.visibility) : undefined,
+      visibility:
+        meta.visibility === "public" || meta.visibility === "private"
+          ? meta.visibility
+          : undefined,
       accuracy: String(meta.accuracy ?? ""),
       latency: String(meta.latency ?? ""),
       price: String(meta.price ?? ""),

@@ -751,6 +751,7 @@ export async function seedDemoData(options: SeedOptions = {}) {
               authority,
               streamId: stream.id,
               tiers: stream.tiers,
+              visibility: streamVisibility[stream.id] ?? "private",
               coder,
             });
             streamMap[stream.id] = pda.toBase58();

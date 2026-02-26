@@ -83,6 +83,7 @@ export type ListFollowingInput = {
 export type ListContentsResponse = {
   contents: Array<{
     content?: Record<string, any> | null;
+    data?: { content?: Record<string, any> | null } | null;
     socialCounts?: { likeCount?: number; commentCount?: number };
     authorProfile?: {
       id?: string;
@@ -100,7 +101,7 @@ export type ListContentsResponse = {
 };
 
 export class TapestryClient {
-  private client: SocialFi;
+  private client: SocialFi<any>;
   private apiKey: string;
   private baseURL: string;
 
@@ -110,7 +111,7 @@ export class TapestryClient {
     this.client = new SocialFi({
       baseURL: this.baseURL,
       apiKey: cfg.apiKey,
-    });
+    } as any);
   }
 
   private buildUrl(path: string) {
@@ -216,28 +217,26 @@ export class TapestryClient {
   }
 
   async follow(input: FollowInput) {
-    return this.client.followers.postFollowers(
-      { apiKey: this.apiKey },
-      {
-        startId: input.startId,
-        endId: input.endId,
-        blockchain: "SOLANA",
-        execution: input.execution ?? "FAST_UNCONFIRMED",
-      }
-    );
+    const payload: any = {
+      startId: input.startId,
+      endId: input.endId,
+      execution: input.execution ?? "FAST_UNCONFIRMED",
+      blockchain: "SOLANA",
+    };
+    return this.client.followers.postFollowers({ apiKey: this.apiKey } as any, payload);
   }
 
   async createContent(input: CreateContentInput) {
-    return this.client.contents.findOrCreateCreate(
-      { apiKey: this.apiKey },
-      {
-        profileId: input.profileId,
-        id: input.id,
-        properties: input.properties,
-        blockchain: "SOLANA",
-        execution: input.execution ?? "FAST_UNCONFIRMED",
-      }
-    );
+    const payload: any = {
+      profileId: input.profileId,
+      properties: input.properties,
+      blockchain: "SOLANA",
+      execution: input.execution ?? "FAST_UNCONFIRMED",
+    };
+    if (input.id) {
+      payload.id = input.id;
+    }
+    return this.client.contents.findOrCreateCreate({ apiKey: this.apiKey } as any, payload);
   }
 
   async createComment(input: CreateCommentInput) {

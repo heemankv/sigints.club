@@ -78,6 +78,16 @@ export class MockTapestryClient {
     return null;
   }
 
+  async updateProfileCore(input: {
+    profileId: string;
+    username?: string;
+    bio?: string;
+    image?: string;
+    properties?: Property[];
+  }) {
+    return this.updateProfile(input);
+  }
+
   async listProfiles(input: { walletAddress?: string; page?: number | string; pageSize?: number | string }) {
     let items = Array.from(this.profiles.values());
     if (input.walletAddress) {
@@ -217,6 +227,10 @@ export class MockTapestryClient {
     this.comments.delete(contentId);
     this.likes.delete(contentId);
     return { success: true };
+  }
+
+  async getProfileSocialCounts(_profileId: string) {
+    return { followers: 0, following: 0 };
   }
 
   async getContentDetails(contentId: string) {

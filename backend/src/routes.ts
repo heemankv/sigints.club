@@ -150,7 +150,9 @@ router.post("/test-wallet/send", async (req, res) => {
       const programIds = vtx.message.compiledInstructions.map((ix) =>
         accountKeys.get(ix.programIdIndex)
       );
-      const uniquePrograms = Array.from(new Set(programIds.map((p) => p.toBase58())));
+      const uniquePrograms = Array.from(
+        new Set(programIds.filter((p): p is PublicKey => Boolean(p)).map((p) => p.toBase58()))
+      );
       const missingPrograms: string[] = [];
       for (const programId of uniquePrograms) {
         const info = await connection.getAccountInfo(new PublicKey(programId));
