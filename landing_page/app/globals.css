@@ -204,6 +204,13 @@ main:not(:has(.hero-fullscreen)) {
   font-size: 20px;
   letter-spacing: 0.02em;
   color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-icon {
+  flex-shrink: 0;
 }
 
 .tag {

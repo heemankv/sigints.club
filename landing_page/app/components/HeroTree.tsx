@@ -224,7 +224,7 @@ export default function HeroTree() {
             Built on OrbitFlare
           </div>
         </div>
-        <span className="hero-fs-btn" style={{ opacity: 0.6, cursor: "default" }}>Coming Soon</span>
+        <a href="https://app.sigints.club" target="_blank" rel="noopener noreferrer" className="hero-fs-btn">Launch App</a>
       </div>
 
       <CursorDot />

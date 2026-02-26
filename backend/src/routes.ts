@@ -1990,6 +1990,21 @@ async function listSubscriptionsForStream(
     .filter((item): item is OnChainSubscription => item !== null);
 }
 
+async function listSubscriptionsForSubscriber(
+  connection: Connection,
+  programId: PublicKey,
+  subscriber: string
+): Promise<OnChainSubscription[]> {
+  const subscriberPubkey = new PublicKey(subscriber);
+  const filters = [
+    { memcmp: { offset: 8, bytes: subscriberPubkey.toBase58() } },
+  ];
+  const programAccounts = await connection.getProgramAccounts(programId, { filters });
+  return programAccounts
+    .map((acc) => decodeSubscriptionAccount(acc.pubkey, acc.account.data))
+    .filter((item): item is OnChainSubscription => item !== null);
+}
+
 async function resolveStreamSubscriberKeys(streamId: string): Promise<{ encPubKeyDerBase64: string }[]> {
   if (!streamRegistry) {
     throw new Error("stream registry not configured");
@@ -2232,15 +2247,22 @@ router.post("/subscribe/onchain", async (req, res) => {
 });
 
 router.get("/subscriptions/onchain", async (req, res) => {
-  if (!onChainSubscriptionClient) {
-    return res.status(503).json({ error: "on-chain subscription not configured" });
-  }
   const subscriber = typeof req.query.subscriber === "string" ? req.query.subscriber : undefined;
   if (!subscriber) {
     return res.status(400).json({ error: "subscriber required" });
   }
+  const subscriptionProgramId = process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID;
+  if (!subscriptionProgramId) {
+    return res.status(503).json({ error: "on-chain subscription not configured" });
+  }
   try {
-    const subscriptions = await onChainSubscriptionClient.listSubscriptionsFor(subscriber);
+    const subscriptions = onChainSubscriptionClient
+      ? await onChainSubscriptionClient.listSubscriptionsFor(subscriber)
+      : await listSubscriptionsForSubscriber(
+          new Connection(process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com", "confirmed"),
+          new PublicKey(subscriptionProgramId),
+          subscriber
+        );
     return res.json({ subscriptions });
   } catch (error: any) {
     return res.status(500).json({ error: error.message ?? "on-chain list failed" });
