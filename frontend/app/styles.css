@@ -64,6 +64,50 @@ body {
   --shadow-strong: 0 20px 56px rgba(0, 0, 0, 0.35);
 }
 
+/* ─── Mobile gate ─── */
+.mobile-gate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #060D1F;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.mobile-gate__card {
+  text-align: center;
+  max-width: 320px;
+}
+
+.mobile-gate__icon {
+  display: inline-block;
+  color: var(--accent-3);
+  margin-bottom: 16px;
+}
+
+.mobile-gate__title {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 10px;
+}
+
+.mobile-gate__text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #7B8FAD;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .mobile-gate {
+    display: flex;
+  }
+}
+
 /* ─── Dark theme fixes ─── */
 .x-mode-tab--active {
   background: rgba(255, 255, 255, 0.15);
@@ -4673,11 +4717,23 @@ textarea {
 }
 
 .profile-tab-content .data-card__media {
-  width: 140px;
-  min-width: 140px;
+  width: 5px;
+  min-width: 5px;
   height: auto;
-  min-height: 110px;
   flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+.profile-tab-content .data-card__media img {
+  width: 180px;
+  min-width: 180px;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-tab-content .data-card:hover .data-card__media {
+  width: 180px;
 }
 
 .profile-tab-content .data-card__tier {
@@ -4710,7 +4766,14 @@ textarea {
 
 .profile-tab-content .data-card__actions {
   margin-top: auto;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.data-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* ── Subscription card: description ── */

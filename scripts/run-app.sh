@@ -8,10 +8,12 @@ FRONTEND_LOG="$LOG_DIR/frontend.log"
 SEED_LOG="$LOG_DIR/seed.log"
 
 DEMO=false
+TEST_WALLET=false
 
 for arg in "$@"; do
   case "$arg" in
     --demo) DEMO=true ;;
+    --test-wallet) TEST_WALLET=true ;;
     *) ;;
   esac
 done
@@ -117,7 +119,19 @@ STREAM_REGISTRY_ID="$(solana-keygen pubkey "$ROOT/target/deploy/stream_registry-
 SUBSCRIPTION_ID="$(solana-keygen pubkey "$ROOT/target/deploy/subscription_royalty-keypair.json")"
 CHALLENGE_ID="$(solana-keygen pubkey "$ROOT/target/deploy/challenge_slashing-keypair.json")"
 PAYER_PUBKEY="$(solana-keygen pubkey "$KEYPAIR")"
-TEST_WALLET_PUBKEY="$(solana-keygen pubkey "$ROOT/accounts/taker.json")"
+TEST_WALLET_PUBKEY=""
+TEST_WALLET_LINES=$'TEST_WALLET=false\nNEXT_PUBLIC_TEST_WALLET=false'
+if [ "$TEST_WALLET" = true ]; then
+  TEST_WALLET_PUBKEY="$(solana-keygen pubkey "$ROOT/accounts/taker.json")"
+  TEST_WALLET_LINES=$(
+    cat <<EOF
+TEST_WALLET=true
+TEST_WALLET_PATH=$ROOT/accounts/taker.json
+NEXT_PUBLIC_TEST_WALLET=true
+NEXT_PUBLIC_TEST_WALLET_PUBKEY=$TEST_WALLET_PUBKEY
+EOF
+  )
+fi
 
 STREAM_MAP="$(NODE_PATH="$ROOT/backend/node_modules" STREAM_REGISTRY_ID="$STREAM_REGISTRY_ID" node <<'NODE'
 const { PublicKey } = require("@solana/web3.js");
@@ -161,10 +175,7 @@ NEXT_PUBLIC_TREASURY_ADDRESS=$PAYER_PUBKEY
 NEXT_PUBLIC_SOLANA_CLUSTER=devnet
 NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
 DATABASE_URL=postgresql://sigints:sigints@localhost:5432/sigints
-TEST_WALLET=true
-TEST_WALLET_PATH=$ROOT/accounts/taker.json
-NEXT_PUBLIC_TEST_WALLET=true
-NEXT_PUBLIC_TEST_WALLET_PUBKEY=$TEST_WALLET_PUBKEY
+$TEST_WALLET_LINES
 ${TAPESTRY_LINES}
 EOF
 

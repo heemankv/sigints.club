@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCardArtUrl } from "../lib/cardArt";
 
 type OwnedSubscriptionCardProps = {
@@ -55,11 +56,6 @@ export default function OwnedSubscriptionCard({
     <div className="data-card">
       <div className="data-card__media">
         <img src={artUrl} alt={`${streamName} art`} />
-        <div className="data-card__overlay">
-          {evidenceLevel && <span className="badge">{evidenceLevel}</span>}
-          {pricingLabel && <span className="badge accent">{pricingLabel}</span>}
-        </div>
-        <div className="data-card__tier">{tierLabel}</div>
       </div>
 
       <div className="data-card__body">
@@ -95,7 +91,16 @@ export default function OwnedSubscriptionCard({
           </div>
         )}
 
-        <div className="data-card__actions" />
+        <div className="data-card__actions">
+          <div className="data-card__tags">
+            {evidenceLevel && <span className="badge badge-sm">{evidenceLevel}</span>}
+            {pricingLabel && <span className="badge badge-sm badge-gold">{pricingLabel}</span>}
+            <span className="badge badge-sm badge-teal">{tierLabel}</span>
+          </div>
+          <Link className="button ghost" href={`/stream/${streamId}`}>
+            View Stream →
+          </Link>
+        </div>
       </div>
     </div>
   );

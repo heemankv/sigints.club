@@ -131,20 +131,6 @@ export default function LeftNav() {
           Built on Tapestry
         </a>
         <a
-          href="https://solana.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="sidebar-solana-badge"
-        >
-          <svg width="14" height="14" viewBox="0 0 128 128" fill="none" aria-hidden="true">
-            <circle cx="64" cy="64" r="64" fill="#9945FF" opacity="0.15" />
-            <path d="M26 85.5h76l-14.5 15H26L26 85.5z" fill="#9945FF" opacity="0.8" />
-            <path d="M26 55.5h76L87.5 70.5H26V55.5z" fill="#9945FF" opacity="0.6" />
-            <path d="M26 27.5h76L87.5 42.5H26V27.5z" fill="#9945FF" opacity="0.4" />
-          </svg>
-          Built on Solana
-        </a>
-        <a
           href="https://orbitflare.com"
           target="_blank"
           rel="noopener noreferrer"
@@ -176,6 +162,20 @@ export default function LeftNav() {
             <path d="M1.37388 16.8313C1.37388 17.1817 1.09024 17.4653 0.739858 17.4653C0.389477 17.4653 0.105835 17.1817 0.105835 16.8313C0.105835 16.4809 0.389477 16.1973 0.739858 16.1973C1.09024 16.1973 1.37388 16.4809 1.37388 16.8313Z" fill="#94DDD1"/>
           </svg>
           Built on OrbitFlare
+        </a>
+        <a
+          href="https://solana.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="sidebar-solana-badge"
+        >
+          <svg width="14" height="14" viewBox="0 0 128 128" fill="none" aria-hidden="true">
+            <circle cx="64" cy="64" r="64" fill="#9945FF" opacity="0.15" />
+            <path d="M26 85.5h76l-14.5 15H26L26 85.5z" fill="#9945FF" opacity="0.8" />
+            <path d="M26 55.5h76L87.5 70.5H26V55.5z" fill="#9945FF" opacity="0.6" />
+            <path d="M26 27.5h76L87.5 42.5H26V27.5z" fill="#9945FF" opacity="0.4" />
+          </svg>
+          Built on Solana
         </a>
       </div>
     </aside>
