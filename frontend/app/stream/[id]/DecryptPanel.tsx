@@ -279,13 +279,13 @@ export default function DecryptPanel({
       </p>
       {!isPublicStream && (
         <>
-          <div className="field">
-            <label>Public Key (base64)</label>
-            <textarea value={pubKey} onChange={(e) => setPubKey(e.target.value)} />
+          <div className="md-field">
+            <label className="md-label">Public Key (base64)</label>
+            <textarea className="md-textarea" value={pubKey} onChange={(e) => setPubKey(e.target.value)} />
           </div>
-          <div className="field">
-            <label>Private Key (base64)</label>
-            <textarea value={privKey} onChange={(e) => setPrivKey(e.target.value)} />
+          <div className="md-field">
+            <label className="md-label">Private Key (base64)</label>
+            <textarea className="md-textarea" value={privKey} onChange={(e) => setPrivKey(e.target.value)} />
           </div>
         </>
       )}

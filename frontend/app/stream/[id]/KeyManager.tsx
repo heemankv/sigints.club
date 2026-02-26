@@ -287,9 +287,9 @@ openssl pkey -in x25519.key -pubout -outform DER | openssl base64 -A`}
           </div>
 
           {status && <p className="subtext">{status}</p>}
-          <div className="field">
-            <label>Public Key (base64 DER)</label>
-            <textarea value={pubKey} onChange={(e) => void handlePubKeyChange(e.target.value.trim())} />
+          <div className="md-field">
+            <label className="md-label">Public Key (base64 DER)</label>
+            <textarea className="md-textarea" value={pubKey} onChange={(e) => void handlePubKeyChange(e.target.value.trim())} />
           </div>
           {subscriberId && <p className="subtext">Subscriber ID: {subscriberId}</p>}
           <div className="divider" />

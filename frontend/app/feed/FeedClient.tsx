@@ -508,8 +508,14 @@ export default function FeedClient({ searchQuery, initialTab = "feed", initialFi
               </div>
 
               <div className={`x-composer-fields${isSlashTag ? " x-composer-fields--open" : ""}`}>
-                <input className="input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
-                <input className="input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
+                <div className="md-field">
+                  <label className="md-label">Stream ID</label>
+                  <input className="md-input" value={slashStream} onChange={(e) => setSlashStream(e.target.value)} placeholder="Stream ID" />
+                </div>
+                <div className="md-field">
+                  <label className="md-label">Challenge tx</label>
+                  <input className="md-input" value={slashTx} onChange={(e) => setSlashTx(e.target.value)} placeholder="Challenge tx" />
+                </div>
               </div>
 
             </div>
@@ -838,7 +844,7 @@ export default function FeedClient({ searchQuery, initialTab = "feed", initialFi
                         )}
                         <div className="x-comment-input">
                           <input
-                            className="input"
+                            className="md-input"
                             placeholder="Post a reply…"
                             value={commentDraft[post.contentId] ?? ""}
                             onChange={(e) => setCommentDraft((prev) => ({ ...prev, [post.contentId]: e.target.value }))}

@@ -33,10 +33,10 @@ export default function OnboardingModal({ onComplete }: Props) {
         <h2>Set up your profile</h2>
         <p className="subtext">Choose a username to get started.</p>
 
-        <div className="field">
-          <label>Username *</label>
+        <div className="md-field">
+          <label className="md-label">Username *</label>
           <input
-            className="input"
+            className="md-input"
             type="text"
             placeholder="e.g. satoshi"
             value={username}
@@ -48,9 +48,10 @@ export default function OnboardingModal({ onComplete }: Props) {
           />
         </div>
 
-        <div className="field">
-          <label>Bio</label>
+        <div className="md-field">
+          <label className="md-label">Bio</label>
           <textarea
+            className="md-textarea"
             placeholder="Tell us about yourself (optional)"
             value={bio}
             onChange={(e) => setBio(e.target.value)}

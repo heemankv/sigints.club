@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   createAgent as sdkCreateAgent,
   createAgentSubscription as sdkCreateAgentSubscription,
@@ -38,12 +38,6 @@ type RegisterAgentWizardProps = {
   };
 };
 
-type DeployStep = {
-  label: string;
-  status: "pending" | "active" | "done" | "error";
-  error?: string;
-};
-
 export default function RegisterAgentWizard({
   walletAddr,
   streamCatalog,
@@ -76,6 +70,7 @@ export default function RegisterAgentWizard({
   const [streamDropdownOpen, setStreamDropdownOpen] = useState(false);
   const [listenerDropdownOpen, setListenerDropdownOpen] = useState(false);
   const [agentPubkey, setAgentPubkey] = useState("");
+  const [agentPubkeyError, setAgentPubkeyError] = useState<string | null>(null);
   const [agentSecretKey, setAgentSecretKey] = useState("");
   const [subscriptionKeyStatus, setSubscriptionKeyStatus] = useState<Record<string, boolean | null>>({});
 
@@ -83,8 +78,12 @@ export default function RegisterAgentWizard({
   const [selectedSubscriptions, setSelectedSubscriptions] = useState<string[]>(initialListenerStreams);
 
   // Step 4 — Deploy
-  const [deploySteps, setDeploySteps] = useState<DeployStep[]>([]);
-  const [deploying, setDeploying] = useState(false);
+  const [deployPhase, setDeployPhase] = useState<"idle" | "agent" | "grant" | "link" | "done">("idle");
+  const [deployLoading, setDeployLoading] = useState(false);
+  const [agentDone, setAgentDone] = useState(false);
+  const [grantDone, setGrantDone] = useState(false);
+  const [linkDone, setLinkDone] = useState(false);
+  const [createdAgentId, setCreatedAgentId] = useState<string | null>(null);
   const [deployDone, setDeployDone] = useState(false);
 
   // Validation
@@ -113,14 +112,36 @@ export default function RegisterAgentWizard({
     return "listener";
   }
 
+  function isValidPubkey(key: string): boolean {
+    try {
+      new PublicKey(key);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function handleAgentPubkeyChange(value: string) {
+    setAgentPubkey(value);
+    if (!value.trim()) {
+      setAgentPubkeyError(null);
+    } else if (!isValidPubkey(value.trim())) {
+      setAgentPubkeyError("Invalid public key — must be a valid base58 Solana key.");
+    } else {
+      setAgentPubkeyError(null);
+    }
+  }
+
   function generateKeypair() {
     const kp = Keypair.generate();
     setAgentPubkey(kp.publicKey.toBase58());
+    setAgentPubkeyError(null);
     setAgentSecretKey(JSON.stringify(Array.from(kp.secretKey)));
   }
 
   function clearKeypair() {
     setAgentPubkey("");
+    setAgentPubkeyError(null);
     setAgentSecretKey("");
   }
 
@@ -238,6 +259,10 @@ export default function RegisterAgentWizard({
         setValidationError("Select a stream and provide an agent public key to publish.");
         return;
       }
+      if (!isValidPubkey(agentPubkey.trim())) {
+        setValidationError("Agent public key is not a valid Solana key.");
+        return;
+      }
     }
     setValidationError(null);
     setStep(nextStep(2));
@@ -271,11 +296,35 @@ export default function RegisterAgentWizard({
     setStep(4);
   }
 
-  // Deploy
-  async function deploy() {
+  // Deploy — determine which phase comes after a given phase
+  function nextPhase(current: "agent" | "grant" | "link"): "idle" | "agent" | "grant" | "link" | "done" {
+    if (current === "agent") {
+      if (publisherEnabled) return "grant";
+      if (listenerEnabled && selectedSubscriptions.length > 0) return "link";
+      return "done";
+    }
+    if (current === "grant") {
+      if (listenerEnabled && selectedSubscriptions.length > 0) return "link";
+      return "done";
+    }
+    return "done";
+  }
+
+  function finishPhase(current: "agent" | "grant" | "link") {
+    const next = nextPhase(current);
+    setDeployPhase(next);
+    setDeployLoading(false);
+    if (next === "done") {
+      setDeployDone(true);
+      toast("Agent registered successfully.", "success");
+      onAgentCreated();
+    }
+  }
+
+  async function deployAgent() {
     if (!publicKey) return;
-    setDeploying(true);
-    setDeployDone(false);
+    setDeployPhase("agent");
+    setDeployLoading(true);
 
     const fallbackDomain =
       domain.trim() ||
@@ -284,24 +333,6 @@ export default function RegisterAgentWizard({
       "listener";
     const fallbackEvidence: "trust" | "verifier" | "hybrid" = "trust";
 
-    const steps: DeployStep[] = [{ label: "Register agent", status: "pending" }];
-    if (publisherEnabled) {
-      steps.push({ label: "Grant publish permission", status: "pending" });
-    }
-    if (listenerEnabled && selectedSubscriptions.length > 0) {
-      steps.push({ label: "Link subscriptions", status: "pending" });
-    }
-    setDeploySteps([...steps]);
-
-    let stepIdx = 0;
-
-    // Step: Create agent
-    function updateStep(idx: number, patch: Partial<DeployStep>) {
-      setDeploySteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
-    }
-
-    updateStep(stepIdx, { status: "active" });
-    let createdAgentId: string | undefined;
     try {
       const res = await sdkCreateAgent<{ agent: { id: string } }>({
         ownerWallet: walletAddr,
@@ -313,73 +344,67 @@ export default function RegisterAgentWizard({
         streamId: publisherEnabled ? streamId.trim() : undefined,
         evidence: fallbackEvidence,
       });
-      createdAgentId = res.agent.id;
-      updateStep(stepIdx, { status: "done" });
+      setCreatedAgentId(res.agent.id);
+      setAgentDone(true);
+      finishPhase("agent");
     } catch (err: any) {
-      updateStep(stepIdx, { status: "error", error: err?.message ?? "Failed to create agent" });
       toast(err?.message ?? "Failed to create agent", "error");
-      setDeploying(false);
+      setDeployLoading(false);
+    }
+  }
+
+  async function deployGrant() {
+    if (!publicKey) return;
+    setDeployPhase("grant");
+    setDeployLoading(true);
+    try {
+      const programId = resolveStreamRegistryId();
+      const streamPda = await deriveStreamPda(programId, streamId.trim());
+      const { transaction } = await buildGrantPublisherTransaction({
+        connection,
+        authority: publicKey,
+        stream: streamPda,
+        agent: agentPubkey.trim(),
+      });
+      await sendTransaction(transaction, connection);
+      setGrantDone(true);
+      finishPhase("grant");
+    } catch (err: any) {
+      const msg = err?.message ?? "Failed to grant publish. You can retry or do this later from Your Agents.";
+      toast(msg, "error");
+      setDeployLoading(false);
+    }
+  }
+
+  async function deployLink() {
+    if (!createdAgentId) return;
+    setDeployPhase("link");
+    setDeployLoading(true);
+    const errors: string[] = [];
+    for (const subStreamId of selectedSubscriptions) {
+      const option = ownedSubscriptionOptions.find((o) => o.streamId === subStreamId);
+      if (!option) continue;
+      try {
+        await sdkCreateAgentSubscription({
+          ownerWallet: walletAddr,
+          agentId: createdAgentId,
+          streamId: option.streamId,
+          tierId: option.tierId,
+          pricingType: option.pricingType,
+          evidenceLevel: option.evidenceLevel,
+          visibility: option.visibility,
+        });
+      } catch (err: any) {
+        errors.push(`${option.streamName}: ${err?.message ?? "failed"}`);
+      }
+    }
+    if (errors.length > 0) {
+      toast(errors.join("; "), "error");
+      setDeployLoading(false);
       return;
     }
-
-    stepIdx++;
-
-    // Step: Grant publisher (on-chain)
-    if (publisherEnabled) {
-      updateStep(stepIdx, { status: "active" });
-      try {
-        const programId = resolveStreamRegistryId();
-        const streamPda = await deriveStreamPda(programId, streamId.trim());
-        const { transaction } = await buildGrantPublisherTransaction({
-          connection,
-          authority: publicKey,
-          stream: streamPda,
-          agent: agentPubkey.trim(),
-        });
-        await sendTransaction(transaction, connection);
-        updateStep(stepIdx, { status: "done" });
-      } catch (err: any) {
-        const msg = err?.message ?? "Failed to grant publish. You can do this later from Your Agents.";
-        updateStep(stepIdx, { status: "error", error: msg });
-        toast(msg, "error");
-      }
-      stepIdx++;
-    }
-
-    // Step: Link subscriptions
-    if (listenerEnabled && selectedSubscriptions.length > 0 && createdAgentId) {
-      updateStep(stepIdx, { status: "active" });
-      const errors: string[] = [];
-      for (const subStreamId of selectedSubscriptions) {
-        const option = ownedSubscriptionOptions.find((o) => o.streamId === subStreamId);
-        if (!option) continue;
-        try {
-          await sdkCreateAgentSubscription({
-            ownerWallet: walletAddr,
-            agentId: createdAgentId,
-            streamId: option.streamId,
-            tierId: option.tierId,
-            pricingType: option.pricingType,
-            evidenceLevel: option.evidenceLevel,
-            visibility: option.visibility,
-          });
-        } catch (err: any) {
-          errors.push(`${option.streamName}: ${err?.message ?? "failed"}`);
-        }
-      }
-      if (errors.length > 0) {
-        updateStep(stepIdx, { status: "error", error: errors.join("; ") });
-        toast(errors.join("; "), "error");
-      } else {
-        updateStep(stepIdx, { status: "done" });
-      }
-    }
-
-    setDeploying(false);
-    setDeployDone(true);
-    setTimeout(() => {
-      onAgentCreated();
-    }, 2000);
+    setLinkDone(true);
+    finishPhase("link");
   }
 
   function reset() {
@@ -391,10 +416,15 @@ export default function RegisterAgentWizard({
     setStreamDropdownOpen(false);
     setListenerDropdownOpen(false);
     setAgentPubkey("");
+    setAgentPubkeyError(null);
     setAgentSecretKey("");
     setSelectedSubscriptions(initialListenerStreams);
-    setDeploySteps([]);
-    setDeploying(false);
+    setDeployPhase("idle");
+    setDeployLoading(false);
+    setAgentDone(false);
+    setGrantDone(false);
+    setLinkDone(false);
+    setCreatedAgentId(null);
     setDeployDone(false);
     setValidationError(null);
   }
@@ -416,7 +446,7 @@ export default function RegisterAgentWizard({
   return (
     <div
       className="x-rail-module"
-      style={{ border: 0, background: "transparent", padding: 0, marginBottom: 24 }}
+      style={{ border: 0, background: "transparent", padding: 0 }}
     >
       <h3 className="x-rail-heading agent-wizard-heading">{heading}</h3>
 
@@ -448,31 +478,35 @@ export default function RegisterAgentWizard({
               ? "Name and domain for your agent."
               : "Name your agent."}
           </p>
-          <input
-            className="input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Agent name"
-            style={{ marginBottom: 8 }}
-          />
-          <textarea
-            className="input"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (optional)"
-            rows={3}
-            style={{ marginBottom: 8 }}
-          />
+          <div className="md-field" style={{ marginBottom: 8 }}>
+            <label className="md-label">Name</label>
+            <input
+              className="md-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Agent name"
+            />
+          </div>
+          <div className="md-field" style={{ marginBottom: 8 }}>
+            <label className="md-label">Description</label>
+            <textarea
+              className="md-textarea"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description (optional)"
+              rows={3}
+            />
+          </div>
           {basicsMode === "full" && (
-            <>
+            <div className="md-field" style={{ marginBottom: 8 }}>
+              <label className="md-label">Domain</label>
               <input
-                className="input"
+                className="md-input"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 placeholder="Domain (e.g. pricing)"
-                style={{ marginBottom: 8 }}
               />
-            </>
+            </div>
           )}
           {validationError && (
             <p className="subtext" style={{ color: "var(--accent)", marginTop: 4 }}>
@@ -492,14 +526,16 @@ export default function RegisterAgentWizard({
             <div className="step-content">
           <h3>Publisher Configuration</h3>
           <p className="subtext">Configure this agent to publish signals to a stream.</p>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "stretch" }}>
-            <input
-              className="input"
-              value={agentPubkey}
-              onChange={(e) => setAgentPubkey(e.target.value)}
-              placeholder="Agent public key"
-              style={{ flex: 1, margin: 0 }}
-            />
+          <div className="md-field" style={{ marginBottom: 8 }}>
+            <label className="md-label">Agent Public Key</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+              <input
+                className={`md-input${agentPubkeyError ? " md-input--error" : ""}`}
+                value={agentPubkey}
+                onChange={(e) => handleAgentPubkeyChange(e.target.value)}
+                placeholder="Agent public key"
+                style={{ flex: 1, margin: 0 }}
+              />
             <button
               className="button ghost"
               type="button"
@@ -517,6 +553,10 @@ export default function RegisterAgentWizard({
             >
               Clear
             </button>
+            </div>
+            {agentPubkeyError && (
+              <p className="md-field-error">{agentPubkeyError}</p>
+            )}
           </div>
           {lockStreamId ? (
             <div className="stream-locked">
@@ -596,13 +636,15 @@ export default function RegisterAgentWizard({
           )}
           {agentSecretKey && (
             <>
-              <textarea
-                className="input"
-                value={agentSecretKey}
-                readOnly
-                rows={3}
-                style={{ marginBottom: 4 }}
-              />
+              <div className="md-field" style={{ marginBottom: 4 }}>
+                <label className="md-label">Agent Secret Key</label>
+                <textarea
+                  className="md-textarea"
+                  value={agentSecretKey}
+                  readOnly
+                  rows={3}
+                />
+              </div>
               <p className="subtext" style={{ marginBottom: 8, color: "var(--accent)" }}>
                 Store this secret key safely. It will not be shown again.
               </p>
@@ -794,54 +836,67 @@ export default function RegisterAgentWizard({
             )}
           </div>
 
-          {/* Deploy progress */}
-          {deploySteps.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              {deploySteps.map((ds, idx) => (
-                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ width: 18, textAlign: "center", fontSize: 14 }}>
-                    {ds.status === "done" && "\u2713"}
-                    {ds.status === "error" && "\u2717"}
-                    {ds.status === "active" && "\u25CF"}
-                    {ds.status === "pending" && "\u25CB"}
-                  </span>
-                  <span style={{ flex: 1 }}>
-                    {ds.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {deployDone && (
-            <div style={{ marginTop: 12 }}>
-              <p className="subtext" style={{ color: "var(--accent-2)" }}>
-                Agent registered successfully. Redirecting to My Agents…
-              </p>
-              <button className="button ghost" onClick={reset} style={{ marginTop: 8 }}>
-                Register another agent
-              </button>
-            </div>
-          )}
-
-          {!deployDone && (
-            <div className="step-actions">
-              <button
-                className="button ghost"
-                onClick={() => { setValidationError(null); setStep(prevStep(4)); }}
-                disabled={deploying}
-              >
+          {/* Deploy pipeline */}
+          <div className="deploy-pipeline">
+            {deployPhase === "idle" && (
+              <button className="button ghost" onClick={() => { setValidationError(null); setStep(prevStep(4)); }} style={{ marginRight: "auto" }}>
                 &larr; Back
               </button>
-              <button
-                className="button primary"
-                onClick={deploy}
-                disabled={deploying || !publicKey}
-              >
-                {deploying ? "Deploying\u2026" : "Deploy Agent"}
-              </button>
-            </div>
-          )}
+            )}
+
+            {/* Register Agent (always shown) */}
+            <button
+              className={`deploy-pipeline-btn${
+                agentDone ? " deploy-pipeline-btn--done"
+                : deployPhase === "agent" && deployLoading ? " deploy-pipeline-btn--loading"
+                : (deployPhase === "idle" || deployPhase === "agent") && !agentDone ? " deploy-pipeline-btn--active"
+                : ""
+              }`}
+              onClick={!agentDone && !deployLoading ? deployAgent : undefined}
+              disabled={agentDone || deployLoading || !publicKey}
+            >
+              {agentDone ? "\u2713 Agent" : deployPhase === "agent" && deployLoading ? "Registering\u2026" : "Register Agent"}
+            </button>
+
+            {/* Grant Publish (conditional) */}
+            {publisherEnabled && (
+              <>
+                <span className={`deploy-pipeline-arrow${agentDone ? " deploy-pipeline-arrow--active" : ""}`}>&rarr;</span>
+                <button
+                  className={`deploy-pipeline-btn${
+                    grantDone ? " deploy-pipeline-btn--done"
+                    : deployPhase === "grant" && deployLoading ? " deploy-pipeline-btn--loading"
+                    : deployPhase === "grant" && !deployLoading ? " deploy-pipeline-btn--active"
+                    : ""
+                  }`}
+                  onClick={agentDone && !grantDone && !deployLoading ? deployGrant : undefined}
+                  disabled={!agentDone || grantDone || deployLoading}
+                >
+                  {grantDone ? "\u2713 Publish" : deployPhase === "grant" && deployLoading ? "Granting\u2026" : "Grant Publish"}
+                </button>
+              </>
+            )}
+
+            {/* Link Subscriptions (conditional) */}
+            {listenerEnabled && selectedSubscriptions.length > 0 && (
+              <>
+                <span className={`deploy-pipeline-arrow${(publisherEnabled ? grantDone : agentDone) ? " deploy-pipeline-arrow--active" : ""}`}>&rarr;</span>
+                <button
+                  className={`deploy-pipeline-btn${
+                    linkDone ? " deploy-pipeline-btn--done"
+                    : deployPhase === "link" && deployLoading ? " deploy-pipeline-btn--loading"
+                    : deployPhase === "link" && !deployLoading ? " deploy-pipeline-btn--active"
+                    : ""
+                  }`}
+                  onClick={(publisherEnabled ? grantDone : agentDone) && !linkDone && !deployLoading ? deployLink : undefined}
+                  disabled={!(publisherEnabled ? grantDone : agentDone) || linkDone || deployLoading}
+                >
+                  {linkDone ? "\u2713 Linked" : deployPhase === "link" && deployLoading ? "Linking\u2026" : "Link Subs"}
+                </button>
+              </>
+            )}
+          </div>
+
             </div>
           )}
         </div>

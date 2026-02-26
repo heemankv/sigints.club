@@ -331,7 +331,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
         <div className="xview-composer-inner">
           <textarea
             ref={composerRef}
-            className="xview-composer-input"
+            className="md-textarea"
             placeholder={wallet ? "Post your reply…" : "Connect wallet to reply"}
             value={commentDraft}
             rows={1}

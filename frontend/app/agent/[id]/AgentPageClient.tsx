@@ -442,27 +442,30 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
               <span className="subtext">Attach a subscription NFT so the agent can listen.</span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <select
-                className="input"
-                value={linkSelection}
-                onChange={(e) => setLinkSelection(e.target.value)}
-              >
-                <option value="">Select a subscription</option>
-                {availableOptions.map((option) => (
-                  <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
-                    {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
-                  </option>
-                ))}
-              </select>
+              <div className="md-field" style={{ flex: 1 }}>
+                <label className="md-label">Subscription</label>
+                <select
+                  className="md-select"
+                  value={linkSelection}
+                  onChange={(e) => setLinkSelection(e.target.value)}
+                >
+                  <option value="">Select a subscription</option>
+                  {availableOptions.map((option) => (
+                    <option key={`${agent.id}-${option.streamId}`} value={option.streamId}>
+                      {option.streamName} · {option.tierId}{option.visibility ? ` · ${option.visibility}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
-                className="button secondary"
+                className="button secondary button--sm"
                 onClick={() => void linkSubscription()}
                 disabled={availableOptions.length === 0 || linkLoading}
               >
                 {linkLoading ? "Linking…" : "Link"}
               </button>
               <button
-                className="button ghost"
+                className="button ghost button--sm"
                 onClick={() => void loadOwnedSubscriptions(true)}
                 disabled={subsLoading || linkLoading}
               >

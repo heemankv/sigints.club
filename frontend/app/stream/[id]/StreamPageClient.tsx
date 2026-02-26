@@ -437,7 +437,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         {isOwner ? (
           <>
             {senderAgents.length === 0 ? (
-              <div className="stream-detail-section stream-step">
+              <div className="stream-detail-section stream-step stream-step--plain">
                 <div className="stream-step-header">
                   <h3 className="stream-detail-section-title">Register Publisher Agent</h3>
                   <span className="subtext">Create a publisher agent so you can publish signals from this stream.</span>
@@ -461,7 +461,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                 />
               </div>
             ) : (
-              <div className="stream-detail-section stream-step" style={{ maxWidth: "50%" }}>
+              <div className="stream-detail-section" style={{ maxWidth: "50%" }}>
                 <h3 className="stream-detail-section-title">Publisher Agents</h3>
                 <div>
                   {senderAgents.map((agent) => (
@@ -489,7 +489,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
           <>
             {!isSubscribed ? (
               <>
-                <div className="stream-detail-section stream-step">
+                <div className="stream-detail-section">
                   <div className="stream-step-header">
                     <h3 className="stream-detail-section-title">Step 1: Subscribe</h3>
                     <span className="subtext">Complete on-chain subscription to unlock listener setup.</span>
@@ -497,29 +497,33 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                   {stream.tiers.length > 0 ? (
                     <div className="tier-cards">
                       {stream.tiers.map((tier) => (
-                        <div className="tier-card" key={tier.tierId}>
-                          <div className="tier-card-header">
-                            <h4 className="tier-card-name">{tier.tierId}</h4>
-                            <span className="badge">{tier.price}</span>
+                        <div className="tier-card tier-card--row" key={tier.tierId}>
+                          <div className="tier-card-info">
+                            <div className="tier-card-header">
+                              <h4 className="tier-card-name">{tier.tierId}</h4>
+                              <span className="badge">{tier.price}</span>
+                            </div>
+                            <div className="subtext tier-card-meta">
+                              <span>{tier.pricingType === "subscription_unlimited" ? "Monthly subscription" : tier.pricingType}</span>
+                              {tier.quota && tier.quota !== "0" ? <span>Quota: {tier.quota}</span> : null}
+                              <span>Evidence: {tier.evidenceLevel}</span>
+                            </div>
                           </div>
-                          <p className="subtext tier-card-meta">
-                            {tier.pricingType === "subscription_unlimited" ? "Monthly subscription" : tier.pricingType}
-                            {tier.quota ? ` · Quota: ${tier.quota}` : ""}
-                            {" · Evidence: "}{tier.evidenceLevel}
-                          </p>
-                          <SubscribeForm
-                            streamId={stream.id}
-                            tierId={tier.tierId}
-                            pricingType={tier.pricingType}
-                            evidenceLevel={tier.evidenceLevel}
-                            price={tier.price}
-                            quota={tier.quota}
-                            streamOnchainAddress={onchainAddress}
-                            streamAuthority={"authority" in stream ? stream.authority : undefined}
-                            streamDao={"dao" in stream ? stream.dao : undefined}
-                            streamVisibility={"visibility" in stream ? stream.visibility : undefined}
-                            onSubscribed={() => { void refreshSubscription(); }}
-                          />
+                          <div className="tier-card-action">
+                            <SubscribeForm
+                              streamId={stream.id}
+                              tierId={tier.tierId}
+                              pricingType={tier.pricingType}
+                              evidenceLevel={tier.evidenceLevel}
+                              price={tier.price}
+                              quota={tier.quota}
+                              streamOnchainAddress={onchainAddress}
+                              streamAuthority={"authority" in stream ? stream.authority : undefined}
+                              streamDao={"dao" in stream ? stream.dao : undefined}
+                              streamVisibility={"visibility" in stream ? stream.visibility : undefined}
+                              onSubscribed={() => { void refreshSubscription(); }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
