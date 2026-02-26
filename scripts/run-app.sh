@@ -133,21 +133,6 @@ EOF
   )
 fi
 
-STREAM_MAP="$(NODE_PATH="$ROOT/backend/node_modules" STREAM_REGISTRY_ID="$STREAM_REGISTRY_ID" node <<'NODE'
-const { PublicKey } = require("@solana/web3.js");
-const crypto = require("crypto");
-const programId = new PublicKey(process.env.STREAM_REGISTRY_ID);
-const streams = ["stream-eth", "stream-amazon", "stream-anime"];
-const map = {};
-for (const id of streams) {
-  const hash = crypto.createHash("sha256").update(id).digest();
-  const [pda] = PublicKey.findProgramAddressSync([Buffer.from("stream"), hash], programId);
-  map[id] = pda.toBase58();
-}
-console.log(JSON.stringify(map));
-NODE
-)"
-
 TAPESTRY_LINES=""
 if [ -f "$ROOT/.env" ]; then
   TAPESTRY_LINES="$(grep '^TAPESTRY_' "$ROOT/.env" || true)"
@@ -167,7 +152,6 @@ SOLANA_ADDRESS=$PAYER_PUBKEY
 SOLANA_SUBSCRIPTION_PROGRAM_ID=$SUBSCRIPTION_ID
 SOLANA_STREAM_REGISTRY_PROGRAM_ID=$STREAM_REGISTRY_ID
 SOLANA_CHALLENGE_PROGRAM_ID=$CHALLENGE_ID
-SOLANA_STREAM_MAP=$STREAM_MAP
 NEXT_PUBLIC_SOLANA_RPC_URL=http://127.0.0.1:8899
 NEXT_PUBLIC_SUBSCRIPTION_PROGRAM_ID=$SUBSCRIPTION_ID
 NEXT_PUBLIC_STREAM_REGISTRY_PROGRAM_ID=$STREAM_REGISTRY_ID

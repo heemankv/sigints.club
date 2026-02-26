@@ -183,7 +183,7 @@ export default function SubscribeForm({
       ) : (
         <>
           {requiresKey && subscriptionKeyReady === false && (
-            <p className="subtext">Stream key missing. Subscribe now; register a listener agent to decrypt later.</p>
+            <p className="subtext">Subscribe now; register a listener agent to decrypt later.</p>
           )}
           {isOwner && (
             <p className="subtext">You are the stream authority and cannot subscribe to your own stream.</p>

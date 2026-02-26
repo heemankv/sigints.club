@@ -202,6 +202,8 @@ async function signAndSendTransaction(params: {
   latestBlockhash: { blockhash: string; lastValidBlockHeight: number };
   signer: Keypair;
   skipPreflight?: boolean;
+  confirmTimeoutMs?: number;
+  confirm?: boolean;
 }): Promise<string> {
   params.transaction.sign(params.signer);
   const signature = await params.connection.sendRawTransaction(
@@ -210,11 +212,36 @@ async function signAndSendTransaction(params: {
       skipPreflight: params.skipPreflight ?? false,
     }
   );
-  await params.connection.confirmTransaction(
-    { signature, ...params.latestBlockhash },
-    "confirmed"
-  );
+  if (params.confirm !== false) {
+    await confirmSignaturePolling(
+      params.connection,
+      signature,
+      params.confirmTimeoutMs ?? 30_000
+    );
+  }
   return signature;
+}
+
+async function confirmSignaturePolling(
+  connection: Connection,
+  signature: string,
+  timeoutMs: number
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const { value } = await connection.getSignatureStatuses([signature], {
+      searchTransactionHistory: true,
+    });
+    const status = value[0];
+    if (status?.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+    }
+    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`Timed out confirming transaction ${signature}`);
 }
 
 const TOOLS = [
@@ -792,6 +819,7 @@ const TOOLS = [
         visibility: { type: "string" },
         streamPubkey: { type: "string" },
         delegated: { type: "boolean" },
+        confirm: { type: "boolean" },
         backendUrl: { type: "string" },
         rpcUrl: { type: "string" },
         programId: { type: "string" },
@@ -1603,6 +1631,7 @@ export function createServer() {
           latestBlockhash: built.latestBlockhash,
           signer: keypair,
           skipPreflight: cfg.skipPreflight,
+          confirm: input.confirm !== false,
         });
         return jsonResponse({ signature, metadata });
       }

@@ -31,25 +31,30 @@ All scripts load `Agents/.env`. You can override any value via CLI flags.
 
 Required:
 - `SIGINTS_PUBLISHER_SECRET_KEY_BASE58`
+- `SIGINTS_PUBLISHER_KEYPAIR_PATH` (alternative to base58 secret)
 
 Optional:
 - `ORBITFLARE_RPC_URL` (if you want to send the on‑chain tx via OrbitFlare)
 
-## Listening (03 + 04) — Jetstream
+## Listening (03 + 04)
 
 Required:
-- `SIGINTS_STREAM_PUBKEY`
+- `SIGINTS_STREAM_ID` (private) or `SIGINTS_STREAM_PUBKEY` (public)
 - `ORBITFLARE_RPC_URL`
+
+Jetstream (optional):
 - `ORBITFLARE_JETSTREAM_ENDPOINT`
-- `ORBITFLARE_API_KEY`
-- `ORBITFLARE_API_KEY_HEADER`
+- `ORBITFLARE_API_KEY` (optional)
+- `ORBITFLARE_API_KEY_HEADER` (optional)
 
 Private streams only:
 - `SIGINTS_SUBSCRIBER_PUBLIC_KEY_DER_BASE64`
 - `SIGINTS_SUBSCRIBER_PRIVATE_KEY_DER_BASE64`
+- `SIGINTS_PUBLIC_AUTH_KEYPAIR_PATH` (or `SIGINTS_PUBLIC_AUTH_SECRET_KEY_BASE58`)
 
 Optional:
-- `SIGINTS_LISTEN_MS` (default 60000)
+- `SIGINTS_LISTEN_MS` (0 = run forever)
+- `SIGINTS_POLL_MS` (polling interval when Jetstream is not set)
 
 ## Run
 
@@ -68,17 +73,21 @@ Publishing:
 - `--tier-id`
 - `--plaintext`
 - `--publisher-secret`
+- `--publisher-keypair`
 - `--rpc-url`
 
-Listening (Jetstream):
+Listening (Jetstream or RPC polling):
 - `--backend-url`
-- `--stream-id`
-- `--stream-pubkey`
-- `--listen-ms`
+- `--stream-id` (optional if `--stream-pubkey` is provided; otherwise uses first stream)
+- `--stream-pubkey` (optional; resolved from stream ID when possible)
+- `--listen-ms` (0 = run forever)
 - `--rpc-url`
-- `--jetstream-endpoint`
-- `--api-key`
-- `--api-key-header`
+- `--jetstream-endpoint` (if not set, uses RPC polling instead of Jetstream)
+- `--api-key` (optional)
+- `--api-key-header` (optional)
+- `--poll-ms` (used only when stream is not provided; default 5000)
+ - `--auth-keypair` (wallet keypair for payload auth)
+ - `--auth-secret` (base58 secret alternative)
 
 Private listening only:
 - `--subscriber-public-key`

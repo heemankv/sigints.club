@@ -31,6 +31,16 @@ export function generateX25519Keypair(): X25519Keypair {
   };
 }
 
+export function normalizeBase64(input: string): string {
+  const stripped = input
+    .replace(/-----BEGIN [^-]+-----/g, "")
+    .replace(/-----END [^-]+-----/g, "")
+    .replace(/\s+/g, "");
+  const normalized = stripped.replace(/-/g, "+").replace(/_/g, "/");
+  const padLength = (4 - (normalized.length % 4)) % 4;
+  return normalized + "=".repeat(padLength);
+}
+
 export function subscriberIdFromPubkey(pubkeyDerBase64: string): string {
   const pub = Buffer.from(pubkeyDerBase64, "base64");
   return createHash("sha256").update(pub).digest("hex");

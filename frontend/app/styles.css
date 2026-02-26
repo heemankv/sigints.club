@@ -2917,7 +2917,7 @@ textarea {
 }
 
 .xview-reply-submit {
-  background: var(--ink);
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 999px;
@@ -3696,6 +3696,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  overflow: hidden;
 }
 
 .stream-card-bottom-actions {
@@ -3709,11 +3710,8 @@ textarea {
   font-size: 13px;
   color: var(--muted);
   margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
   flex: 1;
+  min-width: 0;
 }
 
 /* Inline publish signal panel */
@@ -3903,13 +3901,14 @@ textarea {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
+  overflow-wrap: break-word;
 }
 
 .tier-card-meta {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 13px;
 }
 
@@ -4402,6 +4401,7 @@ textarea {
   gap: 12px;
   margin-top: 12px;
   padding-left: 18px;
+  max-width: 80%;
   max-width: 60%;
 }
 
@@ -4411,8 +4411,9 @@ textarea {
 
 .tier-card--row {
   display: flex;
-  align-items: center;
-  gap: 24px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .tier-card-info {

@@ -352,7 +352,7 @@ export default function PostPageClient({ contentId }: { contentId: string }) {
                 onClick={submitComment}
                 disabled={!commentDraft.trim() || !wallet}
               >
-                Reply
+                Post
               </button>
             </div>
           )}

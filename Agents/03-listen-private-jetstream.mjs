@@ -1,28 +1,25 @@
-import { SigintsClient } from "@heemankv/sigints-sdk";
-import { loadEnv, parseArgs, getArg, requireArg } from "./agent-utils.mjs";
+import { SigintsClient, __testing } from "@heemankv/sigints-sdk";
+import { createBackendClient } from "@heemankv/sigints-sdk/backend";
+import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { loadEnv, parseArgs, getArg, requireArg, loadKeypairFromFile } from "./agent-utils.mjs";
+import bs58 from "bs58";
+import nacl from "tweetnacl";
 
 loadEnv();
 const args = parseArgs();
 
 const backendUrl = getArg(args, "backend-url", process.env.SIGINTS_BACKEND_URL ?? "http://127.0.0.1:3001");
-const streamId = requireArg(args, "stream-id", process.env.SIGINTS_STREAM_ID, "SIGINTS_STREAM_ID");
-const streamPubkey = requireArg(args, "stream-pubkey", process.env.SIGINTS_STREAM_PUBKEY, "SIGINTS_STREAM_PUBKEY");
+const streamIdArg = getArg(args, "stream-id", process.env.SIGINTS_STREAM_ID);
+const streamPubkeyArg = getArg(args, "stream-pubkey", process.env.SIGINTS_STREAM_PUBKEY);
+
+const rpcUrl = requireArg(args, "rpc-url", process.env.ORBITFLARE_RPC_URL, "ORBITFLARE_RPC_URL");
+const jetstreamEndpoint = getArg(args, "jetstream-endpoint", process.env.ORBITFLARE_JETSTREAM_ENDPOINT);
 
 const orbitflare = {
-  rpcUrl: requireArg(args, "rpc-url", process.env.ORBITFLARE_RPC_URL, "ORBITFLARE_RPC_URL"),
-  jetstreamEndpoint: requireArg(
-    args,
-    "jetstream-endpoint",
-    process.env.ORBITFLARE_JETSTREAM_ENDPOINT,
-    "ORBITFLARE_JETSTREAM_ENDPOINT"
-  ),
-  apiKey: requireArg(args, "api-key", process.env.ORBITFLARE_API_KEY, "ORBITFLARE_API_KEY"),
-  apiKeyHeader: requireArg(
-    args,
-    "api-key-header",
-    process.env.ORBITFLARE_API_KEY_HEADER,
-    "ORBITFLARE_API_KEY_HEADER"
-  ),
+  rpcUrl,
+  jetstreamEndpoint,
+  apiKey: getArg(args, "api-key", process.env.ORBITFLARE_API_KEY),
+  apiKeyHeader: getArg(args, "api-key-header", process.env.ORBITFLARE_API_KEY_HEADER),
 };
 
 const subscriberPublic = requireArg(
@@ -42,41 +39,128 @@ const subscriberKeys = {
   privateKeyDerBase64: subscriberPrivate,
 };
 
-const listenMs = Number(getArg(args, "listen-ms", process.env.SIGINTS_LISTEN_MS ?? "60000"));
+const listenMs = Number(getArg(args, "listen-ms", process.env.SIGINTS_LISTEN_MS ?? "0"));
+const pollMs = Number(getArg(args, "poll-ms", process.env.SIGINTS_POLL_MS ?? "5000"));
+
+const backend = createBackendClient(backendUrl);
+let streamId = streamIdArg ?? null;
+let streamPubkey = streamPubkeyArg ?? null;
+
+if (!streamPubkey && streamId) {
+  const stream = await backend.fetchStream(streamId);
+  streamPubkey = stream?.onchainAddress ?? null;
+}
+
+if (!streamId) {
+  throw new Error("stream-id is required for private listening.");
+}
+
+if (!streamPubkey) {
+  throw new Error("Missing stream pubkey. Provide --stream-pubkey or ensure stream has onchainAddress.");
+}
+
+const authKeypairPath = getArg(args, "auth-keypair", process.env.SIGINTS_PUBLIC_AUTH_KEYPAIR_PATH);
+const authSecret = getArg(args, "auth-secret", process.env.SIGINTS_PUBLIC_AUTH_SECRET_KEY_BASE58);
+let keyboxAuth = undefined;
+if (authKeypairPath || authSecret) {
+  const kp = authKeypairPath
+    ? await loadKeypairFromFile(authKeypairPath)
+    : Keypair.fromSecretKey(bs58.decode(authSecret));
+  keyboxAuth = {
+    walletPubkey: kp.publicKey.toBase58(),
+    signMessage: (message) => nacl.sign.detached(message, kp.secretKey),
+  };
+}
 
 console.log("[sigints] backend:", backendUrl);
 console.log("[sigints] stream:", streamId);
 console.log("[sigints] visibility: private");
-console.log("[sigints] transport: jetstream");
+const useJetstream = Boolean(jetstreamEndpoint);
+console.log("[sigints] transport:", useJetstream ? "jetstream" : "rpc polling");
 
-const client = await SigintsClient.fromBackend(backendUrl, { orbitflare });
+const client = await SigintsClient.fromBackend(backendUrl, { orbitflare, keyboxAuth });
 
-const stop = await client.listenForSignals({
-  streamId,
-  streamPubkey,
-  subscriberKeys,
-  transport: "jetstream",
-  includeBlockTime: true,
-  onSignal: (signal) => {
-    console.log("\n--- signal ---");
-    console.log("hash:", signal.signalHash);
-    console.log("plaintext:", signal.plaintext);
-    console.log("createdAt:", new Date(signal.createdAt).toISOString());
-    console.log("blockTime:", signal.blockTime ?? null);
-  },
-  onError: (error) => {
-    console.error("listen error:", error?.message ?? error);
-  },
-});
+try {
+  const latest = await client.decryptLatestSignal(streamId, subscriberKeys);
+  console.log("\n--- latest signal ---");
+  console.log("plaintext:", latest);
+} catch (error) {
+  console.error("latest signal fetch failed:", error?.message ?? error);
+  if (!keyboxAuth) {
+    console.error("private payloads require auth. Provide --auth-keypair or --auth-secret.");
+  }
+}
 
-const timer = setTimeout(() => {
-  stop();
-  process.exit(0);
-}, listenMs);
+if (useJetstream) {
+  const stop = await client.listenForSignals({
+    streamId,
+    streamPubkey,
+    subscriberKeys,
+    transport: "jetstream",
+    includeBlockTime: true,
+    onSignal: (signal) => {
+      console.log("\n--- signal ---");
+      console.log("hash:", signal.signalHash);
+      console.log("plaintext:", signal.plaintext);
+      console.log("createdAt:", new Date(signal.createdAt).toISOString());
+      console.log("blockTime:", signal.blockTime ?? null);
+    },
+    onError: (error) => {
+      console.error("listen error:", error?.message ?? error);
+    },
+  });
 
-timer.unref();
+  if (listenMs > 0) {
+    const timer = setTimeout(() => {
+      stop();
+      process.exit(0);
+    }, listenMs);
+    timer.unref();
+  }
 
-process.on("SIGINT", () => {
-  stop();
-  process.exit(0);
-});
+  process.on("SIGINT", () => {
+    stop();
+    process.exit(0);
+  });
+} else {
+  const connection = new Connection(rpcUrl, "confirmed");
+  const solanaConfig = await backend.fetchSolanaConfig();
+  const programId = new PublicKey(solanaConfig.subscriptionProgramId);
+  const seen = new Set();
+  const { decodeSignalRecord } = __testing;
+
+  async function pollOnce() {
+    const streamKey = new PublicKey(streamPubkey);
+    const [signalPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("signal_latest"), streamKey.toBuffer()],
+      programId
+    );
+    const account = await connection.getAccountInfo(signalPda, "confirmed");
+    if (!account) return;
+    const decoded = decodeSignalRecord(account.data);
+    if (!decoded) return;
+    const dedupeKey = `${decoded.stream}:${decoded.signalHash}:${decoded.createdAt}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    try {
+      const meta = await client.fetchSignalByHash(decoded.signalHash);
+      const plaintext = await client.decryptSignal(meta, subscriberKeys);
+      console.log("\n--- signal ---");
+      console.log("hash:", decoded.signalHash);
+      console.log("plaintext:", plaintext);
+      console.log("createdAt:", new Date(meta.createdAt).toISOString());
+    } catch (error) {
+      const message = error?.message ?? String(error);
+      if (message.includes("signal not found") || message.includes("404")) {
+        return;
+      }
+      console.error("poll error:", message);
+    }
+  }
+
+  const start = Date.now();
+  while (listenMs <= 0 || Date.now() - start < listenMs) {
+    await pollOnce();
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}

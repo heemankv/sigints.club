@@ -47,6 +47,11 @@ backend/idl/persona_registry.json
 
 .localnet-ledger*
 accounts
+paradex_key.key
+user_2_paradex.key
+user_5.key
+x25519.key
+Agents/*.txt
 
 frontend/test-results/
 frontend/tests/e2e/.artifacts/

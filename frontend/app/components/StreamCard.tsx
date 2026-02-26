@@ -23,11 +23,7 @@ export default function StreamCard({ stream, viewerWallet, highlight, isSubscrib
   const hasTier = Boolean(primaryTier);
   const canSubscribe = hasTier && !isOwner;
 
-  const desc = stream.description
-    ? stream.description.length > 120
-      ? `${stream.description.slice(0, 120)}…`
-      : stream.description
-    : null;
+  const desc = stream.description || null;
 
   return (
     <div className={`stream-card${highlight ? " stream-card--highlight" : ""}`}>

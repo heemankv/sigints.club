@@ -2,6 +2,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import {
   decryptSignal,
   generateX25519Keypair,
+  normalizeBase64,
   subscriberIdFromPubkey,
   unwrapKeyForSubscriber,
   WrappedKey,
@@ -25,6 +26,7 @@ import {
   fetchCiphertext as fetchCiphertextRequest,
   fetchPublicPayload as fetchPublicPayloadRequest,
   fetchKeyboxEntry as fetchKeyboxEntryRequest,
+  buildPublicPayloadMessage,
   type SubscribeResponse,
   type SyncWalletKeyResponse,
   type LoginUserResponse,
@@ -106,6 +108,8 @@ export type ListenOptions = {
   includeBlockTime?: boolean;
   transport?: "auto" | "jetstream" | "websocket";
 };
+
+export type DecryptAuth = KeyboxAuth | AgentAuth;
 
 export class SigintsClient {
   private connection: Connection;
@@ -269,6 +273,14 @@ export class SigintsClient {
     return plaintext.toString("utf8");
   }
 
+  async decryptLatestSignal(streamId: string, keys?: SubscriberKeys): Promise<string> {
+    const meta = await this.fetchLatestSignal(streamId);
+    if (!meta) {
+      throw new Error("no signals available");
+    }
+    return this.decryptSignal(meta, keys);
+  }
+
   async listenForSignals(options: ListenOptions): Promise<() => void> {
     const transport = options.transport ?? "auto";
 
@@ -337,7 +349,7 @@ export class SigintsClient {
       this.programId
     );
 
-    const { startJetstreamAccountListener } = await import("./jetstream");
+    const { startJetstreamAccountListener } = await import("./jetstream.js");
     const subscription = await startJetstreamAccountListener({
       endpoint: this.orbitflare.jetstreamEndpoint,
       apiKey: this.orbitflare.apiKey,
@@ -459,6 +471,57 @@ export class SigintsClient {
   }
 }
 
+export async function decryptLatestSignalWithKeys(params: {
+  backendUrl: string;
+  streamId: string;
+  keys: SubscriberKeys;
+  auth: DecryptAuth;
+}): Promise<{ plaintext: string; metadata: SignalMetadata }> {
+  const metaRes = await fetchLatestSignalRequest<SignalMetadata>(params.backendUrl, params.streamId);
+  const meta = normalizeMetadata(metaRes.signal);
+  if (!meta) {
+    throw new Error("no signals available");
+  }
+  const signalSha = meta.signalPointer?.split("/").pop();
+  if (!signalSha) {
+    throw new Error("invalid signal pointer");
+  }
+  const normalizedKeys = {
+    publicKeyDerBase64: normalizeBase64(params.keys.publicKeyDerBase64),
+    privateKeyDerBase64: normalizeBase64(params.keys.privateKeyDerBase64),
+  };
+  if ((meta.visibility ?? "private") === "public") {
+    const message = buildPublicPayloadMessage(signalSha);
+    const signatureBytes = await Promise.resolve(params.auth.signMessage(message));
+    const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
+    const auth =
+      "walletPubkey" in params.auth
+      ? { wallet: params.auth.walletPubkey, signatureBase64 }
+      : { agentId: params.auth.agentId, signatureBase64 };
+    const payload = await fetchPublicPayloadRequest<PublicSignalPayload>(params.backendUrl, signalSha, auth);
+    return { plaintext: Buffer.from(payload.payload.plaintext, "base64").toString("utf8"), metadata: meta };
+  }
+  if (!meta.keyboxPointer) {
+    throw new Error("keybox pointer missing for private signal");
+  }
+  const keyboxSha = meta.keyboxPointer.split("/").pop();
+  if (!keyboxSha) {
+    throw new Error("invalid keybox pointer");
+  }
+  const message = Buffer.from(`sigints:keybox:${keyboxSha}`, "utf8");
+  const signatureBytes = await Promise.resolve(params.auth.signMessage(message));
+  const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
+  const keyboxAuth =
+    "walletPubkey" in params.auth
+      ? { wallet: params.auth.walletPubkey, signatureBase64, encPubKeyDerBase64: normalizedKeys.publicKeyDerBase64 }
+      : { agentId: params.auth.agentId, signatureBase64, encPubKeyDerBase64: normalizedKeys.publicKeyDerBase64 };
+  const keyboxEntry = await fetchKeyboxEntryRequest<WrappedKey>(params.backendUrl, keyboxSha, keyboxAuth);
+  const symKey = unwrapKeyForSubscriber(normalizedKeys.privateKeyDerBase64, keyboxEntry.entry);
+  const payload = await fetchCiphertextRequest<SignalPayload>(params.backendUrl, signalSha);
+  const plaintext = decryptSignal(payload.payload.ciphertext, symKey, payload.payload.iv, payload.payload.tag);
+  return { plaintext: plaintext.toString("utf8"), metadata: meta };
+}
+
 type DecodedSignalRecord = {
   stream: string;
   signalHash: string;
@@ -530,7 +593,7 @@ function hexToBytes(input: string, label: string): Uint8Array {
   return bytes;
 }
 
-export { decryptSignal, generateX25519Keypair, subscriberIdFromPubkey, unwrapKeyForSubscriber };
+export { decryptSignal, generateX25519Keypair, normalizeBase64, subscriberIdFromPubkey, unwrapKeyForSubscriber };
 export type { WrappedKey, X25519Keypair };
 export {
   buildRecordSignalIx as buildRecordSignalInstruction,

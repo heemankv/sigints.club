@@ -203,7 +203,10 @@ export default function DecryptPanel({
         return;
       }
 
-      if (!pubKey || !privKey) {
+      const pubKeyValue = pubKey.trim();
+      const privKeyValue = privKey.trim();
+
+      if (!pubKeyValue || !privKeyValue) {
         toast("Keys required for private stream signals", "warn");
         return;
       }
@@ -226,19 +229,19 @@ export default function DecryptPanel({
       const message = new TextEncoder().encode(`sigints:keybox:${keyboxSha}`);
       const signature = await signMessage(message);
       const signatureBase64 = Buffer.from(signature).toString("base64");
-      const subId = await subscriberIdFromPubkey(pubKey);
+      const subId = await subscriberIdFromPubkey(pubKeyValue);
       const keyboxRes = await fetchKeyboxEntry<{ subscriberId: string; epk: string; encKey: string; iv: string; tag: string }>(
         keyboxSha,
         {
           wallet: publicKey.toBase58(),
           signatureBase64,
-          encPubKeyDerBase64: pubKey,
+          encPubKeyDerBase64: pubKeyValue,
           subscriberId: subId,
         }
       );
       const entry = keyboxRes.entry;
 
-      const priv = await importX25519PrivateKey(privKey);
+      const priv = await importX25519PrivateKey(privKeyValue);
       const epk = await importX25519PublicKey(entry.epk);
       const shared = await deriveSharedKey(priv, epk);
       const encKey = fromBase64(entry.encKey);
@@ -263,7 +266,17 @@ export default function DecryptPanel({
 
       setPlaintext(new TextDecoder().decode(plain));
     } catch (err: any) {
-      toast(err.message ?? "Decryption failed", "error");
+      console.error("Decrypt failed", err);
+      const msg = typeof err?.message === "string" ? err.message : "";
+      if (msg.includes("Invalid base64")) {
+        toast("Invalid base64 key. Paste only the base64 (no BEGIN/END lines).", "error");
+        return;
+      }
+      if (err?.name === "OperationError") {
+        toast("Decryption failed. Key does not match the registered encryption key for this stream.", "error");
+        return;
+      }
+      toast(msg || "Decryption failed", "error");
     }
   }
 
@@ -293,6 +306,9 @@ export default function DecryptPanel({
         <button className="button primary" onClick={decrypt}>
           Decrypt
         </button>
+      )}
+      {!isPublicStream && plaintext && (
+        <p className="decrypt-result">Decrypted: {plaintext}</p>
       )}
       {isPublicStream && (
         <div className="data-card intent-card" style={{ marginTop: 16 }}>
