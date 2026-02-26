@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@heemankv/sigints-sdk": "^1.0.3",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@heemankv/sigints-sdk": "^1.0.2",
     "@solana/web3.js": "^1.98.0",
     "bs58": "^6.0.0",
     "tweetnacl": "^1.0.3"

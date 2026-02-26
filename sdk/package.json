@@ -1,6 +1,6 @@
 {
   "name": "@heemankv/sigints-sdk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "sigints.club agent SDK (Solana + backend storage) for listening to signals.",
   "type": "module",
   "main": "./dist/index.js",

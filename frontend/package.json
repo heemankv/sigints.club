@@ -11,8 +11,8 @@
     "generate:art": "node scripts/generate-card-art.js"
   },
   "dependencies": {
+    "@heemankv/sigints-sdk": "^1.0.3",
     "@jup-ag/wallet-adapter": "^0.2.6",
-    "@heemankv/sigints-sdk": "^1.0.2",
     "@solana/spl-token": "^0.4.12",
     "@solana/wallet-adapter-react": "^0.15.38",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
