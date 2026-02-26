@@ -1,23 +1,23 @@
 import type { BlockhashWithExpiryBlockHeight, Connection } from "@solana/web3.js";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import type { TransactionInstruction } from "@solana/web3.js";
-import type { TierInput } from "./solana/tiers";
+import type { TierInput } from "./solana/tiers.js";
 import {
   buildCreateStreamInstruction,
   buildGrantPublisherInstruction,
   buildRevokePublisherInstruction,
   buildUpsertTierInstruction,
-} from "./solana/streamRegistry";
+} from "./solana/streamRegistry.js";
 import {
   buildRegisterSubscriptionKeyInstruction,
   buildSubscribeInstruction,
-} from "./solana/subscription";
+} from "./solana/subscription.js";
 import {
   buildRecordSignalDelegatedInstruction,
   buildRecordSignalInstruction,
   type RecordSignalDelegatedParams,
   type RecordSignalParams,
-} from "./publish";
+} from "./publish.js";
 
 export type PublicKeyLike = string | PublicKey;
 

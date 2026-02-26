@@ -17,7 +17,7 @@ import {
   type StreamSdkConfig,
   type KeyboxAuth,
   type AgentAuth,
-} from "@sigints/sdk";
+} from "@heemankv/sigints-sdk";
 import { Keypair, Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

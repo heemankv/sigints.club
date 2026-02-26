@@ -6,14 +6,14 @@ import {
   unwrapKeyForSubscriber,
   WrappedKey,
   type X25519Keypair,
-} from "./crypto";
+} from "./crypto.js";
 import {
   buildRecordSignalInstruction as buildRecordSignalIx,
   buildRecordSignalDelegatedInstruction as buildRecordSignalDelegatedIx,
   type PrepareSignalInput,
   type RecordSignalParams,
   type RecordSignalDelegatedParams,
-} from "./publish";
+} from "./publish.js";
 import {
   registerSubscription as registerSubscriptionRequest,
   fetchSolanaConfig as fetchSolanaConfigRequest,
@@ -29,7 +29,7 @@ import {
   type SyncWalletKeyResponse,
   type LoginUserResponse,
   type PublicPayloadAuth,
-} from "./backend";
+} from "./backend.js";
 
 export type OrbitflareConfig = {
   rpcUrl?: string;
@@ -499,7 +499,7 @@ function decodeSignalRecord(data: Buffer): DecodedSignalRecord | null {
   };
 }
 
-export * from "./tradeIntent";
+export * from "./tradeIntent.js";
 
 function normalizeCreatedAt(createdAt: number): number {
   if (createdAt < 1_000_000_000_000) {
@@ -539,7 +539,7 @@ export {
   syncWalletKeyRequest as syncWalletKey,
   fetchStreamRequest as fetchStream,
 };
-export type { PrepareSignalInput, RecordSignalParams, RecordSignalDelegatedParams } from "./publish";
+export type { PrepareSignalInput, RecordSignalParams, RecordSignalDelegatedParams } from "./publish.js";
 
 export {
   getJson,
@@ -590,10 +590,10 @@ export {
   loginUser,
   type LoginUserResponse,
   type PublicPayloadAuth,
-} from "./backend";
+} from "./backend.js";
 
-export * from "./solana/index";
-export * from "./transactions";
+export * from "./solana/index.js";
+export * from "./transactions.js";
 
 export const __testing = {
   decodeSignalRecord,

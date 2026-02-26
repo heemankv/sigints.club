@@ -22,7 +22,7 @@ export default function TradeSignalCard({ streamId }: { streamId: string }) {
   const [executing, setExecuting] = useState(false);
   const [tradeText, setTradeText] = useState<string | null>(null);
   const [tradeIntent, setTradeIntent] = useState<any | null>(null);
-  const [tradeLinks, setTradeLinks] = useState<{ blinkUrl: string; inspectorUrl?: string | null } | null>(null);
+  const [tradeLinks, setTradeLinks] = useState<{ blinkUrl: string | null; inspectorUrl?: string | null } | null>(null);
   const [copied, setCopied] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -212,7 +212,12 @@ export default function TradeSignalCard({ streamId }: { streamId: string }) {
             <div className="modal-actions">
               <button
                 className="button primary"
-                onClick={() => window.open(tradeLinks.inspectorUrl ?? tradeLinks.blinkUrl, "_blank")}
+                onClick={() => {
+                  const target = tradeLinks.inspectorUrl ?? tradeLinks.blinkUrl;
+                  if (target) {
+                    window.open(target, "_blank");
+                  }
+                }}
               >
                 Execute Trade
               </button>

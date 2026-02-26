@@ -89,14 +89,15 @@ export default function StreamCard({ stream, viewerWallet, highlight, isSubscrib
         <div className="stream-card-bottom">
           {desc && <p className="stream-card-desc">{desc}</p>}
           <div className="stream-card-bottom-actions">
-            {!isOwner && !isSubscribed && canSubscribe && (
+            {!isOwner && !isSubscribed && canSubscribe ? (
               <Link className="button primary" href={`/stream/${stream.id}`}>
                 Subscribe
               </Link>
+            ) : (
+              <Link className="button ghost" href={`/stream/${stream.id}`}>
+                View Stream →
+              </Link>
             )}
-            <Link className="button ghost" href={`/stream/${stream.id}`}>
-              View Stream →
-            </Link>
           </div>
         </div>
       </div>

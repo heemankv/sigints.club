@@ -5,8 +5,8 @@ import {
   type BlinkLinkResponse,
   type SyncWalletKeyResponse,
   type LoginUserResponse,
-} from "@sigints/sdk/src/backend";
-import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl, buildBlinkInspectorUrl, formatTradeIntent } from "@sigints/sdk/src/tradeIntent";
+} from "@heemankv/sigints-sdk/backend";
+import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl, buildBlinkInspectorUrl, formatTradeIntent } from "@heemankv/sigints-sdk/tradeIntent";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 

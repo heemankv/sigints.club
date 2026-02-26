@@ -1,6 +1,6 @@
-export * from "./constants";
-export * from "./shared";
-export * from "./tiers";
+export * from "./constants.js";
+export * from "./shared.js";
+export * from "./tiers.js";
 export {
   deriveStreamIdBytes,
   deriveStreamPda,
@@ -11,7 +11,7 @@ export {
   derivePublisherDelegatePda,
   buildGrantPublisherInstruction,
   buildRevokePublisherInstruction,
-} from "./streamRegistry";
+} from "./streamRegistry.js";
 export {
   defaultExpiryMs,
   encodeSubscribeData,
@@ -32,5 +32,5 @@ export {
   resolveEvidenceLevel,
   decodeSubscriptionAccount,
   decodeSubscriptionKeyAccount,
-} from "./subscription";
-export type { DecodedSubscription, DecodedSubscriptionKey } from "./subscription";
+} from "./subscription.js";
+export type { DecodedSubscription, DecodedSubscriptionKey } from "./subscription.js";

@@ -44,9 +44,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/" className="brand">
                 <span className="logo">
                   <svg className="brand-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <circle cx="9" cy="3" r="2" fill="#ff6b35"/>
-                    <circle cx="9" cy="3" r="3.5" fill="#ff6b35" opacity="0.25"/>
+                    <path id="signal-path" d="M2 12l4 0 3-9 6 18 3-9 4 0" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle r="2" fill="#ff6b35">
+                      <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1;0" keyTimes="0;0.5;1" calcMode="linear">
+                        <mpath href="#signal-path"/>
+                      </animateMotion>
+                    </circle>
+                    <circle r="3.5" fill="#ff6b35" opacity="0.25">
+                      <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1;0" keyTimes="0;0.5;1" calcMode="linear">
+                        <mpath href="#signal-path"/>
+                      </animateMotion>
+                    </circle>
                   </svg>
                   sigints.club
                 </span>

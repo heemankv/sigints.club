@@ -5,8 +5,8 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { Buffer } from "buffer";
-import { EVIDENCE_LEVEL_MAP, PRICING_TYPE_MAP } from "./constants";
-import { sha256Bytes, toHex, writeBigInt64LE, writeUint32LE } from "./shared";
+import { EVIDENCE_LEVEL_MAP, PRICING_TYPE_MAP } from "./constants.js";
+import { sha256Bytes, toHex, writeBigInt64LE, writeUint32LE } from "./shared.js";
 
 const SUBSCRIBE_DISCRIMINATOR = new Uint8Array([254, 28, 191, 138, 156, 179, 183, 53]);
 const REGISTER_KEY_DISCRIMINATOR = new Uint8Array([56, 8, 67, 97, 128, 122, 80, 213]);

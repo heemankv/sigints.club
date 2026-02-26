@@ -1,7 +1,7 @@
 import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { Buffer } from "buffer";
-import { buildTiersSeed, type TierInput } from "./tiers";
-import { sha256Bytes, writeBigInt64LE, writeUint32LE } from "./shared";
+import { buildTiersSeed, type TierInput } from "./tiers.js";
+import { sha256Bytes, writeBigInt64LE, writeUint32LE } from "./shared.js";
 
 const CREATE_STREAM_DISCRIMINATOR = new Uint8Array([71, 188, 111, 127, 108, 40, 229, 158]);
 const UPSERT_TIER_DISCRIMINATOR = new Uint8Array([238, 232, 181, 0, 157, 149, 0, 202]);

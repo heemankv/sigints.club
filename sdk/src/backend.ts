@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import type { PrepareSignalInput, PrepareSignalResponse } from "./publish";
+import type { PrepareSignalInput, PrepareSignalResponse } from "./publish.js";
 
 export type SubscribeResponse = {
   subscriberId: string | null;

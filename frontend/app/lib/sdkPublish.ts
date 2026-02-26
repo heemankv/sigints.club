@@ -1,7 +1,7 @@
-export { buildRecordSignalInstruction, buildRecordSignalDelegatedInstruction } from "@sigints/sdk/src/publish";
+export { buildRecordSignalInstruction, buildRecordSignalDelegatedInstruction } from "@heemankv/sigints-sdk/publish";
 export { prepareSignal } from "./sdkBackend";
 export type {
   PrepareSignalInput,
   RecordSignalParams,
   RecordSignalDelegatedParams,
-} from "@sigints/sdk/src/publish";
+} from "@heemankv/sigints-sdk/publish";

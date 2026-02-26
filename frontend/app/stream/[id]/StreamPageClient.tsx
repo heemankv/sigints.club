@@ -21,6 +21,7 @@ import {
 import { formatFullTimestamp, timeAgo, toHex } from "../../lib/utils";
 import { hasRegisteredSubscriptionKey, resolveProgramId, resolveStreamPubkey, sha256Bytes } from "../../lib/solana";
 import CopyBlinkButton from "../../components/CopyBlinkButton";
+import RegisterAgentWizard from "../../components/RegisterAgentWizard";
 import TradeSignalCard from "./TradeSignalCard";
 
 type AnyStream = StreamDetail | FallbackStreamDetail;
@@ -460,27 +461,19 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                 />
               </div>
             ) : (
-              <div className="stream-detail-section stream-step">
+              <div className="stream-detail-section stream-step" style={{ maxWidth: "50%" }}>
                 <h3 className="stream-detail-section-title">Publisher Agents</h3>
-                <div className="agent-list">
+                <div>
                   {senderAgents.map((agent) => (
-                    <div key={agent.id} className="agent-list-item">
-                      <div>
-                        <strong>{agent.name}</strong>
-                        <span className="subtext">
-                          {agent.domain} · {agent.role === "both" ? "publisher + listener" : "publisher"}
-                        </span>
-                      </div>
-                      {agent.agentPubkey && (
-                        <span className="mono">{agent.agentPubkey.slice(0, 6)}…</span>
-                      )}
-                    </div>
+                    <span key={agent.id} className="subtext" style={{ display: "block" }}>
+                      – <strong>{agent.name}</strong> · {agent.domain} · {agent.role === "both" ? "publisher + listener" : "publisher"}
+                    </span>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className="stream-detail-section">
+            <div className="stream-detail-section" style={{ maxWidth: "60%" }}>
               <h3 className="stream-detail-section-title">Publish Signal</h3>
               <p className="subtext">Step 1 prepares off-chain. Step 2 signs and records on-chain.</p>
               <PublishSignal
@@ -541,9 +534,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
             ) : (
               <>
                 {isPublicStream && (
-                  <div className="stream-detail-section stream-step stream-step--compact">
-                    <TradeSignalCard streamId={stream.id} />
-                  </div>
+                  <TradeSignalCard streamId={stream.id} />
                 )}
 
                 {!isPublicStream && (
@@ -583,6 +574,11 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                       {linkedAgents.length === 0 && !agentsLoading && (
                         <span className="subtext">No agents linked to this stream yet.</span>
                       )}
+                      {linkedAgents.map(({ subscription, agent }) => (
+                        <span key={subscription.id} className="subtext">
+                          – <strong>{agent?.name ?? "Agent"}</strong> · {agent?.domain ?? "listener"} · {agent?.role ?? "listener"}
+                        </span>
+                      ))}
                     </div>
                     {isPublicStream || subscriptionKeyReady === true ? (
                       <Link
@@ -597,23 +593,6 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                       </button>
                     )}
                   </div>
-                  {linkedAgents.length > 0 && (
-                    <div className="agent-list">
-                      {linkedAgents.map(({ subscription, agent }) => (
-                        <div key={subscription.id} className="agent-list-item">
-                          <div>
-                            <strong>{agent?.name ?? "Agent"}</strong>
-                            <span className="subtext">
-                              {agent?.domain ?? "listener"} · {agent?.role ?? "listener"}
-                            </span>
-                          </div>
-                          {agent?.agentPubkey && (
-                            <span className="mono">{agent.agentPubkey.slice(0, 6)}…</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 {!isPublicStream && (

@@ -1,5 +1,5 @@
 import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
-import type { SignalMetadata } from "./index";
+import type { SignalMetadata } from "./index.js";
 
 export type PrepareSignalInput = {
   streamId: string;

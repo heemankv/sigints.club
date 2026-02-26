@@ -12,7 +12,7 @@ import {
   buildUpsertTiersTransaction as sdkBuildUpsertTiersTransaction,
   type BuiltTransaction,
   type UpsertTierInput,
-} from "@sigints/sdk/src/transactions";
+} from "@heemankv/sigints-sdk/transactions";
 import {
   defaultExpiryMs,
   decodeSubscriptionAccount,
@@ -37,7 +37,7 @@ import {
   type DecodedSubscription,
   type DecodedSubscriptionKey,
   type TierInput,
-} from "@sigints/sdk/src/solana";
+} from "@heemankv/sigints-sdk/solana";
 
 export {
   defaultExpiryMs,

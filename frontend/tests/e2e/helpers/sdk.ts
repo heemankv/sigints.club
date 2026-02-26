@@ -6,7 +6,7 @@ import {
   subscriberIdFromPubkey,
   unwrapKeyForSubscriber,
   type X25519Keypair,
-} from "@sigints/sdk";
+} from "@heemankv/sigints-sdk";
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3001";
 export const backendClient = createBackendClient(backendUrl);

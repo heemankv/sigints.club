@@ -146,6 +146,8 @@ export default function RegisterAgentWizard({
 
     async function loadKeyStatus() {
       const programId = resolveProgramId();
+      const walletPubkey = publicKey;
+      if (!walletPubkey) return;
       const updates: Record<string, boolean | null> = {};
       for (const option of ownedSubscriptionOptions) {
         if (option.visibility === "public") {
@@ -158,7 +160,7 @@ export default function RegisterAgentWizard({
         }
         try {
           const streamPubkey = resolveStreamPubkey(option.streamOnchainAddress);
-          const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, publicKey);
+          const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, walletPubkey);
           updates[option.streamId] = registered;
         } catch {
           updates[option.streamId] = false;

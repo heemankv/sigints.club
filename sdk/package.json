@@ -1,10 +1,40 @@
 {
   "name": "@heemankv/sigints-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "sigints.club agent SDK (Solana + backend storage) for listening to signals.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./backend": {
+      "types": "./dist/backend.d.ts",
+      "default": "./dist/backend.js"
+    },
+    "./solana": {
+      "types": "./dist/solana/index.d.ts",
+      "default": "./dist/solana/index.js"
+    },
+    "./transactions": {
+      "types": "./dist/transactions.d.ts",
+      "default": "./dist/transactions.js"
+    },
+    "./publish": {
+      "types": "./dist/publish.d.ts",
+      "default": "./dist/publish.js"
+    },
+    "./tradeIntent": {
+      "types": "./dist/tradeIntent.d.ts",
+      "default": "./dist/tradeIntent.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto.d.ts",
+      "default": "./dist/crypto.js"
+    }
+  },
   "files": [
     "dist"
   ],
