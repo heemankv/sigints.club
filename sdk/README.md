@@ -1,86 +1,206 @@
-# SDK (@sigints/sdk)
+# sigints.club SDK
 
-Minimal agent SDK to listen for sigints.club signals, resolve backend pointers, and decrypt.
+A TypeScript SDK for building on sigints.club. It covers:
+- Solana on-chain transactions and instruction builders
+- Backend API helpers
+- Signal encryption/decryption
+- Real-time listening (WebSocket or OrbitFlare Jetstream)
+- Trade intent parsing utilities
 
-## Install (local dev)
+## Install
+
 ```bash
-cd /Users/heemankverma/Work/graveyard/sdk
-npm install
-npm run build
+npm install @heemankv/sigints-sdk
 ```
 
-## Usage
+## Quick Start (Backend-Backed Client)
+
 ```ts
-import { SigintsClient } from "@sigints/sdk";
-import { Keypair } from "@solana/web3.js";
-import nacl from "tweetnacl";
+import { SigintsClient } from "@heemankv/sigints-sdk";
 
-const wallet = Keypair.generate();
-const client = await SigintsClient.fromBackend("http://localhost:3001", {
-  keyboxAuth: {
-    walletPubkey: wallet.publicKey.toBase58(),
-    signMessage: (message) => nacl.sign.detached(message, wallet.secretKey),
-  },
-});
-
-const keys = SigintsClient.generateKeys();
-const subscriberId = await client.registerEncryptionKey(
-  "stream-eth",
-  keys.publicKeyDerBase64,
-  "SUBSCRIBER_WALLET_PUBKEY"
-);
+const client = await SigintsClient.fromBackend("https://your-backend");
 
 const stop = await client.listenForSignals({
-  streamId: "stream-eth",
-  streamPubkey: "STREAM_ONCHAIN_PUBKEY",
-  subscriberKeys: {
-    publicKeyDerBase64: keys.publicKeyDerBase64,
-    privateKeyDerBase64: keys.privateKeyDerBase64,
-  },
+  streamPubkey: "YOUR_STREAM_PDA",
+  streamId: "stream-btc",
   onSignal: (signal) => {
-    console.log("New signal", signal.signalHash, signal.plaintext);
+    console.log("Signal:", signal.plaintext);
   },
-  maxAgeMs: 60_000,
-  includeBlockTime: true,
 });
 ```
 
-If you want to pass config manually instead of bootstrapping from the backend:
+## Configuration
+
+### StreamSdkConfig
+
 ```ts
+import { SigintsClient } from "@heemankv/sigints-sdk";
+
 const client = new SigintsClient({
-  rpcUrl: "http://127.0.0.1:8899",
-  backendUrl: "http://localhost:3001",
-  programId: "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE",
-  streamRegistryProgramId: "HCm2Bk65hCaevrs4N3oYegMBZBTPpzjoMB44JgTrTVSA",
-  keyboxAuth: {
-    walletPubkey: wallet.publicKey.toBase58(),
-    signMessage: (message) => nacl.sign.detached(message, wallet.secretKey),
+  rpcUrl: "https://api.devnet.solana.com",
+  backendUrl: "https://your-backend",
+  programId: "SUBSCRIPTION_PROGRAM_ID",
+  streamRegistryProgramId: "STREAM_REGISTRY_PROGRAM_ID",
+});
+```
+
+### OrbitFlare (RPC + Jetstream)
+
+```ts
+import { SigintsClient } from "@heemankv/sigints-sdk";
+
+const client = new SigintsClient({
+  rpcUrl: "https://api.devnet.solana.com",
+  backendUrl: "https://your-backend",
+  programId: "SUBSCRIPTION_PROGRAM_ID",
+  streamRegistryProgramId: "STREAM_REGISTRY_PROGRAM_ID",
+  orbitflare: {
+    rpcUrl: "https://your-orbitflare-devnet-rpc",
+    jetstreamEndpoint: "https://your-jetstream-endpoint",
+    apiKey: "ORBITFLARE_KEY",
+    apiKeyHeader: "X-ORBIT-KEY",
   },
 });
 ```
 
-## Backend Client (No Frontend Dependencies)
-If you only need backend calls (streams, feed, storage, test wallet), use the backend client.
+Behavior:
+- If `orbitflare.rpcUrl` is provided, it overrides the RPC URL for all on-chain reads/writes.
+- If `orbitflare.jetstreamEndpoint` is provided, `listenForSignals()` uses Jetstream.
+- If Jetstream fails to connect, the SDK falls back to WebSocket subscriptions.
+- If neither is configured, the SDK behaves as it does today.
+
+Note: Jetstream is Node-only (not supported in browser runtimes).
+
+## SigintsClient API
+
+### Subscription + Keys
+- `registerSubscription(streamId, subscriberWallet)`
+- `registerEncryptionKey(streamId, publicKeyDerBase64, subscriberWallet)`
+- `syncWalletKey(wallet, streamId, encPubKeyDerBase64?)`
+
+### Streams
+- `fetchStream(streamId)`
+
+### Signals
+- `fetchLatestSignal(streamId)`
+- `fetchSignalByHash(signalHash)`
+- `fetchCiphertext(pointer)`
+- `fetchPublic(pointer)`
+- `fetchKeyboxEntry(pointer, encPubKeyDerBase64)`
+- `decryptSignal(metadata, keys)`
+
+### Real-Time Listening
+- `listenForSignals(options)`
+
+Options:
+- `streamPubkey`
+- `streamId`
+- `subscriberKeys` (for private streams)
+- `onSignal`
+- `onError`
+- `maxAgeMs`
+- `includeBlockTime`
+- `transport` (`auto` | `jetstream` | `websocket`)
+
+### Signal Publish
+- `prepareSignal(input)`
+- `buildRecordSignalInstruction(params)`
+- `buildRecordSignalDelegatedInstruction(params)`
+
+## Backend Client Helpers
+
+The SDK also exports a backend client for direct REST calls.
+
+### Core Client
+- `createBackendClient(backendUrl)`
+
+### Stream Discovery
+- `fetchStream(streamId)`
+- `fetchStreams(includeTiers?)`
+- `fetchStreamSubscribers(streamId)`
+
+### Subscriptions
+- `registerSubscription({ streamId, subscriberWallet })`
+- `fetchOnchainSubscriptions(subscriber, opts?)`
+
+### Signals
+- `fetchSignals(streamId)`
+- `fetchSignalEvents({ streamId, limit, after })`
+- `fetchLatestSignal(streamId)`
+- `fetchSignalByHash(signalHash)`
+- `prepareSignal({ streamId, tierId, plaintext, visibility? })`
+
+### Payloads
+- `fetchCiphertext(sha)`
+- `fetchPublicPayload(sha, auth)`
+- `fetchKeyboxEntry(sha, params)`
+
+### Social Feed
+- `fetchFeed(type?)`
+- `fetchFollowingFeed(wallet, type?)`
+- `fetchTrendingFeed(limit?)`
+- `fetchPost(contentId)`
+- `createIntent({ wallet, content, topic?, tags? })`
+- `createSlashReport({ wallet, content, streamId?, makerWallet?, challengeTx? })`
+- `addLike(wallet, contentId)`
+- `removeLike(wallet, contentId)`
+- `fetchLikeCount(contentId)`
+- `fetchComments(contentId, page?, pageSize?)`
+- `addComment(wallet, contentId, comment)`
+- `deleteComment(wallet, commentId)`
+- `followProfile(wallet, targetProfileId)`
+- `deletePost(wallet, contentId)`
+
+### Agents
+- `searchAgents(params)`
+- `fetchAgents(params)`
+- `createAgent(payload)`
+- `createAgentSubscription(payload)`
+- `fetchAgentSubscriptions(params)`
+- `deleteAgentSubscription(payload)`
+
+### Auth / Profiles
+- `fetchUserProfile(wallet)`
+- `loginUser(params)`
+
+### Test Utilities
+- `getTestWallet(walletName?)`
+- `testWalletSend({ transactionBase64, skipPreflight? }, walletName?)`
+- `testWalletSignMessage({ messageBase64 }, walletName?)`
+
+## Solana Transaction Builders
+
+These helpers return a `Transaction` plus a fresh blockhash.
+
+- `buildCreateStreamTransaction`
+- `buildUpsertTiersTransaction`
+- `buildSubscribeTransaction`
+- `buildRegisterSubscriptionKeyTransaction`
+- `buildRecordSignalTransaction`
+- `buildRecordSignalDelegatedTransaction`
+- `buildGrantPublisherTransaction`
+- `buildRevokePublisherTransaction`
+
+## Trade Intent Utilities
+
+Parse the strict trade template and build a Blink URL.
 
 ```ts
-import { createBackendClient } from "@sigints/sdk";
+import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl } from "@heemankv/sigints-sdk";
 
-const backend = createBackendClient("http://localhost:3001");
+const intent = parseTradeIntent(
+  "TRADE: provider=Jupiter input=SOL amount=1.25 output=USDC slippageBps=50"
+);
 
-const { streams } = await backend.fetchStreams(true);
-const { signal } = await backend.fetchLatestSignal("stream-eth");
-const { payload } = await backend.fetchPublicPayload("PUBLIC_SHA");
+if (intent) {
+  const actionUrl = buildTradeActionUrl(intent, "https://your-backend");
+  const blinkUrl = buildTradeBlinkUrl(actionUrl, "https://your-app");
+  console.log(blinkUrl);
+}
 ```
-
-This keeps the SDK environment‑agnostic: the caller supplies the backend URL at startup
-and the SDK does not assume any frontend globals.
-
-### Public streams
-If a stream is public, `subscriberKeys` are optional. The SDK will fetch the plaintext payload directly from `/storage/public`.
-
-### Private streams (keybox auth)
-Private streams require `keyboxAuth` so the backend can verify NFT ownership before returning keybox entries.
 
 ## Notes
-- Signals are discovered on-chain via program account changes.
-- Ciphertext and keybox are fetched from the backend using pointer hashes.
+
+- Public signals still require an active subscription NFT to fetch payloads.
+- Private signals require a registered key and keybox entry.
+- Jetstream is only used for listening; all reads/writes still use RPC.

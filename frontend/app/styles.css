@@ -925,6 +925,44 @@ main {
   gap: 8px;
 }
 
+.intent-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.intent-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.intent-card__toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.intent-card__toggle:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.intent-card__details {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
 .data-card--side {
   display: flex;
   align-items: stretch;
@@ -4902,11 +4940,17 @@ textarea {
 .agent-flow-indicator {
   display: flex;
   flex-direction: column;
-  width: 10%;
+  width: 5px;
+  min-width: 5px;
   flex-shrink: 0;
   align-self: stretch;
   overflow: hidden;
   border-radius: 12px 0 0 12px;
+  transition: width 0.3s ease;
+}
+
+.stream-card:hover .agent-flow-indicator {
+  width: 120px;
 }
 
 .agent-flow-lane {

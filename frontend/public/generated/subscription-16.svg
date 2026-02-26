@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg16" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="hsl(35 50% 16%)"/>
+      <stop offset="100%" stop-color="hsl(20 45% 12%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" rx="48" fill="url(#bg16)"/>
+  <!-- Dune waves -->
+  <path d="M0 380 C80 340 160 400 240 360 C320 320 400 380 480 340 C560 300 600 340 640 320 V640 H0Z" fill="hsl(35 60% 35%)" opacity="0.2"/>
+  <path d="M0 440 C100 400 180 460 280 420 C380 380 440 440 540 400 C600 380 620 400 640 390 V640 H0Z" fill="hsl(25 55% 30%)" opacity="0.3"/>
+  <path d="M0 500 C120 470 200 520 320 480 C440 440 500 500 580 470 C620 460 640 470 640 470 V640 H0Z" fill="hsl(15 50% 25%)" opacity="0.4"/>
+  <path d="M0 560 C80 540 200 580 320 550 C440 520 520 560 640 540 V640 H0Z" fill="hsl(10 45% 20%)" opacity="0.5"/>
+  <!-- Sun/moon -->
+  <circle cx="480" cy="160" r="50" fill="hsl(40 85% 65%)" opacity="0.2"/>
+  <circle cx="480" cy="160" r="30" fill="hsl(40 85% 65%)" opacity="0.3"/>
+  <circle cx="480" cy="160" r="12" fill="hsl(40 90% 70%)" opacity="0.5"/>
+</svg>

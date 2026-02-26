@@ -115,3 +115,20 @@ export function buildTradeBlinkUrl(actionUrl: string, appBase?: string): string 
   return `${appBase.replace(/\/+$/, "")}/?action=${encodeURIComponent(actionUrl)}`;
 }
 
+export function buildBlinkInspectorUrl(actionUrl: string, inspectorBase?: string): string | null {
+  if (!inspectorBase) return null;
+  if (inspectorBase.includes("{action}")) {
+    return inspectorBase.replace("{action}", encodeURIComponent(actionUrl));
+  }
+  try {
+    const url = new URL(inspectorBase);
+    url.searchParams.set("action", actionUrl);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function formatTradeIntent(intent: TradeIntent): string {
+  return `TRADE: provider=${intent.provider} input=${intent.inputSymbol} amount=${intent.amountUi} output=${intent.outputSymbol} slippageBps=${intent.slippageBps}`;
+}

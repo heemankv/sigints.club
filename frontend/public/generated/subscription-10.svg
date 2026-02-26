@@ -1,24 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg-9" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="hsl(252 69% 43%)"/>
-      <stop offset="100%" stop-color="hsl(61 48% 49%)"/>
+    <linearGradient id="bg10" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="hsl(250 55% 20%)"/>
+      <stop offset="100%" stop-color="hsl(280 50% 28%)"/>
     </linearGradient>
-    <radialGradient id="orb-9" cx="0.2" cy="0.2" r="0.8">
-      <stop offset="0%" stop-color="hsl(151 53% 64%)" stop-opacity="0.9"/>
-      <stop offset="100%" stop-color="hsl(112 77% 61%)" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-  <rect width="640" height="640" rx="48" fill="url(#bg-9)"/>
-  <rect x="32" y="32" width="576" height="576" rx="40" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
-  <circle cx="160" cy="160" r="240" fill="url(#orb-9)"/>
-  <circle cx="480" cy="420" r="180" fill="rgba(255,255,255,0.08)"/>
-  <path d="M96 360 C 200 260, 360 260, 544 340" stroke="hsl(127 76% 40%)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M120 420 C 240 520, 400 520, 520 440" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
-  <g opacity="0.6">
-    <circle cx="520" cy="140" r="6" fill="#fff"/>
-    <circle cx="540" cy="160" r="4" fill="#fff"/>
-    <circle cx="500" cy="180" r="3" fill="#fff"/>
+  <rect width="640" height="640" rx="48" fill="url(#bg10)"/>
+  <!-- Diagonal rain streaks -->
+  <g stroke="hsl(260 60% 65%)" stroke-width="1" opacity="0.15">
+    <line x1="100" y1="0" x2="0" y2="100"/><line x1="200" y1="0" x2="0" y2="200"/>
+    <line x1="300" y1="0" x2="0" y2="300"/><line x1="400" y1="0" x2="0" y2="400"/>
+    <line x1="500" y1="0" x2="0" y2="500"/><line x1="600" y1="0" x2="0" y2="600"/>
+    <line x1="640" y1="40" x2="40" y2="640"/><line x1="640" y1="140" x2="140" y2="640"/>
+    <line x1="640" y1="240" x2="240" y2="640"/><line x1="640" y1="340" x2="340" y2="640"/>
+    <line x1="640" y1="440" x2="440" y2="640"/><line x1="640" y1="540" x2="540" y2="640"/>
   </g>
+  <!-- Floating orbs -->
+  <circle cx="200" cy="200" r="80" fill="hsl(300 60% 50%)" opacity="0.12"/>
+  <circle cx="460" cy="400" r="100" fill="hsl(200 70% 50%)" opacity="0.1"/>
+  <circle cx="380" cy="180" r="50" fill="hsl(40 80% 60%)" opacity="0.1"/>
+  <!-- Glow center -->
+  <circle cx="320" cy="320" r="6" fill="#fff" opacity="0.4"/>
 </svg>

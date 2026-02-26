@@ -31,13 +31,21 @@ import {
   type PublicPayloadAuth,
 } from "./backend";
 
+export type OrbitflareConfig = {
+  rpcUrl?: string;
+  jetstreamEndpoint?: string;
+  apiKey?: string;
+  apiKeyHeader?: string;
+};
+
 export type StreamSdkConfig = {
-  rpcUrl: string;
+  rpcUrl?: string;
   backendUrl: string;
   programId: string;
   streamRegistryProgramId?: string;
   keyboxAuth?: KeyboxAuth;
   agentAuth?: AgentAuth;
+  orbitflare?: OrbitflareConfig;
 };
 
 export type KeyboxAuth = {
@@ -96,6 +104,7 @@ export type ListenOptions = {
   onError?: (error: Error) => void;
   maxAgeMs?: number;
   includeBlockTime?: boolean;
+  transport?: "auto" | "jetstream" | "websocket";
 };
 
 export class SigintsClient {
@@ -105,10 +114,15 @@ export class SigintsClient {
   private backendUrl: string;
   private keyboxAuth?: KeyboxAuth;
   private agentAuth?: AgentAuth;
+  private orbitflare?: OrbitflareConfig;
   private seenSignals = new Set<string>();
 
   constructor(cfg: StreamSdkConfig) {
-    this.connection = new Connection(cfg.rpcUrl, "confirmed");
+    const resolvedRpcUrl = cfg.orbitflare?.rpcUrl ?? cfg.rpcUrl;
+    if (!resolvedRpcUrl) {
+      throw new Error("rpcUrl is required to initialize SigintsClient");
+    }
+    this.connection = new Connection(resolvedRpcUrl, "confirmed");
     this.programId = new PublicKey(cfg.programId);
     this.streamRegistryProgramId = cfg.streamRegistryProgramId
       ? new PublicKey(cfg.streamRegistryProgramId)
@@ -116,20 +130,22 @@ export class SigintsClient {
     this.backendUrl = cfg.backendUrl.replace(/\/$/, "");
     this.keyboxAuth = cfg.keyboxAuth;
     this.agentAuth = cfg.agentAuth;
+    this.orbitflare = cfg.orbitflare;
   }
 
   static async fromBackend(
     backendUrl: string,
-    options?: { keyboxAuth?: KeyboxAuth; agentAuth?: AgentAuth }
+    options?: { keyboxAuth?: KeyboxAuth; agentAuth?: AgentAuth; orbitflare?: OrbitflareConfig }
   ): Promise<SigintsClient> {
     const config = await fetchSolanaConfigRequest(backendUrl);
     return new SigintsClient({
-      rpcUrl: config.rpcUrl,
+      rpcUrl: options?.orbitflare?.rpcUrl ?? config.rpcUrl,
       backendUrl,
       programId: config.subscriptionProgramId,
       streamRegistryProgramId: config.streamRegistryProgramId,
       keyboxAuth: options?.keyboxAuth,
       agentAuth: options?.agentAuth,
+      orbitflare: options?.orbitflare,
     });
   }
 
@@ -254,6 +270,31 @@ export class SigintsClient {
   }
 
   async listenForSignals(options: ListenOptions): Promise<() => void> {
+    const transport = options.transport ?? "auto";
+
+    if (transport === "websocket") {
+      return this.listenForSignalsWebsocket(options);
+    }
+
+    if (transport === "jetstream") {
+      return this.listenForSignalsJetstream(options);
+    }
+
+    const jetstreamEndpoint = this.orbitflare?.jetstreamEndpoint;
+    if (jetstreamEndpoint && typeof window === "undefined") {
+      try {
+        return await this.listenForSignalsJetstream(options);
+      } catch (err: any) {
+        if (options.onError) {
+          options.onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    }
+
+    return this.listenForSignalsWebsocket(options);
+  }
+
+  private async listenForSignalsWebsocket(options: ListenOptions): Promise<() => void> {
     const stream = new PublicKey(options.streamPubkey);
     const [signalPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("signal_latest"), stream.toBuffer()],
@@ -267,34 +308,7 @@ export class SigintsClient {
           const decoded = decodeSignalRecord(accountInfo.data);
           if (!decoded) return;
           if (decoded.stream !== stream.toBase58()) return;
-          const dedupeKey = `${decoded.stream}:${decoded.signalHash}:${decoded.createdAt}`;
-          if (this.seenSignals.has(dedupeKey)) return;
-          this.seenSignals.add(dedupeKey);
-
-          const meta = await this.waitForMetadata(decoded.signalHash);
-          if (!meta) return;
-
-          const receivedAt = Date.now();
-          const createdAt = decoded.createdAt;
-          const ageMs = receivedAt - createdAt;
-          if (options.maxAgeMs && ageMs > options.maxAgeMs) {
-            return;
-          }
-
-          const plaintext = await this.decryptSignal(meta, options.subscriberKeys);
-          const blockTime = options.includeBlockTime
-            ? await this.connection.getBlockTime(ctx.slot)
-            : undefined;
-          await options.onSignal({
-            signalHash: decoded.signalHash,
-            metadata: meta,
-            plaintext,
-            slot: ctx.slot,
-            createdAt,
-            receivedAt,
-            ageMs,
-            blockTime,
-          });
+          await this.handleDecodedSignal(options, decoded, ctx.slot);
         } catch (err: any) {
           if (options.onError) {
             options.onError(err instanceof Error ? err : new Error(String(err)));
@@ -307,6 +321,73 @@ export class SigintsClient {
     return () => {
       void this.connection.removeProgramAccountChangeListener(subId);
     };
+  }
+
+  private async listenForSignalsJetstream(options: ListenOptions): Promise<() => void> {
+    if (!this.orbitflare?.jetstreamEndpoint) {
+      throw new Error("Jetstream endpoint not configured");
+    }
+    if (typeof window !== "undefined") {
+      throw new Error("Jetstream is not supported in browser environments");
+    }
+
+    const stream = new PublicKey(options.streamPubkey);
+    const [signalPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("signal_latest"), stream.toBuffer()],
+      this.programId
+    );
+
+    const { startJetstreamAccountListener } = await import("./jetstream");
+    const subscription = await startJetstreamAccountListener({
+      endpoint: this.orbitflare.jetstreamEndpoint,
+      apiKey: this.orbitflare.apiKey,
+      apiKeyHeader: this.orbitflare.apiKeyHeader,
+      accountPubkey: signalPda.toBase58(),
+      onAccount: async (update) => {
+        const decoded = decodeSignalRecord(update.data);
+        if (!decoded) return;
+        if (decoded.stream !== stream.toBase58()) return;
+        await this.handleDecodedSignal(options, decoded, update.slot);
+      },
+      onError: options.onError,
+    });
+
+    return () => subscription.close();
+  }
+
+  private async handleDecodedSignal(
+    options: ListenOptions,
+    decoded: DecodedSignalRecord,
+    slot?: number
+  ): Promise<void> {
+    const dedupeKey = `${decoded.stream}:${decoded.signalHash}:${decoded.createdAt}`;
+    if (this.seenSignals.has(dedupeKey)) return;
+    this.seenSignals.add(dedupeKey);
+
+    const meta = await this.waitForMetadata(decoded.signalHash);
+    if (!meta) return;
+
+    const receivedAt = Date.now();
+    const createdAt = decoded.createdAt;
+    const ageMs = receivedAt - createdAt;
+    if (options.maxAgeMs && ageMs > options.maxAgeMs) {
+      return;
+    }
+
+    const plaintext = await this.decryptSignal(meta, options.subscriberKeys);
+    const blockTime = options.includeBlockTime && slot !== undefined
+      ? await this.connection.getBlockTime(slot)
+      : undefined;
+    await options.onSignal({
+      signalHash: decoded.signalHash,
+      metadata: meta,
+      plaintext,
+      slot: slot ?? 0,
+      createdAt,
+      receivedAt,
+      ageMs,
+      blockTime,
+    });
   }
 
   async fetchSignalRecordCreatedAt(streamPubkey: string, _signalHash: string): Promise<number | null> {

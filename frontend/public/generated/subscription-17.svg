@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg17" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="hsl(200 60% 14%)"/>
+      <stop offset="100%" stop-color="hsl(180 55% 18%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" rx="48" fill="url(#bg17)"/>
+  <!-- Circuit paths -->
+  <g stroke="hsl(180 65% 50%)" stroke-width="1.5" opacity="0.2" fill="none">
+    <path d="M80 200 H260 V320 H400 V200 H560"/>
+    <path d="M80 440 H200 V360 H340 V480 H480 V400 H560"/>
+    <path d="M320 80 V160 H200 V260"/>
+    <path d="M320 560 V480"/>
+  </g>
+  <!-- Junction nodes -->
+  <g fill="hsl(180 65% 50%)" opacity="0.4">
+    <circle cx="260" cy="200" r="5"/><circle cx="260" cy="320" r="5"/>
+    <circle cx="400" cy="320" r="5"/><circle cx="400" cy="200" r="5"/>
+    <circle cx="200" cy="440" r="5"/><circle cx="200" cy="360" r="5"/>
+    <circle cx="340" cy="360" r="5"/><circle cx="340" cy="480" r="5"/>
+    <circle cx="480" cy="480" r="5"/><circle cx="480" cy="400" r="5"/>
+    <circle cx="320" cy="160" r="5"/>
+  </g>
+  <!-- Pulse glow -->
+  <circle cx="320" cy="320" r="100" fill="hsl(180 65% 50%)" opacity="0.04"/>
+  <circle cx="320" cy="320" r="6" fill="hsl(50 90% 65%)" opacity="0.7"/>
+</svg>

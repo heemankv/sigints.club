@@ -1,24 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg-11" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="hsl(0 68% 45%)"/>
-      <stop offset="100%" stop-color="hsl(359 58% 56%)"/>
+    <linearGradient id="bg12" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="hsl(0 55% 18%)"/>
+      <stop offset="100%" stop-color="hsl(330 50% 14%)"/>
     </linearGradient>
-    <radialGradient id="orb-11" cx="0.2" cy="0.2" r="0.8">
-      <stop offset="0%" stop-color="hsl(314 57% 52%)" stop-opacity="0.9"/>
-      <stop offset="100%" stop-color="hsl(158 63% 44%)" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-  <rect width="640" height="640" rx="48" fill="url(#bg-11)"/>
-  <rect x="32" y="32" width="576" height="576" rx="40" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
-  <circle cx="160" cy="160" r="240" fill="url(#orb-11)"/>
-  <circle cx="480" cy="420" r="180" fill="rgba(255,255,255,0.08)"/>
-  <path d="M96 360 C 200 260, 360 260, 544 340" stroke="hsl(19 79% 47%)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M120 420 C 240 520, 400 520, 520 440" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
-  <g opacity="0.6">
-    <circle cx="520" cy="140" r="6" fill="#fff"/>
-    <circle cx="540" cy="160" r="4" fill="#fff"/>
-    <circle cx="500" cy="180" r="3" fill="#fff"/>
+  <rect width="640" height="640" rx="48" fill="url(#bg12)"/>
+  <!-- Radial burst -->
+  <g stroke="hsl(350 65% 55%)" stroke-width="1" opacity="0.12">
+    <line x1="320" y1="320" x2="320" y2="40"/><line x1="320" y1="320" x2="320" y2="600"/>
+    <line x1="320" y1="320" x2="40" y2="320"/><line x1="320" y1="320" x2="600" y2="320"/>
+    <line x1="320" y1="320" x2="120" y2="120"/><line x1="320" y1="320" x2="520" y2="520"/>
+    <line x1="320" y1="320" x2="520" y2="120"/><line x1="320" y1="320" x2="120" y2="520"/>
+    <line x1="320" y1="320" x2="180" y2="60"/><line x1="320" y1="320" x2="460" y2="580"/>
+    <line x1="320" y1="320" x2="580" y2="180"/><line x1="320" y1="320" x2="60" y2="460"/>
   </g>
+  <!-- Concentric arcs -->
+  <circle cx="320" cy="320" r="80" stroke="hsl(20 80% 55%)" stroke-width="2" opacity="0.2" fill="none"/>
+  <circle cx="320" cy="320" r="160" stroke="hsl(20 80% 55%)" stroke-width="1.5" opacity="0.12" fill="none"/>
+  <circle cx="320" cy="320" r="240" stroke="hsl(20 80% 55%)" stroke-width="1" opacity="0.08" fill="none"/>
+  <!-- Center -->
+  <circle cx="320" cy="320" r="20" fill="hsl(20 80% 55%)" opacity="0.35"/>
+  <circle cx="320" cy="320" r="6" fill="hsl(40 90% 70%)" opacity="0.8"/>
 </svg>

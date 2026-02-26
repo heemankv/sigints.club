@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg13" x1="0" y1="0" x2="1" y2="0.5">
+      <stop offset="0%" stop-color="hsl(160 50% 14%)"/>
+      <stop offset="100%" stop-color="hsl(120 45% 20%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" rx="48" fill="url(#bg13)"/>
+  <!-- Spiral -->
+  <path d="M320 320 C320 280 360 260 380 280 C400 300 400 340 380 360 C360 380 300 380 280 340 C260 300 260 240 320 220 C380 200 440 220 460 280 C480 340 460 420 380 440 C300 460 220 420 200 340 C180 260 220 180 320 160" stroke="hsl(140 60% 50%)" stroke-width="1.5" opacity="0.3" fill="none"/>
+  <!-- Dot field -->
+  <g fill="hsl(80 70% 55%)" opacity="0.2">
+    <circle cx="120" cy="120" r="6"/><circle cx="200" cy="80" r="4"/>
+    <circle cx="440" cy="100" r="5"/><circle cx="520" cy="160" r="4"/>
+    <circle cx="100" cy="480" r="5"/><circle cx="540" cy="500" r="6"/>
+    <circle cx="180" cy="540" r="3"/><circle cx="460" cy="560" r="4"/>
+  </g>
+  <!-- Center glow -->
+  <circle cx="320" cy="320" r="16" fill="hsl(140 60% 50%)" opacity="0.4"/>
+  <circle cx="320" cy="320" r="40" fill="hsl(140 60% 50%)" opacity="0.08"/>
+</svg>

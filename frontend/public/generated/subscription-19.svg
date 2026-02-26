@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg19" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="hsl(150 45% 14%)"/>
+      <stop offset="100%" stop-color="hsl(190 50% 18%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" rx="48" fill="url(#bg19)"/>
+  <!-- Woven cross-hatch -->
+  <g stroke="hsl(160 55% 45%)" stroke-width="1.5" opacity="0.1">
+    <path d="M0 100 Q160 160 320 100 T640 100"/>
+    <path d="M0 200 Q160 260 320 200 T640 200"/>
+    <path d="M0 300 Q160 360 320 300 T640 300"/>
+    <path d="M0 400 Q160 460 320 400 T640 400"/>
+    <path d="M0 500 Q160 560 320 500 T640 500"/>
+  </g>
+  <g stroke="hsl(200 55% 50%)" stroke-width="1.5" opacity="0.08">
+    <path d="M100 0 Q160 160 100 320 T100 640"/>
+    <path d="M220 0 Q280 160 220 320 T220 640"/>
+    <path d="M340 0 Q400 160 340 320 T340 640"/>
+    <path d="M460 0 Q520 160 460 320 T460 640"/>
+    <path d="M580 0 Q640 160 580 320 T580 640"/>
+  </g>
+  <!-- Accent node -->
+  <circle cx="320" cy="300" r="10" fill="hsl(50 90% 65%)" opacity="0.5"/>
+  <circle cx="320" cy="300" r="30" stroke="hsl(50 90% 65%)" stroke-width="1" opacity="0.15" fill="none"/>
+</svg>

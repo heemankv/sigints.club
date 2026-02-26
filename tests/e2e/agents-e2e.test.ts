@@ -29,6 +29,17 @@ if (!globalThis.crypto) {
 }
 
 const RPC_URL = process.env.E2E_RPC_URL ?? "http://127.0.0.1:8899";
+const ORBITFLARE_RPC_URL = process.env.E2E_ORBITFLARE_RPC_URL ?? process.env.E2E_ORBITFLARE_RPC;
+const ORBITFLARE_JETSTREAM_ENDPOINT =
+  process.env.E2E_JETSTREAM_ENDPOINT ??
+  process.env.E2E_ORBITFLARE_JETSTREAM_ENDPOINT;
+const ORBITFLARE_API_KEY =
+  process.env.E2E_JETSTREAM_API_KEY ??
+  process.env.E2E_ORBITFLARE_API_KEY ??
+  process.env.ORBITFLARE_API_KEY;
+const ORBITFLARE_API_HEADER = process.env.E2E_JETSTREAM_API_HEADER ?? "X-ORBIT-KEY";
+const USE_JETSTREAM = Boolean(ORBITFLARE_JETSTREAM_ENDPOINT && ORBITFLARE_API_KEY);
+const REQUIRE_JETSTREAM = process.env.E2E_REQUIRE_JETSTREAM === "true";
 const PROGRAM_ID = new PublicKey(
   process.env.E2E_PROGRAM_ID ??
     process.env.SOLANA_SUBSCRIPTION_PROGRAM_ID ??
@@ -133,20 +144,20 @@ async function waitFor(predicate: () => boolean, timeoutMs = 120_000, intervalMs
   throw new Error("Timed out waiting for condition");
 }
 
-async function ensureLocalnet() {
+async function ensureNetwork() {
   connection = new Connection(RPC_URL, "confirmed");
   try {
     await connection.getLatestBlockhash();
   } catch (error) {
-    throw new Error("Localnet not reachable. Start with: solana-test-validator --reset --ledger /tmp/solana-test-ledger");
+    throw new Error(`RPC not reachable at ${RPC_URL}`);
   }
   const programInfo = await connection.getAccountInfo(PROGRAM_ID);
   if (!programInfo) {
-    throw new Error("Program not deployed on localnet. Deploy subscription_royalty before running E2E.");
+    throw new Error(`Program not deployed on ${RPC_URL}. Deploy subscription_royalty before running E2E.`);
   }
   const registryInfo = await connection.getAccountInfo(STREAM_REGISTRY_PROGRAM_ID);
   if (!registryInfo) {
-    throw new Error("Stream registry not deployed on localnet. Deploy stream_registry before running E2E.");
+    throw new Error(`Stream registry not deployed on ${RPC_URL}. Deploy stream_registry before running E2E.`);
   }
 }
 
@@ -264,7 +275,13 @@ function signMessage(keypair: Keypair, message: Uint8Array): Uint8Array {
 }
 
 beforeAll(async () => {
-  await ensureLocalnet();
+  await ensureNetwork();
+  if (REQUIRE_JETSTREAM && !USE_JETSTREAM) {
+    throw new Error("E2E_REQUIRE_JETSTREAM set but no Jetstream endpoint/API key provided.");
+  }
+  if (REQUIRE_JETSTREAM && RPC_URL.includes("127.0.0.1")) {
+    throw new Error("Jetstream requires a devnet RPC URL. Set E2E_RPC_URL to OrbitFlare devnet.");
+  }
 
   const authorityPath =
     process.env.E2E_AUTHORITY_KEYPAIR ??
@@ -707,6 +724,7 @@ describe("E2E agents full flow", () => {
           subscriberKeys: u3Keys,
           privateStreamPda,
           publicStreamPda,
+          useJetstream: USE_JETSTREAM,
         }),
         createListener({
           agentId: a4Listener.agent.id,
@@ -714,6 +732,7 @@ describe("E2E agents full flow", () => {
           subscriberKeys: u4Keys,
           privateStreamPda,
           publicStreamPda,
+          useJetstream: USE_JETSTREAM,
         }),
         createListener({
           agentId: a5Listener.agent.id,
@@ -837,18 +856,32 @@ async function createListener(args: {
   subscriberKeys: { publicKeyDerBase64: string; privateKeyDerBase64: string };
   privateStreamPda: PublicKey;
   publicStreamPda: PublicKey;
+  useJetstream?: boolean;
 }) {
+  const orbitflare =
+    USE_JETSTREAM || ORBITFLARE_RPC_URL
+      ? {
+          rpcUrl: ORBITFLARE_RPC_URL ?? RPC_URL,
+          jetstreamEndpoint: ORBITFLARE_JETSTREAM_ENDPOINT,
+          apiKey: ORBITFLARE_API_KEY,
+          apiKeyHeader: ORBITFLARE_API_HEADER,
+        }
+      : undefined;
+
   const client = await SigintsClient.fromBackend(baseUrl, {
     agentAuth: {
       agentId: args.agentId,
       signMessage: (msg) => signMessage(args.agentKeypair, msg),
     },
+    orbitflare,
   });
   const received = { private: [] as any[], public: [] as any[] };
+  const transport = args.useJetstream ? "jetstream" : undefined;
   const stopPrivate = await client.listenForSignals({
     streamPubkey: args.privateStreamPda.toBase58(),
     streamId: STREAM_PRIVATE.id,
     subscriberKeys: args.subscriberKeys,
+    transport,
     onSignal: (signal) => {
       received.private.push(signal);
     },
@@ -856,6 +889,7 @@ async function createListener(args: {
   const stopPublic = await client.listenForSignals({
     streamPubkey: args.publicStreamPda.toBase58(),
     streamId: STREAM_PUBLIC.id,
+    transport,
     onSignal: (signal) => {
       received.public.push(signal);
     },

@@ -12,6 +12,8 @@ import {
   parseTradeIntent,
   buildTradeActionUrl,
   buildTradeBlinkUrl,
+  buildBlinkInspectorUrl,
+  formatTradeIntent,
 } from "../../lib/sdkBackend";
 import { decryptAesGcm, deriveSharedKey, fromBase64, importX25519PrivateKey, importX25519PublicKey, subscriberIdFromPubkey } from "../../lib/crypto";
 import { toast } from "../../lib/toast";
@@ -29,7 +31,16 @@ export default function DecryptPanel({
   const [privKey, setPrivKey] = useState("");
   const [plaintext, setPlaintext] = useState<string | null>(null);
   const [blinkCopied, setBlinkCopied] = useState(false);
-  const [loadingPublic, setLoadingPublic] = useState(false);
+  const [publicPanelOpen, setPublicPanelOpen] = useState(false);
+  const [latestMeta, setLatestMeta] = useState<{
+    signalPointer: string;
+    visibility?: "public" | "private";
+  } | null>(null);
+  const [latestMetaState, setLatestMetaState] = useState<"idle" | "loading" | "loaded" | "empty" | "error">("idle");
+  const [publicStatus, setPublicStatus] = useState<{
+    state: "idle" | "loading" | "loaded" | "error";
+    message?: string;
+  }>({ state: "idle" });
   const { publicKey, signMessage } = useWallet();
   const isPublicStream = visibility === "public";
 
@@ -66,6 +77,12 @@ export default function DecryptPanel({
     return buildTradeBlinkUrl(tradeActionUrl, appBase);
   }, [tradeActionUrl]);
 
+  const tradeInspectorUrl = useMemo(() => {
+    if (!tradeActionUrl) return null;
+    const inspectorBase = (process.env.NEXT_PUBLIC_BLINK_INSPECTOR_URL ?? "").trim();
+    return buildBlinkInspectorUrl(tradeActionUrl, inspectorBase);
+  }, [tradeActionUrl]);
+
   function copyBlink() {
     if (!tradeBlinkUrl) return;
     navigator.clipboard.writeText(tradeBlinkUrl).then(
@@ -79,48 +96,91 @@ export default function DecryptPanel({
     );
   }
 
+  useEffect(() => {
+    let active = true;
+    if (!isPublicStream) return;
+    setLatestMetaState("loading");
+    fetchLatestSignal<{
+      signalPointer: string;
+      visibility?: "public" | "private";
+    }>(streamId)
+      .then((res) => {
+        if (!active) return;
+        setLatestMeta(res.signal ?? null);
+        setLatestMetaState(res.signal ? "loaded" : "empty");
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        const msg = typeof err?.message === "string" ? err.message : "";
+        if (msg.includes("(404)") || msg.includes("no signals")) {
+          setLatestMetaState("empty");
+        } else {
+          setLatestMetaState("error");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [isPublicStream, streamId]);
+
   async function loadLatestPublicSignal() {
     if (!publicKey) {
       toast("Connect wallet to access public stream signals", "warn");
+      setPublicStatus({ state: "error", message: "Connect wallet to load the latest signal." });
       return;
     }
     if (!signMessage) {
       toast("Wallet does not support message signing", "warn");
+      setPublicStatus({ state: "error", message: "Wallet does not support message signing." });
       return;
     }
-    setLoadingPublic(true);
+    setPublicStatus({ state: "loading", message: "Awaiting wallet signature…" });
     setPlaintext(null);
     try {
-      const latest = await fetchLatestSignal<{
-        signalPointer: string;
-        visibility?: "public" | "private";
-      }>(streamId);
-      const meta = latest.signal;
+      let meta = latestMeta;
+      if (!meta) {
+        setPublicStatus({ state: "loading", message: "Fetching latest signal…" });
+        const latest = await fetchLatestSignal<{
+          signalPointer: string;
+          visibility?: "public" | "private";
+        }>(streamId);
+        meta = latest.signal;
+      }
       if (!meta?.signalPointer) {
         toast("No signals available", "warn");
+        setPublicStatus({ state: "error", message: "No signals available yet." });
         return;
       }
       if ((meta.visibility ?? "public") !== "public") {
         toast("Latest signal is not public", "warn");
+        setPublicStatus({ state: "error", message: "Latest signal is not public." });
         return;
       }
       const signalSha = meta.signalPointer.split("/").pop();
       if (!signalSha) {
         toast("Invalid signal pointer", "warn");
+        setPublicStatus({ state: "error", message: "Invalid signal pointer." });
         return;
       }
       const message = buildPublicPayloadMessage(signalSha);
+      setPublicStatus({ state: "loading", message: "Awaiting wallet signature…" });
       const signature = await signMessage(message);
       const signatureBase64 = Buffer.from(signature).toString("base64");
+      setPublicStatus({ state: "loading", message: "Decrypting signal…" });
       const signalRes = await fetchPublicPayload<{ plaintext: string }>(signalSha, {
         wallet: publicKey.toBase58(),
         signatureBase64,
       });
       setPlaintext(atob(signalRes.payload.plaintext));
+      setPublicStatus({ state: "loaded" });
     } catch (err: any) {
       toast(err.message ?? "Failed to load public signal", "error");
+      const msg = typeof err?.message === "string" ? err.message : "Failed to load public signal.";
+      const friendly = msg.includes("active subscription required")
+        ? "Active subscription required to access this stream."
+        : msg;
+      setPublicStatus({ state: "error", message: friendly });
     } finally {
-      setLoadingPublic(false);
     }
   }
 
@@ -140,7 +200,6 @@ export default function DecryptPanel({
       const latest = signals[signals.length - 1];
 
       if (latest.visibility === "public") {
-        await loadLatestPublicSignal();
         return;
       }
 
@@ -208,21 +267,14 @@ export default function DecryptPanel({
     }
   }
 
-  useEffect(() => {
-    if (!isPublicStream) return;
-    if (!publicKey || !signMessage) return;
-    void loadLatestPublicSignal();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPublicStream, streamId, publicKey?.toBase58(), Boolean(signMessage)]);
-
   return (
     <div className="decrypt-panel">
       <h3 className="stream-access-block-title">
-        {isPublicStream ? "Load Latest Signal" : "Decrypt Latest Signal"}
+        {isPublicStream ? "Latest Signal" : "Decrypt Latest Signal"}
       </h3>
       <p className="subtext">
         {isPublicStream
-          ? "Fetch the latest signal (requires an active subscription)."
+          ? "Public signals are gated by your subscription. Expand below to view details."
           : "Paste your keys to decrypt the latest signal (client-side)."}
       </p>
       {!isPublicStream && (
@@ -242,32 +294,78 @@ export default function DecryptPanel({
           Decrypt
         </button>
       )}
-      {isPublicStream && loadingPublic && (
-        <p className="subtext" style={{ marginTop: 12 }}>
-          Loading latest signal…
-        </p>
-      )}
-      {plaintext && <p className="decrypt-result">Decrypted: {plaintext}</p>}
-      {tradeIntent && tradeBlinkUrl && (
-        <div className="data-card" style={{ marginTop: 16 }}>
+      {isPublicStream && (
+        <div className="data-card intent-card" style={{ marginTop: 16 }}>
           <div className="data-card__body">
-            <div className="data-card__title">
-              <h3>Trade Intent Detected</h3>
+            <div className="intent-card__header">
+              <div>
+                <div className="data-card__title">
+                  <h3>Trade Intent</h3>
+                </div>
+                <p className="subtext" style={{ margin: 0 }}>
+                  {latestMetaState === "loading" && "Checking latest signal…"}
+                  {latestMetaState === "empty" && "No signals yet."}
+                  {latestMetaState === "error" && "Unable to check the latest signal."}
+                  {latestMetaState === "loaded" && !tradeIntent && "Latest signal available. Expand to check for trade intent."}
+                  {tradeIntent && "New trade available. Expand to review details."}
+                </p>
+              </div>
+              <div className="intent-card__actions">
+                {tradeBlinkUrl && (
+                  <button className="button ghost" onClick={copyBlink}>
+                    {blinkCopied ? "Copied" : "Copy Link"}
+                  </button>
+                )}
+                <button
+                  className="intent-card__toggle"
+                  onClick={() => setPublicPanelOpen((prev) => !prev)}
+                  aria-expanded={publicPanelOpen}
+                >
+                  {publicPanelOpen ? "▴" : "▾"}
+                </button>
+              </div>
             </div>
-            <p className="subtext" style={{ margin: 0 }}>
-              Swap {tradeIntent.amountUi} {tradeIntent.inputSymbol} → {tradeIntent.outputSymbol} via Jupiter (OrbitFlare).
-            </p>
-          </div>
-          <div className="data-card__actions">
-            <button
-              className="button primary"
-              onClick={() => window.open(tradeBlinkUrl, "_blank")}
-            >
-              Open Trade Blink
-            </button>
-            <button className="button ghost" onClick={copyBlink}>
-              {blinkCopied ? "Copied" : "Copy Blink"}
-            </button>
+            {publicPanelOpen && (
+              <div className="intent-card__details">
+                {(publicStatus.state === "idle" || publicStatus.state === "error") && (
+                  <button className="button ghost" onClick={() => void loadLatestPublicSignal()}>
+                    {publicStatus.state === "error" ? "Retry Loading Signal" : "Reveal Latest Signal"}
+                  </button>
+                )}
+                {publicStatus.state === "loading" && (
+                  <p className="subtext" style={{ margin: 0 }}>{publicStatus.message ?? "Loading latest signal…"}</p>
+                )}
+                {publicStatus.state === "error" && (
+                  <p className="subtext" style={{ margin: 0 }}>{publicStatus.message ?? "Unable to load latest signal."}</p>
+                )}
+                {plaintext && (
+                  <p className="decrypt-result">Decrypted: {plaintext}</p>
+                )}
+                {tradeIntent && tradeBlinkUrl && (
+                  <>
+                    <p className="subtext" style={{ margin: 0 }}>
+                      {formatTradeIntent(tradeIntent)}
+                    </p>
+                    <p className="subtext" style={{ margin: 0 }}>
+                      Swap {tradeIntent.amountUi} {tradeIntent.inputSymbol} → {tradeIntent.outputSymbol} via Jupiter (OrbitFlare).
+                    </p>
+                    <div className="data-card__actions" style={{ marginTop: 6 }}>
+                      <button
+                        className="button primary"
+                        onClick={() => window.open(tradeInspectorUrl ?? tradeBlinkUrl, "_blank")}
+                      >
+                        {tradeInspectorUrl ? "Open Trade (Inspector)" : "Open Trade Blink"}
+                      </button>
+                    </div>
+                  </>
+                )}
+                {publicStatus.state === "loaded" && !tradeIntent && (
+                  <p className="subtext" style={{ margin: 0 }}>
+                    No trade intent detected in the latest signal.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

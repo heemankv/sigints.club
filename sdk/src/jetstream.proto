@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package jetstream;
+
+import "google/protobuf/timestamp.proto";
+
+service Jetstream {
+  rpc Subscribe (stream SubscribeRequest) returns (stream SubscribeUpdate);
+}
+
+message SubscribeRequest {
+  map<string, SubscribeRequestFilterTransactions> transactions = 1;
+  map<string, SubscribeRequestFilterAccounts> accounts = 2;
+  SubscribeRequestPing ping = 3;
+}
+
+message SubscribeRequestFilterTransactions {
+  repeated string account_include = 1;
+  repeated string account_exclude = 2;
+  repeated string account_required = 3;
+}
+
+message SubscribeRequestFilterAccounts {
+  repeated string account = 1;
+  repeated string owner = 2;
+}
+
+message SubscribeRequestPing {
+  int32 id = 1;
+}
+
+message SubscribeUpdate {
+  oneof update_oneof {
+    SubscribeUpdateAccount account = 1;
+    SubscribeUpdateTransaction transaction = 2;
+    SubscribeUpdatePing ping = 3;
+    SubscribeUpdatePong pong = 4;
+  }
+}
+
+message SubscribeUpdateAccount {
+  string address = 1;
+  string owner = 2;
+  int64 lamports = 3;
+  bytes data = 4;
+  google.protobuf.Timestamp created_at = 5;
+  bool is_startup = 6;
+  int64 slot = 7;
+}
+
+message SubscribeUpdateTransaction {
+  int64 slot = 1;
+  TransactionInfo transaction = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message TransactionInfo {
+  bytes signature = 1;
+  bool is_vote = 2;
+  TransactionMessage message = 3;
+  TransactionMeta meta = 4;
+  int64 index = 5;
+}
+
+message TransactionMessage {
+  TransactionHeader header = 1;
+  repeated string account_keys = 2;
+  string recent_blockhash = 3;
+  repeated TransactionInstruction instructions = 4;
+  repeated TransactionInstruction inner_instructions = 5;
+}
+
+message TransactionInstruction {
+  int32 program_id_index = 1;
+  repeated int32 accounts = 2;
+  bytes data = 3;
+}
+
+message TransactionHeader {
+  int32 num_required_signatures = 1;
+  int32 num_readonly_signed_accounts = 2;
+  int32 num_readonly_unsigned_accounts = 3;
+}
+
+message TransactionMeta {
+  bool err = 1;
+  int64 fee = 2;
+  repeated int64 pre_balances = 3;
+  repeated int64 post_balances = 4;
+  repeated int64 pre_token_balances = 5;
+  repeated int64 post_token_balances = 6;
+  repeated string log_messages = 7;
+  repeated int64 inner_instructions = 8;
+  repeated int64 loaded_addresses = 9;
+  repeated int64 return_data = 10;
+  repeated int64 compute_units_consumed = 11;
+}
+
+message SubscribeUpdatePing {}
+
+message SubscribeUpdatePong {}

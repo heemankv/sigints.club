@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg15" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="hsl(300 45% 16%)"/>
+      <stop offset="100%" stop-color="hsl(260 50% 12%)"/>
+    </linearGradient>
+    <radialGradient id="glow15" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="hsl(280 60% 50%)" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="640" rx="48" fill="url(#bg15)"/>
+  <rect width="640" height="640" rx="48" fill="url(#glow15)"/>
+  <!-- Crescent arcs -->
+  <path d="M120 320 A200 200 0 0 1 520 320" stroke="hsl(300 55% 55%)" stroke-width="2" opacity="0.2" fill="none"/>
+  <path d="M160 320 A160 160 0 0 1 480 320" stroke="hsl(320 55% 55%)" stroke-width="1.5" opacity="0.25" fill="none"/>
+  <path d="M200 320 A120 120 0 0 1 440 320" stroke="hsl(340 55% 55%)" stroke-width="1.5" opacity="0.3" fill="none"/>
+  <path d="M120 320 A200 200 0 0 0 520 320" stroke="hsl(240 55% 55%)" stroke-width="2" opacity="0.15" fill="none"/>
+  <path d="M160 320 A160 160 0 0 0 480 320" stroke="hsl(220 55% 55%)" stroke-width="1.5" opacity="0.2" fill="none"/>
+  <!-- Floating particles -->
+  <circle cx="320" cy="180" r="4" fill="hsl(40 90% 70%)" opacity="0.6"/>
+  <circle cx="200" cy="240" r="3" fill="hsl(300 60% 65%)" opacity="0.4"/>
+  <circle cx="440" cy="240" r="3" fill="hsl(300 60% 65%)" opacity="0.4"/>
+  <circle cx="320" cy="460" r="4" fill="hsl(200 70% 60%)" opacity="0.5"/>
+</svg>

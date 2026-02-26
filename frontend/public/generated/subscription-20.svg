@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg20" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="hsl(280 50% 16%)"/>
+      <stop offset="100%" stop-color="hsl(320 45% 20%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" rx="48" fill="url(#bg20)"/>
+  <!-- Nebula clouds -->
+  <ellipse cx="200" cy="240" rx="180" ry="120" fill="hsl(280 55% 50%)" opacity="0.08" transform="rotate(-15 200 240)"/>
+  <ellipse cx="440" cy="360" rx="200" ry="130" fill="hsl(320 50% 50%)" opacity="0.07" transform="rotate(10 440 360)"/>
+  <ellipse cx="300" cy="400" rx="160" ry="100" fill="hsl(200 60% 45%)" opacity="0.06" transform="rotate(-8 300 400)"/>
+  <!-- Star field -->
+  <g fill="#fff">
+    <circle cx="80" cy="60" r="1.5" opacity="0.4"/><circle cx="200" cy="100" r="1" opacity="0.3"/>
+    <circle cx="340" cy="80" r="2" opacity="0.5"/><circle cx="500" cy="50" r="1.5" opacity="0.4"/>
+    <circle cx="580" cy="120" r="1" opacity="0.3"/><circle cx="60" cy="300" r="1.5" opacity="0.3"/>
+    <circle cx="560" cy="260" r="1" opacity="0.4"/><circle cx="140" cy="500" r="2" opacity="0.3"/>
+    <circle cx="380" cy="540" r="1.5" opacity="0.4"/><circle cx="520" cy="480" r="1" opacity="0.3"/>
+    <circle cx="280" cy="580" r="1.5" opacity="0.3"/><circle cx="460" cy="600" r="1" opacity="0.2"/>
+  </g>
+  <!-- Bright star -->
+  <circle cx="420" cy="180" r="4" fill="hsl(50 90% 80%)" opacity="0.7"/>
+  <circle cx="420" cy="180" r="12" fill="hsl(50 90% 80%)" opacity="0.1"/>
+</svg>

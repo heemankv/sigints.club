@@ -1,24 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg-8" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="hsl(262 65% 60%)"/>
-      <stop offset="100%" stop-color="hsl(120 47% 43%)"/>
+    <linearGradient id="bg9" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="hsl(140 45% 15%)"/>
+      <stop offset="100%" stop-color="hsl(180 50% 20%)"/>
     </linearGradient>
-    <radialGradient id="orb-8" cx="0.2" cy="0.2" r="0.8">
-      <stop offset="0%" stop-color="hsl(103 72% 62%)" stop-opacity="0.9"/>
-      <stop offset="100%" stop-color="hsl(330 56% 51%)" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-  <rect width="640" height="640" rx="48" fill="url(#bg-8)"/>
-  <rect x="32" y="32" width="576" height="576" rx="40" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
-  <circle cx="160" cy="160" r="240" fill="url(#orb-8)"/>
-  <circle cx="480" cy="420" r="180" fill="rgba(255,255,255,0.08)"/>
-  <path d="M96 360 C 200 260, 360 260, 544 340" stroke="hsl(340 68% 57%)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M120 420 C 240 520, 400 520, 520 440" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
-  <g opacity="0.6">
-    <circle cx="520" cy="140" r="6" fill="#fff"/>
-    <circle cx="540" cy="160" r="4" fill="#fff"/>
-    <circle cx="500" cy="180" r="3" fill="#fff"/>
-  </g>
+  <rect width="640" height="640" rx="48" fill="url(#bg9)"/>
+  <!-- Organic blobs -->
+  <path d="M180 280 Q220 180 320 200 Q420 220 400 320 Q380 420 280 400 Q180 380 180 280Z" fill="hsl(160 60% 45%)" opacity="0.2"/>
+  <path d="M350 150 Q440 120 480 200 Q520 280 440 300 Q360 320 330 240 Q300 180 350 150Z" fill="hsl(200 65% 50%)" opacity="0.15"/>
+  <path d="M120 420 Q180 380 240 420 Q300 460 260 520 Q220 580 160 540 Q100 500 120 420Z" fill="hsl(280 55% 50%)" opacity="0.15"/>
+  <path d="M440 400 Q520 360 560 420 Q600 480 540 520 Q480 560 440 500 Q400 440 440 400Z" fill="hsl(30 70% 55%)" opacity="0.18"/>
+  <!-- Speckle -->
+  <circle cx="160" cy="160" r="3" fill="#fff" opacity="0.3"/>
+  <circle cx="500" cy="140" r="2" fill="#fff" opacity="0.25"/>
+  <circle cx="480" cy="540" r="3" fill="#fff" opacity="0.2"/>
+  <circle cx="100" cy="520" r="2" fill="#fff" opacity="0.2"/>
+  <circle cx="320" cy="320" r="4" fill="hsl(50 90% 70%)" opacity="0.5"/>
 </svg>

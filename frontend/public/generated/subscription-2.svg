@@ -1,24 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg-1" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="hsl(49 48% 61%)"/>
-      <stop offset="100%" stop-color="hsl(57 62% 40%)"/>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="hsl(170 55% 22%)"/>
+      <stop offset="100%" stop-color="hsl(200 60% 15%)"/>
     </linearGradient>
-    <radialGradient id="orb-1" cx="0.2" cy="0.2" r="0.8">
-      <stop offset="0%" stop-color="hsl(33 66% 44%)" stop-opacity="0.9"/>
-      <stop offset="100%" stop-color="hsl(301 56% 54%)" stop-opacity="0"/>
+    <radialGradient id="glow2" cx="0.3" cy="0.4" r="0.6">
+      <stop offset="0%" stop-color="hsl(160 80% 50%)" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="transparent"/>
     </radialGradient>
   </defs>
-  <rect width="640" height="640" rx="48" fill="url(#bg-1)"/>
-  <rect x="32" y="32" width="576" height="576" rx="40" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
-  <circle cx="160" cy="160" r="240" fill="url(#orb-1)"/>
-  <circle cx="480" cy="420" r="180" fill="rgba(255,255,255,0.08)"/>
-  <path d="M96 360 C 200 260, 360 260, 544 340" stroke="hsl(355 75% 50%)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M120 420 C 240 520, 400 520, 520 440" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
-  <g opacity="0.6">
-    <circle cx="520" cy="140" r="6" fill="#fff"/>
-    <circle cx="540" cy="160" r="4" fill="#fff"/>
-    <circle cx="500" cy="180" r="3" fill="#fff"/>
-  </g>
+  <rect width="640" height="640" rx="48" fill="url(#bg2)"/>
+  <rect width="640" height="640" rx="48" fill="url(#glow2)"/>
+  <!-- Concentric rings -->
+  <circle cx="320" cy="320" r="260" stroke="hsl(160 70% 50%)" stroke-width="1.5" opacity="0.15"/>
+  <circle cx="320" cy="320" r="200" stroke="hsl(160 70% 50%)" stroke-width="1.5" opacity="0.25"/>
+  <circle cx="320" cy="320" r="140" stroke="hsl(160 70% 50%)" stroke-width="2" opacity="0.35"/>
+  <circle cx="320" cy="320" r="80" stroke="hsl(160 70% 50%)" stroke-width="2" opacity="0.5"/>
+  <circle cx="320" cy="320" r="30" fill="hsl(160 70% 50%)" opacity="0.6"/>
+  <!-- Orbital dots -->
+  <circle cx="320" cy="60" r="5" fill="hsl(40 90% 65%)" opacity="0.8"/>
+  <circle cx="560" cy="320" r="4" fill="hsl(40 90% 65%)" opacity="0.6"/>
+  <circle cx="180" cy="500" r="6" fill="hsl(40 90% 65%)" opacity="0.5"/>
+  <circle cx="80" cy="200" r="3" fill="hsl(40 90% 65%)" opacity="0.7"/>
 </svg>

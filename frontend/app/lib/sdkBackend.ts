@@ -6,7 +6,7 @@ import {
   type SyncWalletKeyResponse,
   type LoginUserResponse,
 } from "@sigints/sdk/src/backend";
-import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl } from "@sigints/sdk/src/tradeIntent";
+import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl, buildBlinkInspectorUrl, formatTradeIntent } from "@sigints/sdk/src/tradeIntent";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 
@@ -98,7 +98,7 @@ export function fetchKeyboxEntry<T = any>(sha: string, params: { wallet: string;
   return getClient().fetchKeyboxEntry<T>(sha, params);
 }
 
-export { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl };
+export { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl, buildBlinkInspectorUrl, formatTradeIntent };
 
 export function fetchHealth(): Promise<{ ok: boolean; timestamp: number }> {
   return getClient().fetchHealth();

@@ -1,4 +1,4 @@
-const DEFAULT_ART_COUNT = 12;
+const DEFAULT_ART_COUNT = 20;
 
 export function hashToIndex(input: string, max: number = DEFAULT_ART_COUNT): number {
   let hash = 5381;
