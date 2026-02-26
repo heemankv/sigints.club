@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Transaction } from "@solana/web3.js";
 import { createStream as sdkCreateStream } from "../lib/sdkBackend";
 import {
-  buildCreateStreamInstruction,
-  buildUpsertTierInstruction,
+  buildCreateStreamTransaction,
+  buildUpsertTiersTransaction,
   deriveStreamPda,
-  resolveStreamRegistryProgramId,
-} from "../lib/streamRegistry";
-import type { TierInput } from "../lib/streamRegistry";
+  resolveStreamRegistryId,
+  type TierInput,
+} from "../lib/solana";
 import { parseSolLamports } from "../lib/pricing";
+import { parseQuota } from "../lib/utils";
 import { toast } from "../lib/toast";
 
 type StreamPayload = {
@@ -87,44 +87,34 @@ export default function RegisterStreamForm() {
     setLoading(true);
     setStatus(null);
     try {
-      const programId = resolveStreamRegistryProgramId();
+      const programId = resolveStreamRegistryId();
       const streamPda = await deriveStreamPda(programId, streamId);
       const existing = await connection.getAccountInfo(streamPda);
       let signature: string | null = null;
       if (!existing) {
-        const { instruction } = await buildCreateStreamInstruction({
-          programId,
+        const { transaction } = await buildCreateStreamTransaction({
+          connection,
           authority: publicKey,
           streamId,
           tiers,
           dao: dao || undefined,
           visibility,
         });
-        const tx = new Transaction().add(instruction);
-        tx.feePayer = publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        tx.recentBlockhash = blockhash;
-        signature = await sendTransaction(tx, connection);
+        signature = await sendTransaction(transaction, connection);
       }
       if (tiers.length) {
-        const tierTx = new Transaction();
-        for (const tier of tiers) {
-          const quota = tier.quota ? Number(tier.quota.match(/\d+/)?.[0] ?? 0) : 0;
-          const ix = await buildUpsertTierInstruction({
-            programId,
-            authority: publicKey,
-            stream: streamPda,
+        const { transaction } = await buildUpsertTiersTransaction({
+          connection,
+          authority: publicKey,
+          stream: streamPda,
+          tiers: tiers.map((tier) => ({
             tier,
             priceLamports: parseSolLamports(tier.price),
-            quota,
+            quota: parseQuota(tier.quota) ?? 0,
             status: 1,
-          });
-          tierTx.add(ix);
-        }
-        tierTx.feePayer = publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        tierTx.recentBlockhash = blockhash;
-        await sendTransaction(tierTx, connection);
+          })),
+        });
+        await sendTransaction(transaction, connection);
       }
       const payload: StreamPayload = {
         id: streamId,

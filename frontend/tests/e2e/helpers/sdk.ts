@@ -1,12 +1,12 @@
 import { Buffer } from "buffer";
-import { createBackendClient } from "../../../../sdk/src/backend";
 import {
+  createBackendClient,
   decryptSignal,
   generateX25519Keypair,
   subscriberIdFromPubkey,
   unwrapKeyForSubscriber,
   type X25519Keypair,
-} from "../../../../sdk/src/crypto";
+} from "@sigints/sdk";
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3001";
 export const backendClient = createBackendClient(backendUrl);

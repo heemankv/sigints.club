@@ -555,7 +555,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                 </div>
 
                 <div className="stream-detail-section">
-                  <DecryptPanel streamId={stream.id} />
+                  <DecryptPanel streamId={stream.id} visibility={"visibility" in stream ? stream.visibility : undefined} />
                 </div>
               </>
             )}

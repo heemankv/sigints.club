@@ -1,7 +1,43 @@
 "use client";
 
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, type Connection } from "@solana/web3.js";
 import { STREAM_REGISTRY_PROGRAM_ID, SUBSCRIPTION_PROGRAM_ID } from "./constants";
+import {
+  buildCreateStreamTransaction as sdkBuildCreateStreamTransaction,
+  buildGrantPublisherTransaction as sdkBuildGrantPublisherTransaction,
+  buildRecordSignalTransaction as sdkBuildRecordSignalTransaction,
+  buildRegisterSubscriptionKeyTransaction as sdkBuildRegisterSubscriptionKeyTransaction,
+  buildRevokePublisherTransaction as sdkBuildRevokePublisherTransaction,
+  buildSubscribeTransaction as sdkBuildSubscribeTransaction,
+  buildUpsertTiersTransaction as sdkBuildUpsertTiersTransaction,
+  type BuiltTransaction,
+  type UpsertTierInput,
+} from "@sigints/sdk/src/transactions";
+import {
+  defaultExpiryMs,
+  decodeSubscriptionAccount,
+  decodeSubscriptionKeyAccount,
+  derivePublisherDelegatePda,
+  deriveStreamPda,
+  deriveSubscriptionKeyPda,
+  deriveSubscriptionMint,
+  deriveSubscriptionPda,
+  deriveSubscriberKeyPda,
+  deriveStreamState,
+  deriveTierConfigPda,
+  deriveWalletKeyPda,
+  encodeSubscribeData,
+  hasRegisteredSubscriptionKey,
+  hasRegisteredWalletKey,
+  resolveEvidenceLevel,
+  resolvePricingType,
+  PRICING_TYPE_MAP,
+  EVIDENCE_LEVEL_MAP,
+  sha256Bytes,
+  type DecodedSubscription,
+  type DecodedSubscriptionKey,
+  type TierInput,
+} from "@sigints/sdk/src/solana";
 
 export {
   defaultExpiryMs,
@@ -15,48 +51,153 @@ export {
   hasRegisteredSubscriptionKey,
   deriveTierConfigPda,
   deriveStreamState,
-  buildRegisterKeyInstruction,
-  buildRegisterWalletKeyInstruction,
-  buildRegisterSubscriptionKeyInstruction,
   resolvePricingType,
   resolveEvidenceLevel,
   decodeSubscriptionAccount,
   decodeSubscriptionKeyAccount,
   type DecodedSubscription,
   type DecodedSubscriptionKey,
-} from "../../../sdk/src/solana/subscription";
-
-export {
   deriveStreamPda,
   derivePublisherDelegatePda,
-  buildGrantPublisherInstruction,
-  buildRevokePublisherInstruction,
-} from "../../../sdk/src/solana/streamRegistry";
+  PRICING_TYPE_MAP,
+  EVIDENCE_LEVEL_MAP,
+  sha256Bytes,
+  type TierInput,
+  type BuiltTransaction,
+  type UpsertTierInput,
+};
 
-export { PRICING_TYPE_MAP, EVIDENCE_LEVEL_MAP } from "../../../sdk/src/solana/constants";
-export { sha256Bytes } from "../../../sdk/src/solana/shared";
+function requireProgramId(label: string, value: string): string {
+  if (!value) {
+    throw new Error(`${label} not configured`);
+  }
+  return value;
+}
 
-import {
-  buildSubscribeInstruction as buildSubscribeInstructionSdk,
-  type DecodedSubscription as _DecodedSubscription,
-} from "../../../sdk/src/solana/subscription";
-
-export async function buildSubscribeInstruction(params: {
-  programId: PublicKey;
-  stream: PublicKey;
+export async function buildSubscribeTransaction(params: {
+  connection: Connection;
   subscriber: PublicKey;
+  stream: string;
   tierId: string;
-  pricingType: number;
-  evidenceLevel: number;
+  pricingType: string;
+  evidenceLevel: string;
   expiresAtMs: number;
   quotaRemaining: number;
   priceLamports: number;
-  maker: PublicKey;
-  treasury: PublicKey;
-}) {
-  return buildSubscribeInstructionSdk({
-    ...params,
-    streamRegistryProgramId: resolveStreamRegistryId(),
+  maker: string;
+  treasury: string;
+}): Promise<BuiltTransaction> {
+  return sdkBuildSubscribeTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Subscription program id", SUBSCRIPTION_PROGRAM_ID),
+    streamRegistryProgramId: requireProgramId("Stream registry program id", STREAM_REGISTRY_PROGRAM_ID),
+    stream: params.stream,
+    subscriber: params.subscriber,
+    tierId: params.tierId,
+    pricingType: resolvePricingType(params.pricingType),
+    evidenceLevel: resolveEvidenceLevel(params.evidenceLevel),
+    expiresAtMs: params.expiresAtMs,
+    quotaRemaining: params.quotaRemaining,
+    priceLamports: params.priceLamports,
+    maker: params.maker,
+    treasury: params.treasury,
+  });
+}
+
+export async function buildRegisterSubscriptionKeyTransaction(params: {
+  connection: Connection;
+  subscriber: PublicKey;
+  stream: string;
+  encPubKeyBase64: string;
+}): Promise<BuiltTransaction> {
+  return sdkBuildRegisterSubscriptionKeyTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Subscription program id", SUBSCRIPTION_PROGRAM_ID),
+    stream: params.stream,
+    subscriber: params.subscriber,
+    encPubKeyBase64: params.encPubKeyBase64,
+  });
+}
+
+export async function buildRecordSignalTransaction(params: {
+  connection: Connection;
+  authority: PublicKey;
+  streamId?: string;
+  streamPubkey?: string;
+  metadata: Parameters<typeof sdkBuildRecordSignalTransaction>[0]["metadata"];
+}): Promise<BuiltTransaction> {
+  return sdkBuildRecordSignalTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Subscription program id", SUBSCRIPTION_PROGRAM_ID),
+    streamRegistryProgramId: requireProgramId("Stream registry program id", STREAM_REGISTRY_PROGRAM_ID),
+    authority: params.authority,
+    streamId: params.streamId,
+    streamPubkey: params.streamPubkey,
+    metadata: params.metadata,
+  });
+}
+
+export async function buildGrantPublisherTransaction(params: {
+  connection: Connection;
+  authority: PublicKey;
+  stream: PublicKey;
+  agent: string;
+}): Promise<BuiltTransaction> {
+  return sdkBuildGrantPublisherTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Stream registry program id", STREAM_REGISTRY_PROGRAM_ID),
+    stream: params.stream,
+    authority: params.authority,
+    agent: params.agent,
+  });
+}
+
+export async function buildRevokePublisherTransaction(params: {
+  connection: Connection;
+  authority: PublicKey;
+  stream: PublicKey;
+  agent: string;
+}): Promise<BuiltTransaction> {
+  return sdkBuildRevokePublisherTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Stream registry program id", STREAM_REGISTRY_PROGRAM_ID),
+    stream: params.stream,
+    authority: params.authority,
+    agent: params.agent,
+  });
+}
+
+export async function buildCreateStreamTransaction(params: {
+  connection: Connection;
+  authority: PublicKey;
+  streamId: string;
+  tiers: TierInput[];
+  dao?: string;
+  visibility: "public" | "private";
+}): Promise<BuiltTransaction & { streamPda: PublicKey; tiersHash: Uint8Array }> {
+  return sdkBuildCreateStreamTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Stream registry program id", STREAM_REGISTRY_PROGRAM_ID),
+    authority: params.authority,
+    streamId: params.streamId,
+    tiers: params.tiers,
+    dao: params.dao,
+    visibility: params.visibility,
+  });
+}
+
+export async function buildUpsertTiersTransaction(params: {
+  connection: Connection;
+  authority: PublicKey;
+  stream: PublicKey;
+  tiers: UpsertTierInput[];
+}): Promise<BuiltTransaction> {
+  return sdkBuildUpsertTiersTransaction({
+    connection: params.connection,
+    programId: requireProgramId("Stream registry program id", STREAM_REGISTRY_PROGRAM_ID),
+    authority: params.authority,
+    stream: params.stream,
+    tiers: params.tiers,
   });
 }
 

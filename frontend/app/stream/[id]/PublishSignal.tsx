@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Transaction, PublicKey } from "@solana/web3.js";
-import { prepareSignal, buildRecordSignalInstruction } from "../../lib/sdkPublish";
-import { STREAM_REGISTRY_PROGRAM_ID, SUBSCRIPTION_PROGRAM_ID } from "../../lib/constants";
+import { prepareSignal } from "../../lib/sdkPublish";
+import { buildRecordSignalTransaction } from "../../lib/solana";
 import type { StreamTier } from "../../lib/types";
 import { toast } from "../../lib/toast";
 
@@ -62,26 +61,17 @@ export default function PublishSignal({
       toast("Prepare the signal first.", "warn");
       return;
     }
-    if (!SUBSCRIPTION_PROGRAM_ID || !STREAM_REGISTRY_PROGRAM_ID) {
-      toast("Program IDs not configured.", "error");
-      return;
-    }
     setRecordLoading(true);
     try {
-      const ix = await buildRecordSignalInstruction({
-        programId: new PublicKey(SUBSCRIPTION_PROGRAM_ID),
-        streamRegistryProgramId: new PublicKey(STREAM_REGISTRY_PROGRAM_ID),
+      const { transaction, latestBlockhash } = await buildRecordSignalTransaction({
+        connection,
         authority: publicKey,
         streamId,
-        streamPubkey: streamOnchainAddress ? new PublicKey(streamOnchainAddress) : undefined,
+        streamPubkey: streamOnchainAddress,
         metadata: preparedMeta,
       });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const latest = await connection.getLatestBlockhash();
-      tx.recentBlockhash = latest.blockhash;
-      const sig = await sendTransaction(tx, connection);
-      await connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+      const sig = await sendTransaction(transaction, connection);
+      await connection.confirmTransaction({ signature: sig, ...latestBlockhash }, "confirmed");
       setTxSig(sig);
       toast(`On-chain publish confirmed ${sig.slice(0, 10)}…`, "success");
     } catch (err: any) {

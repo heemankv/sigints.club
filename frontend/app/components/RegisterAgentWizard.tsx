@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import {
   createAgent as sdkCreateAgent,
   createAgentSubscription as sdkCreateAgentSubscription,
 } from "../lib/sdkBackend";
 import {
-  buildGrantPublisherInstruction,
+  buildGrantPublisherTransaction,
   deriveStreamPda,
   resolveStreamRegistryId,
 } from "../lib/solana";
@@ -255,17 +255,13 @@ export default function RegisterAgentWizard({
       try {
         const programId = resolveStreamRegistryId();
         const streamPda = await deriveStreamPda(programId, streamId.trim());
-        const ix = await buildGrantPublisherInstruction({
-          programId,
-          stream: streamPda,
+        const { transaction } = await buildGrantPublisherTransaction({
+          connection,
           authority: publicKey,
-          agent: new PublicKey(agentPubkey.trim()),
+          stream: streamPda,
+          agent: agentPubkey.trim(),
         });
-        const tx = new Transaction().add(ix);
-        tx.feePayer = publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        tx.recentBlockhash = blockhash;
-        await sendTransaction(tx, connection);
+        await sendTransaction(transaction, connection);
         updateStep(stepIdx, { status: "done" });
       } catch (err: any) {
         const msg = err?.message ?? "Failed to grant publish. You can do this later from Your Agents.";

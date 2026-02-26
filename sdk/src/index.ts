@@ -5,6 +5,7 @@ import {
   subscriberIdFromPubkey,
   unwrapKeyForSubscriber,
   WrappedKey,
+  type X25519Keypair,
 } from "./crypto";
 import {
   buildRecordSignalInstruction as buildRecordSignalIx,
@@ -417,6 +418,8 @@ function decodeSignalRecord(data: Buffer): DecodedSignalRecord | null {
   };
 }
 
+export * from "./tradeIntent";
+
 function normalizeCreatedAt(createdAt: number): number {
   if (createdAt < 1_000_000_000_000) {
     return createdAt * 1000;
@@ -446,8 +449,8 @@ function hexToBytes(input: string, label: string): Uint8Array {
   return bytes;
 }
 
-export { generateX25519Keypair, subscriberIdFromPubkey };
-export type { WrappedKey };
+export { decryptSignal, generateX25519Keypair, subscriberIdFromPubkey, unwrapKeyForSubscriber };
+export type { WrappedKey, X25519Keypair };
 export {
   buildRecordSignalIx as buildRecordSignalInstruction,
   buildRecordSignalDelegatedIx as buildRecordSignalDelegatedInstruction,
@@ -455,6 +458,7 @@ export {
   syncWalletKeyRequest as syncWalletKey,
   fetchStreamRequest as fetchStream,
 };
+export type { PrepareSignalInput, RecordSignalParams, RecordSignalDelegatedParams } from "./publish";
 
 export {
   getJson,
@@ -508,6 +512,7 @@ export {
 } from "./backend";
 
 export * from "./solana/index";
+export * from "./transactions";
 
 export const __testing = {
   decodeSignalRecord,

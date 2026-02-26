@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 import { subscriberIdFromPubkey, toBase64Bytes, x25519SpkiToRaw } from "../../lib/crypto";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
-  buildRegisterSubscriptionKeyInstruction,
+  buildRegisterSubscriptionKeyTransaction,
   decodeSubscriptionKeyAccount,
   deriveSubscriptionKeyPda,
   resolveProgramId,
   resolveStreamPubkey,
 } from "../../lib/solana";
-import { Transaction } from "@solana/web3.js";
 import { syncWalletKey } from "../../lib/sdkBackend";
 import { toast } from "../../lib/toast";
 
@@ -110,19 +109,13 @@ export default function KeyManager({ streamId, streamOnchainAddress, variant = "
         throw new Error("Missing stream id for key registration.");
       }
       const rawPub = x25519SpkiToRaw(pubKey);
-      const programId = resolveProgramId();
-      const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
-      const ix = buildRegisterSubscriptionKeyInstruction({
-        programId,
-        stream: streamPubkey,
+      const { transaction } = await buildRegisterSubscriptionKeyTransaction({
+        connection,
         subscriber: publicKey,
+        stream: streamOnchainAddress,
         encPubKeyBase64: toBase64Bytes(rawPub),
       });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      const signature = await sendTransaction(tx, connection);
+      const signature = await sendTransaction(transaction, connection);
       setChainStatus(`Registered on-chain key: ${signature.slice(0, 10)}…`);
       await syncWalletKey({
         wallet: publicKey.toBase58(),

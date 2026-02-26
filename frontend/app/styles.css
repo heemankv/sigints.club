@@ -3365,6 +3365,19 @@ textarea {
   border: 1px solid var(--stroke);
 }
 
+.register-verifier-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.verifier-copy-btn {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
 /* Slider field */
 .slider-field {}
 

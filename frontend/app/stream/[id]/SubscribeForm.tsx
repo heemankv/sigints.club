@@ -2,15 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
 import {
-  buildSubscribeInstruction,
+  buildSubscribeTransaction,
   defaultExpiryMs,
-  resolveEvidenceLevel,
-  resolveStreamPubkey,
-  resolvePricingType,
   resolveProgramId,
   hasRegisteredSubscriptionKey,
+  resolveStreamPubkey,
 } from "../../lib/solana";
 import { parseSolLamports } from "../../lib/pricing";
 import { parseQuota } from "../../lib/utils";
@@ -145,26 +142,20 @@ export default function SubscribeForm({
       if (!streamOnchainAddress || !streamAuthority || !streamDao) {
         throw new Error("On-chain stream or payout accounts not configured.");
       }
-      const programId = resolveProgramId();
-      const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
-      const ix = await buildSubscribeInstruction({
-        programId,
-        stream: streamPubkey,
+      const { transaction } = await buildSubscribeTransaction({
+        connection,
         subscriber: publicKey,
+        stream: streamOnchainAddress,
         tierId,
-        pricingType: resolvePricingType(pricingType),
-        evidenceLevel: resolveEvidenceLevel(evidenceLevel),
+        pricingType,
+        evidenceLevel,
         expiresAtMs: defaultExpiryMs(),
         quotaRemaining: parseQuota(quota) ?? 0,
         priceLamports: parseSolLamports(price),
-        maker: new PublicKey(streamAuthority),
-        treasury: new PublicKey(streamDao),
+        maker: streamAuthority,
+        treasury: streamDao,
       });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      const signature = await sendTransaction(tx, connection);
+      const signature = await sendTransaction(transaction, connection);
       const subscription = await registerSubscription({
         streamId,
         subscriberWallet: publicKey.toBase58(),

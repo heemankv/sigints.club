@@ -5,7 +5,8 @@ import {
   type BlinkLinkResponse,
   type SyncWalletKeyResponse,
   type LoginUserResponse,
-} from "../../../sdk/src/backend";
+} from "@sigints/sdk/src/backend";
+import { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl } from "@sigints/sdk/src/tradeIntent";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 
@@ -96,6 +97,8 @@ export function buildPublicPayloadMessage(sha: string): Uint8Array {
 export function fetchKeyboxEntry<T = any>(sha: string, params: { wallet: string; signatureBase64: string; encPubKeyDerBase64: string; subscriberId?: string }): Promise<{ entry: T }> {
   return getClient().fetchKeyboxEntry<T>(sha, params);
 }
+
+export { parseTradeIntent, buildTradeActionUrl, buildTradeBlinkUrl };
 
 export function fetchHealth(): Promise<{ ok: boolean; timestamp: number }> {
   return getClient().fetchHealth();

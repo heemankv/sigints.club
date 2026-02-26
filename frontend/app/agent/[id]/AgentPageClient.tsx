@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import type { AgentProfile, AgentSubscription, OwnedSubscriptionOption, StreamDetail, StreamTier } from "../../lib/types";
 import { fetchAgentSubscriptions, readAgentSubsCache } from "../../lib/api/agents";
 import { fetchStreams, readStreamsCache } from "../../lib/api/streams";
@@ -10,8 +10,8 @@ import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../../lib/api
 import { createAgentSubscription as sdkCreateAgentSubscription, deleteAgentSubscription } from "../../lib/sdkBackend";
 import {
   sha256Bytes,
-  buildGrantPublisherInstruction,
-  buildRevokePublisherInstruction,
+  buildGrantPublisherTransaction,
+  buildRevokePublisherTransaction,
   deriveStreamPda,
   resolveStreamRegistryId,
 } from "../../lib/solana";
@@ -236,17 +236,13 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
       }
       const programId = resolveStreamRegistryId();
       const streamPda = await deriveStreamPda(programId, agent.streamId);
-      const ix = await buildGrantPublisherInstruction({
-        programId,
-        stream: streamPda,
+      const { transaction, latestBlockhash } = await buildGrantPublisherTransaction({
+        connection,
         authority: publicKey,
-        agent: new PublicKey(agent.agentPubkey),
+        stream: streamPda,
+        agent: agent.agentPubkey,
       });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const latestBlockhash = await connection.getLatestBlockhash();
-      tx.recentBlockhash = latestBlockhash.blockhash;
-      const signature = await sendTransaction(tx, connection);
+      const signature = await sendTransaction(transaction, connection);
       await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
       setPublishActive(true);
     } catch (err: any) {
@@ -270,17 +266,13 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
       }
       const programId = resolveStreamRegistryId();
       const streamPda = await deriveStreamPda(programId, agent.streamId);
-      const ix = await buildRevokePublisherInstruction({
-        programId,
-        stream: streamPda,
+      const { transaction, latestBlockhash } = await buildRevokePublisherTransaction({
+        connection,
         authority: publicKey,
-        agent: new PublicKey(agent.agentPubkey),
+        stream: streamPda,
+        agent: agent.agentPubkey,
       });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const latestBlockhash = await connection.getLatestBlockhash();
-      tx.recentBlockhash = latestBlockhash.blockhash;
-      const signature = await sendTransaction(tx, connection);
+      const signature = await sendTransaction(transaction, connection);
       await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
       setPublishActive(false);
     } catch (err: any) {

@@ -3,14 +3,9 @@
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
-  buildSubscribeInstruction,
+  buildSubscribeTransaction,
   defaultExpiryMs,
-  resolveEvidenceLevel,
-  resolveStreamPubkey,
-  resolvePricingType,
-  resolveProgramId,
 } from "../lib/solana";
-import { PublicKey, Transaction } from "@solana/web3.js";
 import { getCardArtUrl } from "../lib/cardArt";
 import { parseSolLamports } from "../lib/pricing";
 import { parseQuota } from "../lib/utils";
@@ -66,26 +61,23 @@ export default function SubscriptionCard({
       if (!maker || !treasury) {
         throw new Error("Maker or treasury address missing.");
       }
-      const programId = resolveProgramId();
-      const streamPubkey = resolveStreamPubkey(streamOnchainAddress);
-      const ix = await buildSubscribeInstruction({
-        programId,
-        stream: streamPubkey,
+      if (!streamOnchainAddress) {
+        throw new Error("On-chain stream address missing.");
+      }
+      const { transaction } = await buildSubscribeTransaction({
+        connection,
         subscriber: publicKey,
+        stream: streamOnchainAddress,
         tierId,
-        pricingType: resolvePricingType(pricingType),
-        evidenceLevel: resolveEvidenceLevel(evidenceLevel),
+        pricingType,
+        evidenceLevel,
         expiresAtMs: defaultExpiryMs(),
         quotaRemaining: parseQuota(quota) ?? 0,
         priceLamports: parseSolLamports(price),
-        maker: new PublicKey(maker),
-        treasury: new PublicKey(treasury),
+        maker,
+        treasury,
       });
-      const tx = new Transaction().add(ix);
-      tx.feePayer = publicKey;
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      const signature = await sendTransaction(tx, connection);
+      const signature = await sendTransaction(transaction, connection);
       toast(`Subscription minted on-chain ${signature.slice(0, 10)}…`, "success");
     } catch (err: any) {
       toast(err.message ?? "Failed to subscribe", "error");

@@ -3,21 +3,38 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Transaction } from "@solana/web3.js";
 import { createStream as sdkCreateStream } from "../lib/sdkBackend";
 import {
-  buildCreateStreamInstruction,
-  buildUpsertTierInstruction,
+  buildCreateStreamTransaction,
+  buildUpsertTiersTransaction,
   deriveStreamPda,
-  resolveStreamRegistryProgramId,
-} from "../lib/streamRegistry";
-import type { TierInput } from "../lib/streamRegistry";
+  resolveStreamRegistryId,
+  type TierInput,
+} from "../lib/solana";
 import { parseSolLamports } from "../lib/pricing";
 import { toast } from "../lib/toast";
 
 export default function RegisterStreamPage() {
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
+  const verifierFormat = JSON.stringify(
+    {
+      signal: {
+        value: "Your signal payload",
+        timestamp: "YYYY-MM-DDTHH:mm:ssZ",
+      },
+      evidence: {
+        evidence_hash: "sha256:...",
+        evidence_pointer: "ipfs://... or https://...",
+        source_type: "api | onchain | screenshot",
+        source_ref: "url-or-tx-hash",
+        captured_at: "YYYY-MM-DDTHH:mm:ssZ",
+        proof_type: "log | screenshot | tx",
+      },
+    },
+    null,
+    2
+  );
 
   // ─── Step wizard (2 steps: Identity → Deploy) ──────────────────────────────
   const [step, setStep] = useState<1 | 2>(1);
@@ -74,6 +91,16 @@ export default function RegisterStreamPage() {
     setStep(2);
   }
 
+  async function copyVerifierFormat() {
+    try {
+      await navigator.clipboard.writeText(verifierFormat);
+      toast("Verification format copied to clipboard.", "success");
+    } catch (error) {
+      console.error(error);
+      toast("Failed to copy format. Please try again.", "error");
+    }
+  }
+
   // ─── Deploy ───────────────────────────────────────────────────────────────
 
   async function deploy() {
@@ -88,26 +115,22 @@ export default function RegisterStreamPage() {
     try {
       const tier = buildTier();
       const tiers = [tier];
-      const programId = resolveStreamRegistryProgramId();
+      const programId = resolveStreamRegistryId();
       const streamPda = await deriveStreamPda(programId, streamId);
       const existing = await connection.getAccountInfo(streamPda);
       let signature: string | null = null;
 
       if (!existing) {
         setDeployStatus("Sending create stream transaction…");
-        const { instruction } = await buildCreateStreamInstruction({
-          programId,
+        const { transaction, latestBlockhash } = await buildCreateStreamTransaction({
+          connection,
           authority: publicKey,
           streamId,
           tiers,
           visibility,
         });
-        const tx = new Transaction().add(instruction);
-        tx.feePayer = publicKey;
-        const latest = await connection.getLatestBlockhash();
-        tx.recentBlockhash = latest.blockhash;
-        signature = await sendTransaction(tx, connection);
-        await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+        signature = await sendTransaction(transaction, connection);
+        await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
         const ready = await waitForStreamAccount(streamPda);
         if (!ready) {
           throw new Error("Stream account not initialized yet. Try again in a moment.");
@@ -120,21 +143,20 @@ export default function RegisterStreamPage() {
       if (!streamReady) {
         throw new Error("Stream account missing. Ensure create stream transaction is confirmed.");
       }
-      const tierTx = new Transaction();
-      const ix = await buildUpsertTierInstruction({
-        programId,
+      const { transaction } = await buildUpsertTiersTransaction({
+        connection,
         authority: publicKey,
         stream: streamPda,
-        tier,
-        priceLamports: parseSolLamports(tier.price),
-        quota: 0,
-        status: 1,
+        tiers: [
+          {
+            tier,
+            priceLamports: parseSolLamports(tier.price),
+            quota: 0,
+            status: 1,
+          },
+        ],
       });
-      tierTx.add(ix);
-      tierTx.feePayer = publicKey;
-      const { blockhash } = await connection.getLatestBlockhash();
-      tierTx.recentBlockhash = blockhash;
-      await sendTransaction(tierTx, connection);
+      await sendTransaction(transaction, connection);
 
       setDeployStatus("Publishing to backend…");
       await sdkCreateStream({
@@ -280,14 +302,25 @@ export default function RegisterStreamPage() {
                 </div>
 
                 <div className="register-verifier-panel">
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={verifierSupported}
-                      onChange={(e) => setVerifierSupported(e.target.checked)}
-                    />
-                    <span>Verifier supported</span>
-                  </label>
+                  <div className="register-verifier-row">
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={verifierSupported}
+                        onChange={(e) => setVerifierSupported(e.target.checked)}
+                      />
+                      <span>Verifier supported</span>
+                    </label>
+                    <button
+                      className="button ghost verifier-copy-btn"
+                      type="button"
+                      onClick={copyVerifierFormat}
+                      disabled={!verifierSupported}
+                      aria-disabled={!verifierSupported}
+                    >
+                      Copy Format
+                    </button>
+                  </div>
                   <p className="subtext" style={{ margin: "6px 0 0" }}>
                     Enable on-chain verification for signal accuracy.
                   </p>

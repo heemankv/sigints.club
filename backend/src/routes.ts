@@ -606,6 +606,34 @@ const actionAccountSchema = z.object({
   account: z.string().min(32),
 });
 
+const tradeQuerySchema = z.object({
+  provider: z.string().optional(),
+  inputMint: z.string().min(32),
+  outputMint: z.string().min(32),
+  amount: z.string().regex(/^\d+$/),
+  slippageBps: z.string().optional(),
+  inputSymbol: z.string().optional(),
+  outputSymbol: z.string().optional(),
+  amountUi: z.string().optional(),
+});
+
+function resolveOrbitflareJupBaseUrl(): string | null {
+  const raw = (process.env.ORBITFLARE_JUP_BASE_URL ?? process.env.ORBITFLARE_BASE_URL ?? "").trim();
+  if (!raw) return null;
+  const trimmed = raw.replace(/\/+$/, "");
+  if (trimmed.endsWith("/jup")) return trimmed;
+  return `${trimmed}/jup`;
+}
+
+function buildOrbitflareHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const apiKey = (process.env.ORBITFLARE_API_KEY ?? "").trim();
+  if (!apiKey) return headers;
+  const headerName = (process.env.ORBITFLARE_API_HEADER ?? "X-API-KEY").trim();
+  headers[headerName] = apiKey;
+  return headers;
+}
+
 router.get("/actions/stream/:id", async (req, res) => {
   if (!tapestryStreamServiceInstance) {
     return res.status(503).json({ error: "Tapestry is required for stream discovery" });
@@ -675,6 +703,123 @@ router.get("/actions/stream/:id/link", async (req, res) => {
     blinkUrl: streamUrl,
     directBlinkUrl,
   });
+});
+
+router.get("/actions/trade", async (req, res) => {
+  const parsed = tradeQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const provider = (parsed.data.provider ?? "jupiter").toLowerCase();
+  if (provider !== "jupiter") {
+    return res.status(400).json({ error: "unsupported provider" });
+  }
+  const apiBase = resolveApiBaseUrl(req);
+  const appBase = resolvePublicBaseUrl(req);
+  const inputSymbol = parsed.data.inputSymbol?.toUpperCase() ?? "TOKEN";
+  const outputSymbol = parsed.data.outputSymbol?.toUpperCase() ?? "TOKEN";
+  const amountUi = parsed.data.amountUi ?? parsed.data.amount;
+  const slippageBps = parsed.data.slippageBps ?? "50";
+  const actionHref = `${apiBase}/actions/trade/execute?` +
+    new URLSearchParams({
+      provider: "Jupiter",
+      inputMint: parsed.data.inputMint,
+      outputMint: parsed.data.outputMint,
+      amount: parsed.data.amount,
+      slippageBps,
+      inputSymbol,
+      outputSymbol,
+      amountUi,
+    }).toString();
+
+  return res.json({
+    type: "action",
+    icon: `${appBase}/icon.svg`,
+    title: `Swap ${amountUi} ${inputSymbol} → ${outputSymbol}`,
+    description: `Powered by OrbitFlare + Jupiter.\nInput: ${parsed.data.inputMint}\nOutput: ${parsed.data.outputMint}\nSlippage: ${slippageBps} bps`,
+    label: "Swap",
+    links: {
+      actions: [
+        {
+          label: "Execute Swap",
+          href: actionHref,
+        },
+      ],
+    },
+  });
+});
+
+router.post("/actions/trade/execute", async (req, res) => {
+  const parsedQuery = tradeQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return res.status(400).json({ error: parsedQuery.error.flatten() });
+  }
+  const parsedBody = actionAccountSchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: parsedBody.error.flatten() });
+  }
+  const provider = (parsedQuery.data.provider ?? "jupiter").toLowerCase();
+  if (provider !== "jupiter") {
+    return res.status(400).json({ error: "unsupported provider" });
+  }
+
+  const orbitBase = resolveOrbitflareJupBaseUrl();
+  if (!orbitBase) {
+    return res.status(503).json({ error: "OrbitFlare base URL not configured" });
+  }
+  const headers = buildOrbitflareHeaders();
+  const slippageBps = parsedQuery.data.slippageBps ?? "50";
+
+  try {
+    const userPubkey = new PublicKey(parsedBody.data.account).toBase58();
+    const quoteUrl = new URL(`${orbitBase}/quote`);
+    quoteUrl.searchParams.set("inputMint", parsedQuery.data.inputMint);
+    quoteUrl.searchParams.set("outputMint", parsedQuery.data.outputMint);
+    quoteUrl.searchParams.set("amount", parsedQuery.data.amount);
+    quoteUrl.searchParams.set("slippageBps", slippageBps);
+
+    const quoteRes = await fetch(quoteUrl.toString(), {
+      headers,
+    });
+    if (!quoteRes.ok) {
+      const text = await quoteRes.text();
+      return res.status(502).json({ error: `quote failed: ${text}` });
+    }
+    const quote = await quoteRes.json();
+
+    const swapRes = await fetch(`${orbitBase}/swap`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        quoteResponse: quote,
+        userPublicKey: userPubkey,
+        wrapAndUnwrapSol: true,
+      }),
+    });
+    if (!swapRes.ok) {
+      const text = await swapRes.text();
+      return res.status(502).json({ error: `swap failed: ${text}` });
+    }
+    const swapData = await swapRes.json();
+    const transaction =
+      swapData.swapTransaction ??
+      swapData.transaction ??
+      swapData.tx ??
+      null;
+    if (!transaction) {
+      return res.status(502).json({ error: "swap response missing transaction" });
+    }
+
+    const inputSymbol = parsedQuery.data.inputSymbol?.toUpperCase() ?? "TOKEN";
+    const outputSymbol = parsedQuery.data.outputSymbol?.toUpperCase() ?? "TOKEN";
+    const amountUi = parsedQuery.data.amountUi ?? parsedQuery.data.amount;
+    return res.json({
+      transaction,
+      message: `Swap ${amountUi} ${inputSymbol} → ${outputSymbol} via Jupiter.`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message ?? "swap failed" });
+  }
 });
 
 router.post("/actions/stream/:id/subscribe", async (req, res) => {
