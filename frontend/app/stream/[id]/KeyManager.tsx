@@ -18,9 +18,26 @@ type KeyManagerProps = {
   streamOnchainAddress?: string;
   variant?: "card" | "plain";
   className?: string;
+  title?: string;
+  description?: string;
+  updateLabel?: string;
+  showGenerateCta?: boolean;
+  generateLabel?: string;
+  replacementNote?: string;
 };
 
-export default function KeyManager({ streamId, streamOnchainAddress, variant = "card", className }: KeyManagerProps) {
+export default function KeyManager({
+  streamId,
+  streamOnchainAddress,
+  variant = "card",
+  className,
+  title,
+  description,
+  updateLabel,
+  showGenerateCta = false,
+  generateLabel,
+  replacementNote,
+}: KeyManagerProps) {
   const [pubKey, setPubKey] = useState("");
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -158,41 +175,61 @@ export default function KeyManager({ streamId, streamOnchainAddress, variant = "
     .join(" ");
 
   const hasKey = keyRegistered === true;
+  const heading = title ?? "Stream Encryption Key";
+  const descriptionText =
+    description ??
+    "Register one X25519 public key per stream. This key is used to encrypt the symmetric key for your subscription.";
+  const updateCta = updateLabel ?? "Update Key";
+  const generateCta = generateLabel ?? "Generate New Key";
 
   return (
     <div className={containerClass}>
       {!isPlain && <div className="hud-corners" />}
       <h3 className="key-manager-title">
-        Stream Encryption Key
+        {heading}
         {keyRegistered === false && <span className="status-dot" aria-label="Encryption key missing" />}
       </h3>
-      <p className="subtext">
-        Register one X25519 public key per stream. This key is used to encrypt the symmetric key for your subscription.
-      </p>
+      <p className="subtext">{descriptionText}</p>
 
       {/* Key exists, form hidden — GitHub-style key card */}
       {hasKey && !showForm && (
-        <div className="key-registered-card">
-          <div className="key-registered-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-            </svg>
+        <>
+          <div className="key-registered-card">
+            <div className="key-registered-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+              </svg>
+            </div>
+            <div className="key-registered-details">
+              {registeredKey && (
+                <code className="key-registered-pubkey">
+                  {registeredKey.slice(0, 16)}…{registeredKey.slice(-12)}
+                </code>
+              )}
+              <span className="subtext">Registered for this stream.</span>
+            </div>
+            <button
+              className="button ghost"
+              onClick={() => setShowForm(true)}
+            >
+              {updateCta}
+            </button>
           </div>
-          <div className="key-registered-details">
-            {registeredKey && (
-              <code className="key-registered-pubkey">
-                {registeredKey.slice(0, 16)}…{registeredKey.slice(-12)}
-              </code>
-            )}
-            <span className="subtext">Registered for this stream.</span>
-          </div>
-          <button
-            className="button ghost"
-            onClick={() => setShowForm(true)}
-          >
-            Update Key
-          </button>
-        </div>
+          {replacementNote && (
+            <p className="subtext" style={{ marginTop: 10 }}>
+              {replacementNote}
+            </p>
+          )}
+          {showGenerateCta && (
+            <button
+              className="button secondary"
+              style={{ marginTop: 10 }}
+              onClick={() => setShowForm(true)}
+            >
+              {generateCta}
+            </button>
+          )}
+        </>
       )}
 
       {/* No key exists, form hidden — empty state */}
@@ -217,6 +254,11 @@ export default function KeyManager({ streamId, streamOnchainAddress, variant = "
           <h4 style={{ marginTop: 12, marginBottom: 8 }}>
             {hasKey ? "Update Encryption Key" : "Register New Key"}
           </h4>
+          {hasKey && replacementNote && (
+            <p className="subtext" style={{ marginBottom: 8 }}>
+              {replacementNote}
+            </p>
+          )}
           <p className="subtext" style={{ marginBottom: 12 }}>
             {hasKey
               ? "To rotate your encryption key, generate a new X25519 keypair locally and register the new public key on-chain. Keep the private key offline — you will only use it when decrypting."

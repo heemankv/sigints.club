@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchStreams, readStreamsCache } from "../lib/api/streams";
 import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
@@ -14,6 +14,9 @@ import { toast } from "../lib/toast";
 export default function RegisterAgentPage() {
   const { publicKey } = useWallet();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listenerStreamId = searchParams?.get("listenerStreamId")?.trim() ?? "";
+  const fromListenerLink = Boolean(listenerStreamId);
 
   const [streamCatalog, setStreamCatalog] = useState<StreamDetail[]>([]);
   const [ownedSubscriptionOptions, setOwnedSubscriptionOptions] = useState<OwnedSubscriptionOption[]>([]);
@@ -76,6 +79,7 @@ export default function RegisterAgentPage() {
           pricingType,
           evidenceLevel: evidenceLevel as "trust" | "verifier",
           visibility: streamMeta.visibility,
+          streamOnchainAddress: streamMeta.onchainAddress,
         });
       }
     }
@@ -124,6 +128,16 @@ export default function RegisterAgentPage() {
           streamCatalog={streamCatalog}
           ownedSubscriptionOptions={ownedSubscriptionOptions}
           onAgentCreated={() => router.push("/profile/agents")}
+          roleMode={fromListenerLink ? "listenerOnly" : "both"}
+          heading={fromListenerLink ? "Register Listener Agent" : undefined}
+          preset={
+            fromListenerLink
+              ? {
+                  listenerEnabled: true,
+                  listenerStreamIds: [listenerStreamId],
+                }
+              : undefined
+          }
         />
       )}
     </div>

@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import PublishSignal from "./PublishSignal";
 import DecryptPanel from "./DecryptPanel";
 import FollowMaker from "./FollowMaker";
 import SubscribeForm from "./SubscribeForm";
-import RegisterAgentWizard from "../../components/RegisterAgentWizard";
+import Link from "next/link";
 import type { StreamDetail, OnChainSubscription, AgentProfile, AgentSubscription, OwnedSubscriptionOption, StreamTier } from "../../lib/types";
 import type { StreamDetail as FallbackStreamDetail } from "../../lib/fallback";
 import type { SignalEvent } from "../../lib/types";
@@ -19,8 +19,9 @@ import {
   readAgentSubsCache,
 } from "../../lib/api/agents";
 import { formatFullTimestamp, timeAgo, toHex } from "../../lib/utils";
-import { sha256Bytes } from "../../lib/solana";
+import { hasRegisteredSubscriptionKey, resolveProgramId, resolveStreamPubkey, sha256Bytes } from "../../lib/solana";
 import CopyBlinkButton from "../../components/CopyBlinkButton";
+import TradeSignalCard from "./TradeSignalCard";
 
 type AnyStream = StreamDetail | FallbackStreamDetail;
 
@@ -42,10 +43,12 @@ function CopyableAddress({ address }: { address: string }) {
 
 export default function StreamPageClient({ stream }: { stream: AnyStream }) {
   const { publicKey } = useWallet();
+  const { connection } = useConnection();
   const walletAddr = publicKey?.toBase58() ?? null;
   const [signalEvents, setSignalEvents] = useState<SignalEvent[]>([]);
   const [activeSubscription, setActiveSubscription] = useState<OnChainSubscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionKeyReady, setSubscriptionKeyReady] = useState<boolean | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentSubscriptions, setAgentSubscriptions] = useState<AgentSubscription[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
@@ -58,6 +61,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
     stream.authority &&
     publicKey.toBase58() === stream.authority;
   const onchainAddress = "onchainAddress" in stream ? stream.onchainAddress : undefined;
+  const isPublicStream = "visibility" in stream && stream.visibility === "public";
 
   const findActiveSub = useCallback(
     (data: { subscriptions: OnChainSubscription[] } | null) => {
@@ -81,6 +85,7 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
     const diff = activeSubscription.expiresAt - Date.now();
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }, [activeSubscription?.expiresAt]);
+  const showSubscriptionStatus = !isOwner && isSubscribed && daysLeft !== null;
 
   const ownedSubscriptionOptions = useMemo<OwnedSubscriptionOption[]>(() => {
     if (!activeSubscription || !("tiers" in stream)) return [];
@@ -101,9 +106,10 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
         pricingType,
         evidenceLevel: evidenceLevel as "trust" | "verifier",
         visibility: "visibility" in stream ? stream.visibility : undefined,
+        streamOnchainAddress: onchainAddress,
       },
     ];
-  }, [activeSubscription, stream, tierIndex]);
+  }, [activeSubscription, stream, tierIndex, onchainAddress]);
 
   const agentsById = useMemo(() => {
     return new Map(agents.map((agent) => [agent.id, agent]));
@@ -244,6 +250,39 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
 
   useEffect(() => {
     let active = true;
+    async function checkSubscriptionKey() {
+      if (!publicKey) {
+        setSubscriptionKeyReady(null);
+        return;
+      }
+      if (isPublicStream) {
+        setSubscriptionKeyReady(true);
+        return;
+      }
+      if (!onchainAddress || !activeSubscription) {
+        setSubscriptionKeyReady(null);
+        return;
+      }
+      try {
+        const programId = resolveProgramId();
+        const streamPubkey = resolveStreamPubkey(onchainAddress);
+        const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, publicKey);
+        if (!active) return;
+        setSubscriptionKeyReady(registered);
+      } catch {
+        if (!active) return;
+        setSubscriptionKeyReady(false);
+      }
+    }
+
+    void checkSubscriptionKey();
+    return () => {
+      active = false;
+    };
+  }, [publicKey, connection, isPublicStream, onchainAddress, activeSubscription]);
+
+  useEffect(() => {
+    let active = true;
     if (!walletAddr) {
       setAgents([]);
       setAgentsLoading(false);
@@ -339,9 +378,27 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                 {stream.visibility}
               </span>
             )}
-            <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="stream-card-copy-blink" />
           </div>
-          {stream.description && <p className="subtext">{stream.description}</p>}
+          <div className="stream-detail-actions">
+            <CopyBlinkButton streamId={stream.id} label="Copy Blink" className="stream-card-copy-blink" />
+            {"tapestryProfileId" in stream && stream.tapestryProfileId && !isOwner && (
+              <FollowMaker targetProfileId={stream.tapestryProfileId} />
+            )}
+          </div>
+          {stream.description ? (
+            <p className="subtext">
+              {stream.description}
+              {showSubscriptionStatus && (
+                <>{" | "}{daysLeft === 0 ? "Expires today." : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left in your subscription.`}</>
+              )}
+            </p>
+          ) : (
+            showSubscriptionStatus && (
+              <p className="subtext">
+                {daysLeft === 0 ? "Expires today." : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left in your subscription.`}
+              </p>
+            )
+          )}
           <div className="stream-detail-meta">
             {onchainAddress && (
               <span className="subtext">
@@ -351,11 +408,6 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
             {stream.accuracy && <span className="badge">Accuracy {stream.accuracy}</span>}
             {stream.latency && <span className="badge">Latency {stream.latency}</span>}
           </div>
-          {"tapestryProfileId" in stream && stream.tapestryProfileId && !isOwner && (
-            <div className="stream-detail-actions">
-              <FollowMaker targetProfileId={stream.tapestryProfileId} />
-            </div>
-          )}
         </div>
         <div className="stream-detail-header-side">
           <div className="signal-activity signal-activity--open">
@@ -488,53 +540,63 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
               </>
             ) : (
               <>
-                <div className="stream-detail-section stream-step stream-step--compact">
-                  <div className="stream-step-header stream-step-header--inline">
-                    <span className="stream-detail-section-title">Subscription:</span>
-                    <span className="subtext">
-                      {daysLeft !== null
-                        ? daysLeft === 0
-                          ? "Expires today."
-                          : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left in your subscription.`
-                        : "Active subscription."}
-                    </span>
+                {isPublicStream && (
+                  <div className="stream-detail-section stream-step stream-step--compact">
+                    <TradeSignalCard streamId={stream.id} />
                   </div>
-                </div>
+                )}
 
-                <div className="stream-detail-section stream-step">
-                  <div className="stream-step-header">
-                    <h3 className="stream-detail-section-title">Register Listener Agent (optional)</h3>
-                    <span className="subtext">Registering a listener agent also registers your encryption key.</span>
+                {!isPublicStream && (
+                  <div className="stream-detail-section stream-step stream-step--compact">
+                    <div className="stream-step-header stream-step-header--inline stream-step-header--key">
+                      <div className="stream-step-key-text">
+                        <span className="stream-detail-section-title">Encryption Key</span>
+                        <span className="subtext">
+                          {subscriptionKeyReady === true
+                            ? "1 key active."
+                            : subscriptionKeyReady === false
+                              ? "Register your key using Actions page."
+                              : "Checking key status…"}
+                        </span>
+                      </div>
+                      <Link className="button secondary" href="/profile/actions?actionTab=streamKeys">
+                        Manage Keys →
+                      </Link>
+                    </div>
                   </div>
-                  <RegisterAgentWizard
-                    key={`listener-${stream.id}-subscribed`}
-                    walletAddr={walletAddr ?? ""}
-                    streamCatalog={"tiers" in stream ? [stream as StreamDetail] : []}
-                    ownedSubscriptionOptions={ownedSubscriptionOptions}
-                    onAgentCreated={() => { void refreshAgents(); void refreshAgentSubscriptions(); }}
-                    heading="Register Listener Agent"
-                    basicsMode="nameOnly"
-                    roleMode="listenerOnly"
-                    preset={{
-                      listenerEnabled: true,
-                      listenerStreamIds: [stream.id],
-                      domain: stream.domain ?? "listener",
-                      evidence: "trust",
-                    }}
-                  />
-                </div>
+                )}
 
-                <div className="stream-detail-section stream-step">
-                  <div className="stream-step-header">
-                    <h3 className="stream-detail-section-title">Listener Agents</h3>
-                    <span className="subtext">Agents linked to this stream.</span>
+                <div className="stream-detail-section stream-step stream-step--narrow">
+                  <div className="stream-step-header stream-step-header--key stream-step-header--actions">
+                    <div className="stream-step-key-text">
+                      <h3 className="stream-detail-section-title">Listener Agents</h3>
+                      {!isPublicStream && subscriptionKeyReady !== true && (
+                        <span className="subtext">
+                          {subscriptionKeyReady === false
+                            ? "Private streams require an encryption key before linking listener agents."
+                            : "Checking key status…"}
+                        </span>
+                      )}
+                      {agentsLoading && linkedAgents.length === 0 && (
+                        <span className="subtext">Loading agents…</span>
+                      )}
+                      {linkedAgents.length === 0 && !agentsLoading && (
+                        <span className="subtext">No agents linked to this stream yet.</span>
+                      )}
+                    </div>
+                    {isPublicStream || subscriptionKeyReady === true ? (
+                      <Link
+                        className="button secondary"
+                        href={`/register-agent?listenerStreamId=${encodeURIComponent(stream.id)}`}
+                      >
+                        Register Agent →
+                      </Link>
+                    ) : (
+                      <button className="button secondary" disabled aria-disabled="true">
+                        Register Agent →
+                      </button>
+                    )}
                   </div>
-                  {agentsLoading && linkedAgents.length === 0 && (
-                    <p className="subtext">Loading agents…</p>
-                  )}
-                  {linkedAgents.length === 0 && !agentsLoading && (
-                    <p className="subtext">No agents linked to this stream yet.</p>
-                  )}
                   {linkedAgents.length > 0 && (
                     <div className="agent-list">
                       {linkedAgents.map(({ subscription, agent }) => (
@@ -554,9 +616,11 @@ export default function StreamPageClient({ stream }: { stream: AnyStream }) {
                   )}
                 </div>
 
-                <div className="stream-detail-section">
-                  <DecryptPanel streamId={stream.id} visibility={"visibility" in stream ? stream.visibility : undefined} />
-                </div>
+                {!isPublicStream && (
+                  <div className="stream-detail-section">
+                    <DecryptPanel streamId={stream.id} visibility={"visibility" in stream ? stream.visibility : undefined} />
+                  </div>
+                )}
               </>
             )}
           </>

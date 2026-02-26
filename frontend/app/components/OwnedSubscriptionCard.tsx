@@ -11,6 +11,7 @@ type OwnedSubscriptionCardProps = {
   expiresAt?: number;
   nftMint: string;
   description?: string;
+  visibility?: "public" | "private";
 };
 
 function formatDate(ms?: number): string | null {
@@ -43,6 +44,7 @@ export default function OwnedSubscriptionCard({
   expiresAt,
   nftMint,
   description,
+  visibility,
 }: OwnedSubscriptionCardProps) {
   const artUrl = getCardArtUrl(`${streamId}:${tierLabel}`);
   const expiresLabel = formatDate(expiresAt);
@@ -98,6 +100,11 @@ export default function OwnedSubscriptionCard({
 
         <div className="data-card__actions">
           <div className="data-card__tags">
+            {visibility && (
+              <span className={`badge badge-sm ${visibility === "private" ? "badge-private" : "badge-public"}`}>
+                {visibility}
+              </span>
+            )}
             {evidenceLevel && <span className="badge badge-sm">{evidenceLevel === "verifier" ? "verifiable" : evidenceLevel}</span>}
             {pricingLabel && <span className="badge badge-sm badge-gold">{pricingLabel}</span>}
             <span className="badge badge-sm badge-teal">{tierLabel}</span>

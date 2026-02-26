@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { fetchStreams, readStreamsCache, fetchStreamSubscribers, readStreamStatsCache, writeStreamStatsCache } from "../lib/api/streams";
 import { fetchOnchainSubscriptions, readSubscriptionsCache } from "../lib/api/subscriptions";
@@ -15,6 +16,7 @@ import {
 import type { AgentProfile, AgentSubscription, StreamDetail, StreamTier, OwnedSubscriptionOption } from "../lib/types";
 import OwnedSubscriptionCard from "../components/OwnedSubscriptionCard";
 import MyStreamsSection from "../components/MyStreamsSection";
+import KeyManager from "../stream/[id]/KeyManager";
 import { sha256Bytes } from "../lib/solana";
 import { toHex } from "../lib/utils";
 import { useUserProfile, type UserProfile } from "../lib/userProfile";
@@ -39,12 +41,34 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
   const [agentSubscriptions, setAgentSubscriptions] = useState<AgentSubscription[]>([]);
   const [myStreamCount, setMyStreamCount] = useState<number | null>(null);
   const [totalSubscribers, setTotalSubscribers] = useState<number | null>(null);
+  const [streamKeyDropdownOpen, setStreamKeyDropdownOpen] = useState(false);
+  const [selectedKeyStreamId, setSelectedKeyStreamId] = useState<string>("");
 
   const activeTab = initialTab;
-  const [actionsTab, setActionsTab] = useState<"editProfile" | "streamKeys">("editProfile");
+  const searchParams = useSearchParams();
+  const actionTabParam = searchParams?.get("actionTab");
+  const [actionsTab, setActionsTab] = useState<"editProfile" | "streamKeys">(
+    actionTabParam === "streamKeys" ? "streamKeys" : "editProfile"
+  );
 
   const walletAddr = publicKey?.toBase58();
   const walletShort = walletAddr ? `${walletAddr.slice(0, 6)}…${walletAddr.slice(-4)}` : null;
+
+  const privateKeyStreams = useMemo(
+    () => ownedSubscriptionOptions.filter((option) => option.visibility === "private"),
+    [ownedSubscriptionOptions]
+  );
+
+  const selectedKeyStream = useMemo(
+    () => privateKeyStreams.find((option) => option.streamId === selectedKeyStreamId) ?? null,
+    [privateKeyStreams, selectedKeyStreamId]
+  );
+
+  useEffect(() => {
+    if (!selectedKeyStreamId && privateKeyStreams.length > 0) {
+      setSelectedKeyStreamId(privateKeyStreams[0].streamId);
+    }
+  }, [privateKeyStreams, selectedKeyStreamId]);
 
   useEffect(() => {
     if (!walletAddr) return;
@@ -58,6 +82,13 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
     setEditDisplayName(profile?.displayName ?? "");
     setEditBio(profile?.bio ?? "");
   }, [walletAddr, profile?.displayName, profile?.bio]);
+
+  useEffect(() => {
+    if (activeTab !== "actions") return;
+    if (actionTabParam === "streamKeys" || actionTabParam === "editProfile") {
+      setActionsTab(actionTabParam);
+    }
+  }, [actionTabParam, activeTab]);
 
 
   useEffect(() => {
@@ -125,6 +156,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
         expiresAt: sub.expiresAt,
         nftMint: sub.nftMint,
         description: streamMeta?.description,
+        visibility: streamMeta?.visibility,
       });
 
       if (streamMeta && tierMatch && pricingType === "subscription_unlimited") {
@@ -135,6 +167,7 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
           pricingType,
           evidenceLevel: evidenceLevel as "trust" | "verifier",
           visibility: streamMeta.visibility,
+          streamOnchainAddress: streamMeta.onchainAddress,
         });
       }
     }
@@ -508,11 +541,76 @@ export default function ProfileContent({ initialTab = "subscriptions" }: { initi
                 {actionsTab === "streamKeys" && (
                   <div className="x-rail-module" style={{ border: 0, background: "transparent", padding: 0 }}>
                     <p className="subtext" style={{ marginBottom: 12 }}>
-                      Encryption keys are scoped per stream. Open a stream to register or rotate the key used for private signals.
+                      Manage encryption keys for private streams you are subscribed to.
                     </p>
-                    <Link className="button secondary" href="/streams" style={{ width: "100%" }}>
-                      Browse Streams
-                    </Link>
+                    {privateKeyStreams.length === 0 ? (
+                      <>
+                        <p className="subtext" style={{ marginBottom: 12 }}>
+                          You don&apos;t have any private stream subscriptions yet.
+                        </p>
+                        <Link className="button secondary" href="/streams" style={{ width: "100%" }}>
+                          Browse Streams
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <div className={`signal-activity signal-activity--dropdown${streamKeyDropdownOpen ? " signal-activity--open" : ""}`} style={{ marginBottom: 12 }}>
+                          <button
+                            className="signal-activity__toggle signal-activity__toggle--input"
+                            type="button"
+                            onClick={() => setStreamKeyDropdownOpen((open) => !open)}
+                          >
+                            <span className="signal-activity__label">
+                              {selectedKeyStream
+                                ? `${selectedKeyStream.streamName} (${selectedKeyStream.streamId})`
+                                : "Select a private stream"}
+                            </span>
+                            <span className="signal-activity__chev">{streamKeyDropdownOpen ? "\u25B4" : "\u25BE"}</span>
+                          </button>
+                          {streamKeyDropdownOpen && (
+                            <div className="signal-activity__list">
+                              {privateKeyStreams.map((option) => (
+                                <button
+                                  key={option.streamId}
+                                  type="button"
+                                  className="signal-activity__item"
+                                  style={{
+                                    cursor: "pointer",
+                                    background: selectedKeyStreamId === option.streamId ? "rgba(255,255,255,0.08)" : "transparent",
+                                    border: "none",
+                                    borderRadius: 8,
+                                    padding: "8px 4px",
+                                    width: "100%",
+                                    textAlign: "left",
+                                  }}
+                                  onClick={() => {
+                                    setSelectedKeyStreamId(option.streamId);
+                                    setStreamKeyDropdownOpen(false);
+                                  }}
+                                >
+                                  <span className="signal-activity__time">{option.streamName}</span>
+                                  <span className="signal-activity__meta">{option.streamId}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {selectedKeyStream && (
+                          <KeyManager
+                            key={`key-${selectedKeyStream.streamId}`}
+                            streamId={selectedKeyStream.streamId}
+                            streamOnchainAddress={selectedKeyStream.streamOnchainAddress}
+                            variant="plain"
+                            title="Stream Encryption Key"
+                            description="Manage the X25519 key used to decrypt private signals for this stream. Creating a new key replaces (revokes) the previous one."
+                            updateLabel="Revoke"
+                            showGenerateCta
+                            generateLabel="Generate New Key"
+                            replacementNote="Creating a new key replaces the previous one."
+                          />
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 

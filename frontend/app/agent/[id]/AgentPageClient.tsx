@@ -113,6 +113,7 @@ export default function AgentPageClient({ agent }: { agent: AgentProfile }) {
           pricingType,
           evidenceLevel: evidenceLevel as "trust" | "verifier",
           visibility: streamMeta.visibility,
+          streamOnchainAddress: streamMeta.onchainAddress,
         });
       }
     }

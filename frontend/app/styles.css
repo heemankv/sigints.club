@@ -2262,7 +2262,9 @@ textarea {
 }
 
 @keyframes spin-inline {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .xpost-subscribe-btn {
@@ -3774,6 +3776,7 @@ textarea {
   position: relative;
   border-left: 1px solid var(--stroke);
   padding-left: 24px;
+  padding-right: 16px;
   margin-left: 24px;
   padding-top: 5%;
 }
@@ -3895,7 +3898,12 @@ textarea {
 
 .decrypt-panel {
   display: grid;
-  gap: 12px;
+  gap: 6px;
+  max-width: 60%;
+}
+
+.decrypt-panel .subtext {
+  margin: 0 0 4px;
 }
 
 .decrypt-result {
@@ -3955,9 +3963,41 @@ textarea {
   white-space: nowrap;
 }
 
+.stream-step-header--key {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  white-space: normal;
+  gap: 16px;
+  width: 100%;
+}
+
+.stream-step-header--actions {
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.stream-step-header--actions .stream-step-key-text {
+  max-width: 70%;
+}
+
+.stream-step-header--actions .button {
+  margin-left: auto;
+}
+
+.stream-step-key-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .stream-step-body {
   display: grid;
   gap: 12px;
+}
+
+.stream-step--narrow {
+  max-width: 80%;
 }
 
 .stream-step--disabled {
@@ -3981,6 +4021,69 @@ textarea {
   white-space: nowrap;
 }
 
+/* Side-by-side pill row (subscription + trade signal) */
+.stream-detail-pills {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.stream-detail-pills>* {
+  flex: 0 0 50%;
+  max-width: 50%;
+  width: 50%;
+  align-self: auto;
+}
+
+.stream-detail-pills .stream-step--compact {
+  width: 50%;
+  align-self: auto;
+}
+
+/* Trade signal card */
+.trade-signal-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.trade-signal-card__left {
+  flex: 1 1 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trade-signal-card__actions {
+  flex: 1 1 50%;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.trade-signal-card__actions .button {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 12px;
+  border-radius: 999px;
+  justify-content: center;
+}
+
+.trade-signal-check {
+  background: none;
+  border: 1px solid var(--stroke);
+  color: var(--accent-2);
+  border-radius: var(--radius-sm);
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.trade-signal-check:hover {
+  border-color: var(--accent-2);
+}
+
 .stream-detail-section.stream-step.stream-step--plain {
   background: transparent;
   border: none;
@@ -4002,7 +4105,7 @@ textarea {
   gap: 12px;
 }
 
-.agent-section + .agent-section {
+.agent-section+.agent-section {
   margin-top: 20px;
 }
 
@@ -4242,6 +4345,14 @@ textarea {
   font-size: 13px;
   color: var(--ink);
   background: transparent;
+}
+
+.signal-activity__item--disabled {
+  opacity: 0.55;
+}
+
+.signal-activity__item--disabled .signal-activity__time {
+  text-decoration: line-through;
 }
 
 .signal-activity__item--clear {

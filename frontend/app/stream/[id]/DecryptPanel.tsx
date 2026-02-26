@@ -313,7 +313,7 @@ export default function DecryptPanel({
               <div className="intent-card__actions">
                 {tradeBlinkUrl && (
                   <button className="button ghost" onClick={copyBlink}>
-                    {blinkCopied ? "Copied" : "Copy Link"}
+                    {blinkCopied ? "Copied" : "Copy Trade Blink"}
                   </button>
                 )}
                 <button

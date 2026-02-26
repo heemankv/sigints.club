@@ -93,6 +93,7 @@ export type OwnedSubscriptionOption = {
   pricingType: "subscription_unlimited";
   evidenceLevel: "trust" | "verifier";
   visibility?: "public" | "private";
+  streamOnchainAddress?: string;
 };
 
 export type AgentSubscription = {

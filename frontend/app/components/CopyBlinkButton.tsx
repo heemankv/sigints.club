@@ -40,7 +40,7 @@ export default function CopyBlinkButton({
     setStatus("idle");
     try {
       const res = await fetchBlinkLink(streamId);
-      const url = res.blinkUrl || res.streamUrl;
+      const url = res.directBlinkUrl || res.blinkUrl || res.streamUrl;
       await copyText(url);
       setStatus("copied");
       setTimeout(() => setStatus("idle"), 1500);

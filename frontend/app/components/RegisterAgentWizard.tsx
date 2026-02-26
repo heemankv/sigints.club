@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair } from "@solana/web3.js";
 import {
@@ -10,7 +10,10 @@ import {
 import {
   buildGrantPublisherTransaction,
   deriveStreamPda,
+  hasRegisteredSubscriptionKey,
+  resolveProgramId,
   resolveStreamRegistryId,
+  resolveStreamPubkey,
 } from "../lib/solana";
 import type { StreamDetail, OwnedSubscriptionOption } from "../lib/types";
 import { toast } from "../lib/toast";
@@ -74,6 +77,7 @@ export default function RegisterAgentWizard({
   const [listenerDropdownOpen, setListenerDropdownOpen] = useState(false);
   const [agentPubkey, setAgentPubkey] = useState("");
   const [agentSecretKey, setAgentSecretKey] = useState("");
+  const [subscriptionKeyStatus, setSubscriptionKeyStatus] = useState<Record<string, boolean | null>>({});
 
   // Step 3 — Listener
   const [selectedSubscriptions, setSelectedSubscriptions] = useState<string[]>(initialListenerStreams);
@@ -121,10 +125,68 @@ export default function RegisterAgentWizard({
   }
 
   function toggleSubscription(streamId: string) {
+    const option = ownedSubscriptionOptions.find((item) => item.streamId === streamId);
+    const requiresKey = option?.visibility === "private";
+    const keyReady = subscriptionKeyStatus[streamId];
+    if (requiresKey && keyReady === false) {
+      toast("Register a subscription encryption key before linking a private stream.", "warn");
+      return;
+    }
     setSelectedSubscriptions((prev) =>
       prev.includes(streamId) ? prev.filter((s) => s !== streamId) : [...prev, streamId]
     );
   }
+
+  useEffect(() => {
+    let active = true;
+    if (!publicKey || ownedSubscriptionOptions.length === 0) {
+      setSubscriptionKeyStatus({});
+      return undefined;
+    }
+
+    async function loadKeyStatus() {
+      const programId = resolveProgramId();
+      const updates: Record<string, boolean | null> = {};
+      for (const option of ownedSubscriptionOptions) {
+        if (option.visibility === "public") {
+          updates[option.streamId] = true;
+          continue;
+        }
+        if (!option.streamOnchainAddress) {
+          updates[option.streamId] = false;
+          continue;
+        }
+        try {
+          const streamPubkey = resolveStreamPubkey(option.streamOnchainAddress);
+          const registered = await hasRegisteredSubscriptionKey(connection, programId, streamPubkey, publicKey);
+          updates[option.streamId] = registered;
+        } catch {
+          updates[option.streamId] = false;
+        }
+      }
+      if (!active) return;
+      setSubscriptionKeyStatus(updates);
+    }
+
+    void loadKeyStatus();
+    return () => {
+      active = false;
+    };
+  }, [connection, publicKey, ownedSubscriptionOptions]);
+
+  useEffect(() => {
+    if (!selectedSubscriptions.length) return;
+    if (!Object.keys(subscriptionKeyStatus).length) return;
+    const invalidSelections = selectedSubscriptions.filter((streamId) => {
+      const option = ownedSubscriptionOptions.find((item) => item.streamId === streamId);
+      if (!option) return false;
+      if (option.visibility !== "private") return false;
+      return subscriptionKeyStatus[streamId] === false;
+    });
+    if (invalidSelections.length === 0) return;
+    setSelectedSubscriptions((prev) => prev.filter((id) => !invalidSelections.includes(id)));
+    toast("Register a subscription encryption key for private streams before linking a listener agent.", "warn");
+  }, [ownedSubscriptionOptions, selectedSubscriptions, subscriptionKeyStatus]);
 
   // Navigation
   function nextStep(from: 1 | 2 | 3 | 4): 1 | 2 | 3 | 4 {
@@ -191,6 +253,17 @@ export default function RegisterAgentWizard({
     if (listenerEnabled && selectedSubscriptions.length === 0) {
       setValidationError("Select at least one stream to listen to.");
       return;
+    }
+    if (listenerEnabled && selectedSubscriptions.length > 0) {
+      const blocked = selectedSubscriptions.find((streamId) => {
+        const option = ownedSubscriptionOptions.find((item) => item.streamId === streamId);
+        if (!option || option.visibility !== "private") return false;
+        return subscriptionKeyStatus[streamId] !== true;
+      });
+      if (blocked) {
+        setValidationError("Register a subscription encryption key before linking private streams.");
+        return;
+      }
     }
     setValidationError(null);
     setStep(4);
@@ -585,13 +658,18 @@ export default function RegisterAgentWizard({
                   )}
                   {ownedSubscriptionOptions.map((option) => {
                     const active = selectedSubscriptions.includes(option.streamId);
+                    const requiresKey = option.visibility === "private";
+                    const keyReady = subscriptionKeyStatus[option.streamId];
+                    const keyMissing = requiresKey && keyReady === false;
+                    const isChecking = requiresKey && keyReady == null;
+                    const isDisabled = keyMissing || isChecking;
                     return (
                       <button
                         key={option.streamId}
                         type="button"
-                        className="signal-activity__item"
+                        className={`signal-activity__item${isDisabled ? " signal-activity__item--disabled" : ""}`}
                         style={{
-                          cursor: "pointer",
+                          cursor: isDisabled ? "not-allowed" : "pointer",
                           background: active ? "rgba(255,255,255,0.08)" : "transparent",
                           border: "none",
                           borderRadius: 8,
@@ -599,12 +677,27 @@ export default function RegisterAgentWizard({
                           width: "100%",
                           textAlign: "left",
                         }}
-                        onClick={() => toggleSubscription(option.streamId)}
+                        onClick={() => {
+                          if (isDisabled) {
+                            if (keyMissing) {
+                              toast(
+                                "Register a subscription encryption key before linking a private stream.",
+                                "warn"
+                              );
+                            } else {
+                              toast("Checking subscription encryption key status...", "warn");
+                            }
+                            return;
+                          }
+                          toggleSubscription(option.streamId);
+                        }}
                       >
                         <span className="signal-activity__time">{option.streamName}</span>
                         <span className="signal-activity__meta">
                           {option.tierId}
                           {option.visibility ? ` · ${option.visibility}` : ""}
+                          {isChecking ? " · checking key…" : ""}
+                          {keyMissing ? " · key missing" : ""}
                           {active ? " ✓" : ""}
                         </span>
                       </button>
