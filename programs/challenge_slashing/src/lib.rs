@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP");
+declare_id!("J5VaURd9hrU4p5DYAbqSuBm4vsETqkMbbtYX9m7mw6zT");
 
 #[program]
 pub mod challenge_slashing {

@@ -1,0 +1,49 @@
+{
+  "deployments": [
+    {
+      "timestamp": "2026-02-26T16:24:05Z",
+      "rpc_url": "https://api.devnet.solana.com",
+      "cluster": "devnet",
+      "program_name": "challenge_slashing",
+      "program_id": "DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP",
+      "status": "deploy_failed",
+      "program_show": null
+    },
+    {
+      "timestamp": "2026-02-26T16:27:13Z",
+      "rpc_url": "https://api.devnet.solana.com",
+      "cluster": "devnet",
+      "program_name": "challenge_slashing",
+      "program_id": "J5VaURd9hrU4p5DYAbqSuBm4vsETqkMbbtYX9m7mw6zT",
+      "status": "verified",
+      "program_show": null
+    },
+    {
+      "timestamp": "2026-02-26T16:29:11Z",
+      "rpc_url": "https://api.devnet.solana.com",
+      "cluster": "devnet",
+      "program_name": "stream_registry",
+      "program_id": "344DgCSHaf837WSYNEMG1jrsjF6uSnzgsa23keEfBZ7s",
+      "status": "verified",
+      "program_show": null
+    },
+    {
+      "timestamp": "2026-02-26T16:31:11Z",
+      "rpc_url": "https://api.devnet.solana.com",
+      "cluster": "devnet",
+      "program_name": "subscription_royalty",
+      "program_id": "HneM2GJ4rrqiEPdDXzi9PKsKfDx9csbydzcL5GVs61s2",
+      "status": "deploy_failed",
+      "program_show": null
+    },
+    {
+      "timestamp": "2026-02-26T16:36:10Z",
+      "rpc_url": "https://api.devnet.solana.com",
+      "cluster": "devnet",
+      "program_name": "subscription_royalty",
+      "program_id": "HneM2GJ4rrqiEPdDXzi9PKsKfDx9csbydzcL5GVs61s2",
+      "status": "verified",
+      "program_show": null
+    }
+  ]
+}

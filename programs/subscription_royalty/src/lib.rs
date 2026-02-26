@@ -9,7 +9,7 @@ use spl_token_2022::extension::ExtensionType;
 use spl_token_2022::instruction::AuthorityType;
 use spl_token_2022::state::Mint as Mint2022;
 
-declare_id!("BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE");
+declare_id!("HneM2GJ4rrqiEPdDXzi9PKsKfDx9csbydzcL5GVs61s2");
 const PLATFORM_FEE_BPS: u64 = 100;
 
 #[program]

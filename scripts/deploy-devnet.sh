@@ -14,6 +14,7 @@ TEMP_KEYPAIR=""
 DEPLOYMENTS_FILE=""
 RESUME=true
 SKIP_IDS=()
+NEW_IDS=false
 
 usage() {
   cat <<'USAGE'
@@ -33,6 +34,7 @@ Options:
   --programs <SECTION>   Anchor.toml [programs.<SECTION>] to deploy (default: provider.cluster)
   --deployments <PATH>   Deployments log file (default: deployments.json)
   --no-resume            Do not skip already-verified deployments
+  --new-ids              Generate new program IDs and sync into Anchor.toml/declare_id!
   -h, --help             Show this help
 USAGE
 }
@@ -193,6 +195,10 @@ while [[ $# -gt 0 ]]; do
       RESUME=false
       shift
       ;;
+    --new-ids)
+      NEW_IDS=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -325,16 +331,15 @@ if [[ ${#PROGRAMS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+if $NEW_IDS && $NO_BUILD; then
+  echo "--new-ids requires a rebuild. Remove --no-build."
+  exit 1
+fi
+
 PAYER_PUBKEY="$(solana-keygen pubkey "$KEYPAIR")"
 log "RPC: $RPC_URL"
 log "Wallet: $KEYPAIR ($PAYER_PUBKEY)"
 log "Deployments file: $DEPLOYMENTS_FILE"
-log "Programs to deploy (programs.$PROGRAMS_SECTION):"
-for entry in "${PROGRAMS[@]}"; do
-  name="${entry%% *}"
-  prog_id="${entry##* }"
-  printf "  - %s: %s\n" "$name" "$prog_id"
-done
 
 if $RESUME && [[ -f "$DEPLOYMENTS_FILE" ]]; then
   while IFS= read -r line; do
@@ -370,14 +375,41 @@ if ! $NO_BUILD; then
   (cd "$ROOT" && anchor build)
 fi
 
+if $NEW_IDS; then
+  log "Generating new program keypairs in target/deploy..."
+  mkdir -p "$ROOT/target/deploy"
+  for entry in "${PROGRAMS[@]}"; do
+    name="${entry%% *}"
+    keypair_path="$ROOT/target/deploy/${name}-keypair.json"
+    solana-keygen new -s -f -o "$keypair_path" >/dev/null
+  done
+  SYNC_KEYS=true
+fi
+
 if $SYNC_KEYS; then
   log "Syncing Anchor program IDs with keypairs..."
   (cd "$ROOT" && anchor keys sync)
-  if ! $NO_BUILD; then
-    log "Rebuilding after key sync..."
-    (cd "$ROOT" && anchor build)
+  log "Rebuilding after key sync..."
+  (cd "$ROOT" && anchor build)
+
+  PROGRAMS=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && PROGRAMS+=("$line")
+  done <<EOF
+$(list_programs "$PROGRAMS_SECTION")
+EOF
+  if [[ ${#PROGRAMS[@]} -eq 0 ]]; then
+    echo "No programs found under [programs.$PROGRAMS_SECTION] in Anchor.toml after sync"
+    exit 1
   fi
 fi
+
+log "Programs to deploy (programs.$PROGRAMS_SECTION):"
+for entry in "${PROGRAMS[@]}"; do
+  name="${entry%% *}"
+  prog_id="${entry##* }"
+  printf "  - %s: %s\n" "$name" "$prog_id"
+done
 
 log "Deploying programs..."
 for entry in "${PROGRAMS[@]}"; do

@@ -5,9 +5,9 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-challenge_slashing = "DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP"
-stream_registry = "HCm2Bk65hCaevrs4N3oYegMBZBTPpzjoMB44JgTrTVSA"
-subscription_royalty = "BMDH241mpXx3WHuRjWp7DpBrjmKSBYhttBgnFZd5aHYE"
+challenge_slashing = "J5VaURd9hrU4p5DYAbqSuBm4vsETqkMbbtYX9m7mw6zT"
+stream_registry = "344DgCSHaf837WSYNEMG1jrsjF6uSnzgsa23keEfBZ7s"
+subscription_royalty = "HneM2GJ4rrqiEPdDXzi9PKsKfDx9csbydzcL5GVs61s2"
 
 [programs.localnet]
 challenge_slashing = "DqQjh7bT9sri2fnZqh58nEpzeJb7jZaCNzb4CMGNqbEP"
