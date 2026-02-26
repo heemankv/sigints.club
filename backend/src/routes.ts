@@ -1070,20 +1070,29 @@ async function buildSubscribeInstruction(params: {
   });
 }
 
+function resolveForwarded(req: { protocol: string; get: (name: string) => string | undefined }) {
+  const protoHeader = req.get("x-forwarded-proto");
+  const hostHeader = req.get("x-forwarded-host");
+  const proto = protoHeader ? protoHeader.split(",")[0].trim() : req.protocol;
+  const host = hostHeader ? hostHeader.split(",")[0].trim() : req.get("host");
+  return { proto, host };
+}
+
 function resolvePublicBaseUrl(req: { protocol: string; get: (name: string) => string | undefined }) {
+  const configured = process.env.PUBLIC_APP_URL ?? process.env.FRONTEND_URL;
+  if (configured) return configured;
   const origin = req.get("origin");
   if (origin && /^https?:\/\//i.test(origin)) {
     return origin;
   }
-  return (
-    process.env.PUBLIC_APP_URL ??
-    process.env.FRONTEND_URL ??
-    `${req.protocol}://${req.get("host")}`
-  );
+  const { proto, host } = resolveForwarded(req);
+  return `${proto}://${host}`;
 }
 
 function resolveApiBaseUrl(req: { protocol: string; get: (name: string) => string | undefined }) {
-  return process.env.PUBLIC_API_URL ?? `${req.protocol}://${req.get("host")}`;
+  if (process.env.PUBLIC_API_URL) return process.env.PUBLIC_API_URL;
+  const { proto, host } = resolveForwarded(req);
+  return `${proto}://${host}`;
 }
 
 function formatTimeAgo(timestampMs?: number | null): string {
