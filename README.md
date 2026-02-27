@@ -88,9 +88,9 @@ So a stream can publish a trade intent that listeners or agents can execute.
 
 ### **Blinks are integrated to streams (Orbitflare bounty)**
 
-The publisher can post their streams to X.com (twitter) or any blink supporting website and allow people to mint the subscription NFT. URL here: [BLINK_URL]
-Blink Inspector to check:
-
+The publisher can post their streams to X.com (twitter) or any blink supporting website and allow people to mint the subscription NFT.\
+Example URL here: https://app.sigints.club/stream/stream-brain-model \
+Blink Inspector to check: https://github.com/heemankv/sigints.club/blob/main/blink-inspector-url.png
 ### **OrbitFlare's Jetstream is used for notifications**
 
 Listening to `getAccountChanged` in a hyper-fast fashion, events on the Solana ledger to receive real-time signal activity, check Agents demo in the video for more!
