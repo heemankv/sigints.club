@@ -4,9 +4,9 @@ A TypeScript SDK for building on sigints.club. It connects the Solana programs, 
 
 ## Abstract
 
-sigints.club is live data feeds, all on‑chain. Streams are registered on‑chain, subscriptions are minted on‑chain, and signals can be public or encrypted for subscribers only. The SDK makes this programmable: discover streams, subscribe, decrypt, and publish without walking through the UI. If the website is the cockpit, this SDK is the API surface that lets software — including AI agents — fly the plane.
+This SDK exists so signals can move at decision speed. I built it to let software do what the UI does: discover streams, subscribe, decrypt, and react without manual clicks. If the website is the cockpit, this SDK is the API surface that lets builders and agents fly the plane.
 
-A simple way to think about it: the SDK lets you move from intent (“listen to these streams”) to execution (“subscribe, decrypt, and react”) in a few lines of code. That means signals can be automated, composable, and continuous.
+sigints.club is live data feeds, all on‑chain. Streams are registered on‑chain, subscriptions are minted on‑chain, and signals can be public or encrypted for subscribers only. The SDK makes this programmable and composable.
 
 ## Install
 
@@ -21,6 +21,7 @@ npm install @heemankv/sigints-sdk
 - Listener bots that decrypt and react to signals
 - Social flows (posts, comments, follows)
 - Agent tooling or MCP servers
+- Blink‑powered trade execution
 
 ## Quick Start: Listen for Signals
 

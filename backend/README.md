@@ -2,9 +2,9 @@
 
 ## Abstract
 
-Ten seconds is the difference between a signal that can be acted on and a signal that becomes lore. It is the window where freshness still matters but verification is still possible. The backend is the part of sigints.club that makes that window real. It stores encrypted payloads, tracks keyboxes, records metadata, and connects the on-chain state to the off-chain reality of delivery.
+I built this backend for the moment after you scroll — when the signal is fresh, the proof is available, and the decision still matters. The chain is the source of truth, but the payloads live off‑chain. This backend is the control plane that keeps those two worlds synchronized at signal speed.
 
-If the chain is the source of truth and the frontend is the cockpit, this backend is the control plane that keeps signals moving, indexed, and verifiable within that 10 second rhythm.
+Ten seconds is the difference between a signal that can be acted on and a signal that becomes lore. This backend makes that window real: it stores encrypted payloads, tracks keyboxes, records metadata, and bridges on‑chain state to off‑chain delivery.
 
 ## How This Backend Contributes
 
@@ -102,4 +102,3 @@ The SDK can bootstrap from the backend using:
 ## Persistence
 
 - `PERSIST=true` enables file-based persistence for subscribers and signals (default for non-test)
-

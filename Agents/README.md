@@ -1,6 +1,8 @@
 # Agents (SDK Examples)
 
-Four focused scripts showing how an agent can publish and listen to signals using the sigints SDK.
+These scripts are the smallest runnable version of the sigints story: publish a signal, listen for it, and act in real time. They are designed for agents that need to move fast — no UI, no manual clicks.
+
+Four focused scripts show how an agent can publish and listen to signals using the sigints SDK.
 
 ## Setup
 
@@ -86,8 +88,8 @@ Listening (Jetstream or RPC polling):
 - `--api-key` (optional)
 - `--api-key-header` (optional)
 - `--poll-ms` (used only when stream is not provided; default 5000)
- - `--auth-keypair` (wallet keypair for payload auth)
- - `--auth-secret` (base58 secret alternative)
+- `--auth-keypair` (wallet keypair for payload auth)
+- `--auth-secret` (base58 secret alternative)
 
 Private listening only:
 - `--subscriber-public-key`

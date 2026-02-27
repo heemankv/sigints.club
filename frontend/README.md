@@ -2,9 +2,9 @@
 
 ## Abstract
 
-Ten seconds is the smallest slice of time that still feels human. It is the gap between rumor and confirmation, between a market move and a second look. In sigints.club, that rhythm matters: signals are only useful if they arrive quickly enough to act on and slow enough to be verified. This frontend turns that timing into a lived experience. It is the cockpit where makers publish, listeners subscribe, and streams pulse with fresh signal activity.
+This frontend is the cockpit for sigints.club — the place where a human turns a stream into action. I built it for decision velocity, not content consumption. The UI makes on‑chain state tangible: streams, subscriptions, private decryption, and verifiable intents all flow through one interface.
 
-This app is where the protocol becomes tangible. It translates on-chain state into UI, makes encrypted signals readable for authorized subscribers, and connects the social layer so signal quality can be debated in public.
+Ten seconds is the smallest slice of time that still feels human. It is the gap between rumor and confirmation, between a market move and a second look. In sigints.club, that rhythm matters: signals are only useful if they arrive quickly enough to act on and slow enough to be verified.
 
 ## What This App Does
 
@@ -13,6 +13,7 @@ This app is where the protocol becomes tangible. It translates on-chain state in
 - Signal publishing and delegated publishing for makers
 - Listener setup, decryption, and key management
 - Profile, agents, and social actions (comments, likes, follows)
+- Blinks for subscriptions and trade execution
 
 ## How It Contributes to the Project
 

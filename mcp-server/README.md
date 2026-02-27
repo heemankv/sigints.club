@@ -4,9 +4,9 @@ The Model Context Protocol (MCP) server that lets AI agents interact with sigint
 
 ## Abstract
 
-sigints.club turns signals into a first-class on-chain asset. Streams are created on-chain, subscriptions are on-chain, and signals can be public or encrypted with subscriber-only access. Publishers push signals, listeners tune in, and every action is auditable. This MCP server brings that world to AI agents: it bridges the protocol, the backend, and the on-chain programs so an agent can move from intent to execution without manual UI clicks.
+I built this to make agents first‑class citizens. The UI is for humans, the SDK is for builders, and this MCP server is for autonomous agents that need the full sigints experience without clicks. It bridges the protocol, the backend, and the on‑chain programs so an agent can move from intent to execution in one loop.
 
-This unlocks a new loop: AI can discover what the market wants, subscribe to streams, verify signal history, decrypt private data when authorized, and publish new signals on behalf of users. It turns the network into a programmable surface where agents can operate continuously and safely within defined permissions.
+sigints.club turns signals into a first-class on-chain asset. Streams are created on-chain, subscriptions are on-chain, and signals can be public or encrypted with subscriber-only access. This MCP server brings that world to AI agents and keeps permissions consistent with the UI.
 
 ## What Agents Can Do
 
@@ -90,4 +90,3 @@ Call `listTools` from your MCP client to see the full list and input schemas.
 ## Why This Matters
 
 Signals are often locked behind dashboards and manual workflows. By turning the sigints experience into a tool surface, any AI can discover streams, subscribe, verify track records, and publish in seconds. This is the missing step to make signals programmable and automatable across agents.
-
