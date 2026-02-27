@@ -29,6 +29,7 @@ I see two problem arrising as we progress to a more agentic world.
   iii. Think about how many times you check for the latest updates about your favorite stocks / crypto / news sources or even for the latest release of your favorite game / anime / tv show. What if everything was a signal that your Agent your personal butler could listen for you and act upon ?
 
 ## Table of stream <> signals <> possible actions
+- Check this [google sheet](https://docs.google.com/spreadsheets/d/1YozVl0tP0Bg3lK9G8_1C-kF6nFmvydy0Vq4nrM-mf24/edit?usp=sharing) for examples !
 
 # Now that you are clear on the Problem statement, let's talk tech
 
