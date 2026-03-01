@@ -1,6 +1,7 @@
 import "./styles.css";
 import { Suspense } from "react";
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/next";
 import NetworkBanner from "./components/NetworkBanner";
 import Providers from "./providers";
 import WalletConnect from "./components/WalletConnect";
@@ -87,6 +88,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AppToasts />
           </div>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
